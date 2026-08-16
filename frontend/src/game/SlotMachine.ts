@@ -7,392 +7,208 @@ export class SlotMachine {
   private reels: PIXI.Container[] = [];
   private symbols: PIXI.Sprite[][] = [];
   private symbolTextures: Record<string, PIXI.Texture> = {};
-  private reelMasks: PIXI.Graphics[] = [];
   private paylineGraphics: PIXI.Graphics[] = [];
-  private isSpinning: boolean = false;
-  private spinCompleteCallback: ((result: SpinResult) => void) | null = null;
+  private blurFilters: PIXI.filters.BlurFilter[] = [];
+  private isSpinning = false;
+  private spinCallback: ((r: SpinResult) => void) | null = null;
   private currentResult: SpinResult | null = null;
-  private activeTickerCallbacks: ((deltaTime: number) => void)[] = [];
-  private winAnimationTimeouts: number[] = [];
-  
-  // Константы для настройки слота
-  private readonly REEL_WIDTH = 160;
-  private readonly SYMBOL_SIZE = 150;
-  private readonly SYMBOL_PADDING = 10;
+  private ticks: ((d: number) => void)[] = [];
+  private timers: number[] = [];
+  private readonly W = 160;
+  private readonly H = 150;
   private readonly ROWS = 3;
   private readonly COLS = 5;
-  private readonly SPIN_DURATION = 2000; // ms
-  private readonly EXTRA_SYMBOLS = 3; // Дополнительные символы для плавного вращения
-  
-  constructor() {
-    this.app = new PIXI.Application({
-      width: this.COLS * this.REEL_WIDTH,
-      height: this.ROWS * this.SYMBOL_SIZE,
-      backgroundColor: 0x1099bb,
-      resolution: window.devicePixelRatio || 1,
-    });
+  private readonly BUF = 1;
+  private readonly SPEED = 35;
+  private readonly SPIN_TIME = 400;
+  private readonly STOP_DELAY = 180;
+  private readonly BOUNCE_HEIGHT = 20;
+  private readonly BOUNCE_TIME = 150;
+  private readonly MAX_BLUR = 20;
+  private state: { on: boolean; stop: boolean; pos: number; final: string[]; bouncing: boolean; bounceStart: number }[] = [];
+
+  constructor() { this.app = new PIXI.Application({ width: this.COLS * this.W, height: this.ROWS * this.H, backgroundColor: 0x1a1a2e }); }
+
+  async init(el: HTMLElement) {
+    this.container = el; el.appendChild(this.app.view as HTMLCanvasElement);
+    await this.loadTex(); this.buildReels(); this.buildPaylines();
+    window.addEventListener('resize', () => this.resize()); this.resize();
   }
-  
-  public async init(container: HTMLElement): Promise<void> {
-    this.container = container;
-    container.appendChild(this.app.view as HTMLCanvasElement);
-    await this.createSymbolTextures();
-    this.createReels();
-    this.createPaylineGraphics();
-    window.addEventListener('resize', this.onResize.bind(this));
-    this.onResize();
-  }
-  
-  private onResize(): void {
+
+  private resize() {
     if (!this.container) return;
-    
-    const parent = this.container;
-    const scale = Math.min(
-      parent.clientWidth / (this.COLS * this.REEL_WIDTH),
-      parent.clientHeight / (this.ROWS * this.SYMBOL_SIZE)
-    );
-    
-    this.app.renderer.resize(
-      this.COLS * this.REEL_WIDTH * scale,
-      this.ROWS * this.SYMBOL_SIZE * scale
-    );
-    
-    this.app.stage.scale.set(scale);
+    const s = Math.min(this.container.clientWidth / (this.COLS * this.W), this.container.clientHeight / (this.ROWS * this.H));
+    this.app.renderer.resize(this.COLS * this.W * s, this.ROWS * this.H * s); this.app.stage.scale.set(s);
   }
-  
-  private async createSymbolTextures(): Promise<void> {
-    const symbols = ['A', 'B', 'C', 'D', 'E'];
-    
-    for (const symbol of symbols) {
-      try {
-        const texture = await PIXI.Texture.fromURL(`/assets/symbols/${symbol.toLowerCase()}.png`);
-        this.symbolTextures[symbol] = texture;
-      } catch (error) {
-        console.error(`Failed to load texture for symbol ${symbol}:`, error);
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = this.SYMBOL_SIZE - this.SYMBOL_PADDING * 2;
-        canvas.height = this.SYMBOL_SIZE - this.SYMBOL_PADDING * 2;
-        const ctx = canvas.getContext('2d');
-        
-        if (ctx) {
-          const color = {
-            'A': '#ff0000',
-            'B': '#00ff00',
-            'C': '#0000ff',
-            'D': '#ffff00',
-            'E': '#ff00ff'
-          }[symbol] || '#cccccc';
-          
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.roundRect(0, 0, canvas.width, canvas.height, 15);
-          ctx.fill();
-          
-          ctx.fillStyle = 'white';
-          ctx.font = '60px Arial';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(symbol, canvas.width / 2, canvas.height / 2);
-          
-          this.symbolTextures[symbol] = PIXI.Texture.from(canvas);
-        }
+
+  private async loadTex() {
+    for (const sym of ['A','B','C','D','E']) {
+      try { this.symbolTextures[sym] = await PIXI.Texture.fromURL(`/assets/symbols/${sym.toLowerCase()}.png`); }
+      catch {
+        const c = document.createElement('canvas'); c.width = c.height = this.H - 20; const ctx = c.getContext('2d')!;
+        ctx.fillStyle = {A:'#e74c3c',B:'#2ecc71',C:'#3498db',D:'#f1c40f',E:'#9b59b6'}[sym]||'#888';
+        ctx.beginPath(); ctx.roundRect(0,0,c.width,c.height,12); ctx.fill();
+        ctx.fillStyle='#fff'; ctx.font='bold 50px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(sym,c.width/2,c.height/2); this.symbolTextures[sym] = PIXI.Texture.from(c);
       }
     }
   }
-  
-  private createReels(): void {
-    const reelsContainer = new PIXI.Container();
-    reelsContainer.position.set(0, 0);
-    this.app.stage.addChild(reelsContainer);
-    
-    for (let i = 0; i < this.COLS; i++) {
-      const reel = new PIXI.Container();
-      reel.position.set(i * this.REEL_WIDTH + this.REEL_WIDTH / 2, 0);
-      reelsContainer.addChild(reel);
-      this.reels.push(reel);
+
+  private rnd() { const k=Object.keys(this.symbolTextures); return k[Math.floor(Math.random()*k.length)]; }
+  private mkSp(sym: string) { const sp = new PIXI.Sprite(this.symbolTextures[sym]); sp.anchor.set(0.5); sp.width = sp.height = this.H - 20; sp.name = sym; return sp; }
+
+  private buildReels() {
+    const rc = new PIXI.Container(); this.app.stage.addChild(rc);
+    for (let c = 0; c < this.COLS; c++) {
+      const reel = new PIXI.Container(); reel.x = c * this.W + this.W / 2; rc.addChild(reel); this.reels.push(reel);
+      const m = new PIXI.Graphics(); m.beginFill(0xffffff).drawRect(c*this.W,0,this.W,this.ROWS*this.H).endFill(); rc.addChild(m); reel.mask = m as any;
       
-      const maskGraphics = new PIXI.Graphics();
-      maskGraphics.beginFill(0xffffff);
-      maskGraphics.drawRect(i * this.REEL_WIDTH, 0, this.REEL_WIDTH, this.ROWS * this.SYMBOL_SIZE);
-      maskGraphics.endFill();
-      reelsContainer.addChild(maskGraphics);
-      this.reelMasks.push(maskGraphics);
+      // Добавляем фильтр размытия
+      const blur = new PIXI.filters.BlurFilter();
+      blur.blurX = 0;
+      blur.blurY = 0;
+      blur.quality = 3;
+      reel.filters = [blur];
+      this.blurFilters[c] = blur;
       
-      reel.mask = maskGraphics as any;
-      this.symbols[i] = [];
-      
-      for (let j = 0; j < this.ROWS + this.EXTRA_SYMBOLS; j++) {
-        const randomSymbol = ['A', 'B', 'C', 'D', 'E'][Math.floor(Math.random() * 5)];
-        const symbol = this.createSymbol(randomSymbol);
-        symbol.position.set(0, (j - this.EXTRA_SYMBOLS) * this.SYMBOL_SIZE + this.SYMBOL_SIZE / 2);
-        reel.addChild(symbol);
-        this.symbols[i][j] = symbol;
-      }
+      this.symbols[c] = [];
+      for (let r = 0; r < this.ROWS + this.BUF * 2; r++) { const sp = this.mkSp(this.rnd()); sp.y = (r - this.BUF) * this.H + this.H / 2; reel.addChild(sp); this.symbols[c].push(sp); }
+      this.state[c] = { on: false, stop: false, pos: 0, final: [], bouncing: false, bounceStart: 0 };
     }
   }
-  
-  private createPaylineGraphics(): void {
-    const paylineContainer = new PIXI.Container();
-    this.app.stage.addChild(paylineContainer);
-    
-    for (let i = 0; i < 5; i++) {
-      const payline = new PIXI.Graphics();
-      payline.visible = false;
-      paylineContainer.addChild(payline);
-      this.paylineGraphics.push(payline);
-    }
-  }
-  
-  private createSymbol(type: string): PIXI.Sprite {
-    const texture = this.symbolTextures[type] || this.symbolTextures['A'];
-    const symbol = new PIXI.Sprite(texture);
-    symbol.anchor.set(0.5);
-    
-    const targetSize = this.SYMBOL_SIZE - this.SYMBOL_PADDING * 2;
-    const scale = Math.min(
-      targetSize / texture.width,
-      targetSize / texture.height
-    );
-    
-    symbol.scale.set(scale);
-    (symbol as any).baseScale = scale;
-    symbol.name = type;
-    
-    return symbol;
-  }
-  
-  public spin(callback: (result: SpinResult) => void): void {
+
+  private buildPaylines() { for (let i = 0; i < 5; i++) { const g = new PIXI.Graphics(); g.visible = false; this.app.stage.addChild(g); this.paylineGraphics.push(g); } }
+  setSpinResult(r: SpinResult) { this.currentResult = r; }
+
+  spin(cb: (r: SpinResult) => void) {
     if (this.isSpinning) return;
+    this.clear(); this.isSpinning = true; this.spinCallback = cb; this.hideLines();
     
-    this.clearAllAnimations();
-    this.isSpinning = true;
-    this.spinCompleteCallback = callback;
-    this.hidePaylines();
-    
-    for (let i = 0; i < this.COLS; i++) {
-      setTimeout(() => this.spinReel(i), i * 200);
-    }
-  }
-  
-  private clearAllAnimations(): void {
-    this.activeTickerCallbacks.forEach(cb => this.app.ticker.remove(cb));
-    this.activeTickerCallbacks = [];
-    
-    this.winAnimationTimeouts.forEach(clearTimeout);
-    this.winAnimationTimeouts = [];
-    
-    this.paylineGraphics.forEach(p => {
-      p.visible = false;
-      p.alpha = 1;
-    });
-    
-    this.symbols.forEach(reel => {
-      reel.forEach(symbol => {
-        symbol.scale.set((symbol as any).baseScale || 1);
-      });
-    });
-  }
-  
-  private spinReel(reelIndex: number): void {
-    for (let i = 0; i < this.symbols[reelIndex].length; i++) {
-      const symbol = this.symbols[reelIndex][i];
-      
-      if (this.currentResult?.matrix) {
-        let targetSymbolName: string;
-        
-        if (i >= this.EXTRA_SYMBOLS && i < this.EXTRA_SYMBOLS + this.ROWS) {
-          targetSymbolName = this.currentResult.matrix[i - this.EXTRA_SYMBOLS][reelIndex];
-        } else {
-          const symbolKeys = Object.keys(this.symbolTextures);
-          targetSymbolName = symbolKeys[Math.floor(Math.random() * symbolKeys.length)];
-        }
-        
-        symbol.name = targetSymbolName;
-        const newTexture = this.symbolTextures[targetSymbolName];
-        symbol.texture = newTexture;
-        
-        const targetSize = this.SYMBOL_SIZE - this.SYMBOL_PADDING * 2;
-        const scale = Math.min(
-          targetSize / newTexture.width,
-          targetSize / newTexture.height
-        );
-        symbol.scale.set(scale);
-        (symbol as any).baseScale = scale;
+    // Сброс позиций всех символов перед спином
+    for (let c = 0; c < this.COLS; c++) {
+      for (let i = 0; i < this.symbols[c].length; i++) {
+        this.symbols[c][i].y = (i - this.BUF) * this.H + this.H / 2;
       }
+      this.blurFilters[c].blurY = 0;
     }
     
-    const totalSpinSteps = 20 + reelIndex * 5;
-    const startPosition = 0;
-    const endPosition = -totalSpinSteps * this.SYMBOL_SIZE;
-    let elapsed = 0;
-    const duration = this.SPIN_DURATION - reelIndex * 200;
-    
-    const tickerCallback = (deltaTime: number) => {
-      elapsed += this.app.ticker.deltaMS;
-      const progress = Math.min(elapsed / duration, 1);
-      const easedProgress = this.easeOutBack(progress);
-      const currentPosition = startPosition + (endPosition - startPosition) * easedProgress;
-      
-      for (let i = 0; i < this.symbols[reelIndex].length; i++) {
-        const symbol = this.symbols[reelIndex][i];
-        let y = (i - this.EXTRA_SYMBOLS) * this.SYMBOL_SIZE + this.SYMBOL_SIZE / 2 + currentPosition;
+    const mat = this.currentResult?.matrix || this.rndMat();
+    for (let c = 0; c < this.COLS; c++) {
+      this.state[c] = { on: true, stop: false, pos: 0, final: mat.map(row => row[c]), bouncing: false, bounceStart: 0 };
+      this.timers.push(window.setTimeout(() => { this.state[c].stop = true; }, this.SPIN_TIME + c * this.STOP_DELAY));
+    }
+    this.runAnim();
+  }
+
+  private rndMat() { return Array.from({length:this.ROWS},()=>Array.from({length:this.COLS},()=>this.rnd())); }
+
+  private runAnim() {
+    const tick = () => {
+      let done = true;
+      for (let c = 0; c < this.COLS; c++) {
+        const s = this.state[c];
         
-        const symbolHeight = this.SYMBOL_SIZE;
-        const totalHeight = this.ROWS * symbolHeight;
+        if (s.bouncing) {
+          // Анимация отскока - без размытия
+          done = false;
+          this.blurFilters[c].blurY = 0;
+          
+          const elapsed = Date.now() - s.bounceStart;
+          const progress = Math.min(elapsed / this.BOUNCE_TIME, 1);
+          const bounce = Math.sin(progress * Math.PI) * this.BOUNCE_HEIGHT * (1 - progress);
+          
+          // Двигаем все символы барабана вверх-вниз
+          for (let r = 0; r < this.ROWS; r++) {
+            const sp = this.symbols[c][r + this.BUF];
+            sp.y = r * this.H + this.H / 2 + bounce;
+          }
+          
+          if (progress >= 1) {
+            s.bouncing = false;
+            // Финальная позиция
+            for (let r = 0; r < this.ROWS; r++) {
+              this.symbols[c][r + this.BUF].y = r * this.H + this.H / 2;
+            }
+          }
+          continue;
+        }
         
-        while (y > totalHeight) y -= totalHeight + this.EXTRA_SYMBOLS * symbolHeight;
-        while (y < -symbolHeight * this.EXTRA_SYMBOLS) y += totalHeight + this.EXTRA_SYMBOLS * symbolHeight;
+        if (!s.on) continue;
+        done = false;
         
-        symbol.position.y = y;
+        // Обновляем размытие в зависимости от скорости
+        const targetBlur = s.stop ? this.MAX_BLUR * 0.4 : this.MAX_BLUR;
+        this.blurFilters[c].blurY += (targetBlur - this.blurFilters[c].blurY) * 0.4;
+        
+        s.pos += s.stop ? this.SPEED * 0.5 : this.SPEED;
+        this.updReel(c);
+        
+        if (s.stop && Math.floor(s.pos / this.H) >= 3) {
+          s.on = false;
+          this.blurFilters[c].blurY = 0; // Убираем размытие
+          this.fin(c);
+          // Запускаем отскок
+          s.bouncing = true;
+          s.bounceStart = Date.now();
+        }
       }
       
-      if (progress >= 1) {
-        for (let i = 0; i < this.symbols[reelIndex].length; i++) {
-          const symbol = this.symbols[reelIndex][i];
-          symbol.position.y = (i - this.EXTRA_SYMBOLS) * this.SYMBOL_SIZE + this.SYMBOL_SIZE / 2;
-        }
-        
-        const index = this.activeTickerCallbacks.indexOf(tickerCallback);
-        if (index > -1) this.activeTickerCallbacks.splice(index, 1);
-        this.app.ticker.remove(tickerCallback);
-        
-        if (reelIndex === this.COLS - 1) {
-          this.completeSpinAnimation();
-        }
+      if (done) {
+        this.app.ticker.remove(tick);
+        this.ticks = this.ticks.filter(x => x !== tick);
+        this.onDone();
       }
     };
-    
-    this.activeTickerCallbacks.push(tickerCallback);
-    this.app.ticker.add(tickerCallback);
+    this.ticks.push(tick);
+    this.app.ticker.add(tick);
   }
-  
-  private easeOutBack(x: number): number {
-    const c1 = 1.70158;
-    const c3 = c1 + 1;
-    return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
-  }
-  
-  private completeSpinAnimation(): void {
-    const visibleMatrix: string[][] = [];
-    for (let row = 0; row < this.ROWS; row++) {
-      const rowSymbols: string[] = [];
-      for (let col = 0; col < this.COLS; col++) {
-        rowSymbols.push(this.symbols[col][row + this.EXTRA_SYMBOLS].name);
-      }
-      visibleMatrix.push(rowSymbols);
-    }
-    
-    this.isSpinning = false;
-    
-    if (this.currentResult && this.spinCompleteCallback) {
-      this.showWinningLines(this.currentResult);
-      this.spinCompleteCallback(this.currentResult);
-    }
-  }
-  
-  public setSpinResult(result: SpinResult): void {
-    this.currentResult = result;
-  }
-  
-  private showWinningLines(result: SpinResult): void {
-    if (!result.wins?.length) return;
-    
-    result.wins.forEach((win, index) => {
-      const lineIndex = win.line;
-      if (lineIndex >= this.paylineGraphics.length) return;
-      
-      const payline = this.paylineGraphics[lineIndex];
-      payline.clear();
-      
-      const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff];
-      payline.lineStyle(5, colors[lineIndex % colors.length], 1);
-      
-      const positions = this.getPaylinePositions(lineIndex);
-      payline.moveTo(
-        positions[0].col * this.REEL_WIDTH + this.REEL_WIDTH / 2,
-        positions[0].row * this.SYMBOL_SIZE + this.SYMBOL_SIZE / 2
-      );
-      
-      for (let i = 1; i < positions.length; i++) {
-        payline.lineTo(
-          positions[i].col * this.REEL_WIDTH + this.REEL_WIDTH / 2,
-          positions[i].row * this.SYMBOL_SIZE + this.SYMBOL_SIZE / 2
-        );
-      }
-      
-      this.highlightSymbols(positions, win.count);
-      payline.visible = true;
-      
-      const blinkCallback = (deltaTime: number) => {
-        payline.alpha = 0.5 + Math.sin(this.app.ticker.lastTime / 200) * 0.5;
-      };
-      
-      this.activeTickerCallbacks.push(blinkCallback);
-      this.app.ticker.add(blinkCallback);
-      
-      const timeout = setTimeout(() => {
-        const index = this.activeTickerCallbacks.indexOf(blinkCallback);
-        if (index > -1) this.activeTickerCallbacks.splice(index, 1);
-        this.app.ticker.remove(blinkCallback);
-        payline.alpha = 1;
-      }, 3000);
 
-      this.winAnimationTimeouts.push(timeout);
+  private updReel(c: number) {
+    const s = this.state[c], off = s.pos % this.H, tot = this.symbols[c].length;
+    for (let i = 0; i < tot; i++) {
+      const sp = this.symbols[c][i]; let y = (i - this.BUF) * this.H + this.H / 2 + off;
+      if (y > (this.ROWS + this.BUF) * this.H) { y -= tot * this.H; if (!s.stop) { const ns = this.rnd(); sp.texture = this.symbolTextures[ns]; sp.name = ns; } }
+      sp.y = y;
+    }
+  }
+
+  private fin(c: number) {
+    const f = this.state[c].final;
+    // Сбросить ВСЕ символы в колонке, включая буферные
+    for (let i = 0; i < this.symbols[c].length; i++) {
+      const sp = this.symbols[c][i];
+      sp.y = (i - this.BUF) * this.H + this.H / 2;
+      // Установить финальные текстуры только для видимых символов
+      if (i >= this.BUF && i < this.BUF + this.ROWS) {
+        const r = i - this.BUF;
+        sp.texture = this.symbolTextures[f[r]];
+        sp.name = f[r];
+      }
+    }
+  }
+
+  private onDone() { this.isSpinning = false; if (this.currentResult) { this.showWins(this.currentResult); this.spinCallback?.(this.currentResult); } }
+  private clear() { this.ticks.forEach(t => this.app.ticker.remove(t)); this.ticks = []; this.timers.forEach(clearTimeout); this.timers = []; this.paylineGraphics.forEach(p => { p.visible = false; p.alpha = 1; }); }
+
+  private showWins(r: SpinResult) {
+    r.wins?.forEach(w => {
+      const g = this.paylineGraphics[w.line]; if (!g) return; g.clear();
+      g.lineStyle(4, [0xe74c3c,0x2ecc71,0x3498db,0xf1c40f,0x9b59b6][w.line % 5]);
+      const pos = this.linePos(w.line);
+      g.moveTo(pos[0].col * this.W + this.W / 2, pos[0].row * this.H + this.H / 2);
+      pos.slice(1).forEach(p => g.lineTo(p.col * this.W + this.W / 2, p.row * this.H + this.H / 2));
+      g.visible = true;
     });
   }
-  
-  private getPaylinePositions(lineIndex: number): PaylinePosition[] {
-    switch(lineIndex) {
-      case 0: return Array(this.COLS).fill(0).map((_, col) => ({ row: 1, col }));
-      case 1: return Array(this.COLS).fill(0).map((_, col) => ({ row: 0, col }));
-      case 2: return Array(this.COLS).fill(0).map((_, col) => ({ row: 2, col }));
-      case 3: return [
-        { row: 0, col: 0 }, { row: 1, col: 1 }, { row: 2, col: 2 }, { row: 1, col: 3 }, { row: 0, col: 4 }
-      ];
-      case 4: return [
-        { row: 2, col: 0 }, { row: 1, col: 1 }, { row: 0, col: 2 }, { row: 1, col: 3 }, { row: 2, col: 4 }
-      ];
-      default: return [];
-    }
-  }
-  
-  private highlightSymbols(positions: PaylinePosition[], count: number): void {
-    for (let i = 0; i < count; i++) {
-      const { row, col } = positions[i];
-      const symbol = this.symbols[col][row + this.EXTRA_SYMBOLS];
-      const baseScale = (symbol as any).baseScale || 1;
 
-      const scaleCallback = (deltaTime: number) => {
-        if (symbol.parent) {
-          const pulse = Math.sin(this.app.ticker.lastTime / 150) * 0.1;
-          symbol.scale.set(baseScale * (1 + pulse));
-        }
-      };
-      
-      this.activeTickerCallbacks.push(scaleCallback);
-      this.app.ticker.add(scaleCallback);
-      
-      const timeout = setTimeout(() => {
-        const index = this.activeTickerCallbacks.indexOf(scaleCallback);
-        if (index > -1) this.activeTickerCallbacks.splice(index, 1);
-        this.app.ticker.remove(scaleCallback);
-        if (symbol.parent) symbol.scale.set(baseScale);
-      }, 3000);
+  private linePos(l: number): PaylinePosition[] {
+    if (l===0) return [0,1,2,3,4].map(c=>({row:1,col:c}));
+    if (l===1) return [0,1,2,3,4].map(c=>({row:0,col:c}));
+    if (l===2) return [0,1,2,3,4].map(c=>({row:2,col:c}));
+    if (l===3) return [{row:0,col:0},{row:1,col:1},{row:2,col:2},{row:1,col:3},{row:0,col:4}];
+    return [{row:2,col:0},{row:1,col:1},{row:0,col:2},{row:1,col:3},{row:2,col:4}];
+  }
 
-      this.winAnimationTimeouts.push(timeout);
-    }
-  }
-  
-  private hidePaylines(): void {
-    this.paylineGraphics.forEach(p => p.visible = false);
-  }
-  
-  public destroy(): void {
-    this.clearAllAnimations();
-    window.removeEventListener('resize', this.onResize.bind(this));
-    if (this.app) {
-      this.app.destroy(true, { children: true, texture: true, baseTexture: true });
-    }
-  }
+  private hideLines() { this.paylineGraphics.forEach(p => { p.visible = false; }); }
+  destroy() { this.clear(); this.app?.destroy(true, { children: true, texture: true, baseTexture: true }); }
 }

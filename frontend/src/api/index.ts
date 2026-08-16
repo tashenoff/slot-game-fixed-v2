@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { SpinResult, Stats } from '../types';
 
-const API_URL = 'http://192.168.1.66:5000/api';
+const API_URL = 'http://localhost:5000/api';
 
 // Получение баланса пользователя
 export const fetchBalance = async (): Promise<number> => {
