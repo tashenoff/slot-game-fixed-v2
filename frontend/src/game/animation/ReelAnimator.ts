@@ -8,7 +8,8 @@ export interface ReelAnimatorCallbacks {
 }
 
 /**
- * ReelAnimator - анимация вращения и остановки барабанов
+ * ReelAnimator - анимация вращения барабанов с настоящей лентой символов
+ * Лента прокручивается плавно до целевой позиции без замены текстур
  */
 export class ReelAnimator {
   private config: SlotConfig;
@@ -42,7 +43,10 @@ export class ReelAnimator {
     const state = this.reelManager.getState();
 
     for (let c = 0; c < this.config.cols; c++) {
-      const timer = window.setTimeout(() => { state[c].stop = true; }, spinTime + c * stopDelay);
+      const timer = window.setTimeout(() => {
+        state[c].stop = true;
+        state[c].phase = 'stopping';
+      }, spinTime + c * stopDelay);
       this.timers.push(timer);
     }
   }
@@ -59,69 +63,66 @@ export class ReelAnimator {
 
     for (let c = 0; c < cols; c++) {
       const s = state[c];
-      if (s.bouncing) {
+      if (s.phase === 'bouncing') {
         allDone = false;
         this.animateBounce(c, s);
       } else if (s.on) {
         allDone = false;
-        this.animateSpin(c, s);
+        this.animateReel(c, s);
       }
     }
 
     if (allDone) this.finish();
   }
 
-  private animateSpin(col: number, s: ReelState): void {
+  private animateReel(col: number, s: ReelState): void {
     const { animation, dimensions } = this.config;
     const blurFilters = this.reelManager.getBlurFilters();
-    const barabanSprites = this.reelManager.getBarabanSprites();
-    const symbols = this.reelManager.getSymbols();
-    const factory = this.reelManager.getSymbolFactory();
 
-    // Обновляем размытие
-    const targetBlur = s.stop ? animation.maxBlur * 0.4 : animation.maxBlur;
-    blurFilters[col].blurY += (targetBlur - blurFilters[col].blurY) * 0.4;
+    if (s.phase === 'spinning') {
+      s.velocity = animation.spinSpeed;
+      blurFilters[col].blurY += (animation.maxBlur - blurFilters[col].blurY) * 0.3;
+    } else if (s.phase === 'stopping') {
+      const { decelerationDistance } = animation;
+      const { cellHeight } = dimensions;
+      const distanceToTarget = s.targetPosition - s.position;
+      const decelerationZone = decelerationDistance * cellHeight;
 
-    // Обновляем позицию
-    s.pos += s.stop ? animation.spinSpeed * 0.5 : animation.spinSpeed;
-
-    // Обновляем символы
-    const { cellHeight, buffer, rows } = dimensions;
-    const offset = s.pos % cellHeight;
-    const total = symbols[col].length;
-
-    for (let i = 0; i < total; i++) {
-      const sp = symbols[col][i];
-      let y = (i - buffer) * cellHeight + cellHeight / 2 + offset;
-      if (y > (rows + buffer) * cellHeight) {
-        y -= total * cellHeight;
-        if (!s.stop) {
-          const newSym = factory.getRandomSymbolId();
-          factory.updateSymbolTexture(sp, newSym);
-        }
+      if (distanceToTarget <= decelerationZone && distanceToTarget > 0) {
+        const progress = 1 - (distanceToTarget / decelerationZone);
+        const easedProgress = 1 - Math.pow(1 - progress, 2);
+        s.velocity = Math.max(3, animation.spinSpeed * (1 - easedProgress * 0.9));
+        blurFilters[col].blurY += (animation.maxBlur * (1 - easedProgress) - blurFilters[col].blurY) * 0.3;
+      } else if (distanceToTarget <= 0) {
+        s.position = s.targetPosition;
+        s.velocity = 0;
+        s.on = false;
+        s.phase = 'bouncing';
+        s.bouncing = true;
+        s.bounceStart = Date.now();
+        blurFilters[col].blurY = 0;
+        this.snapToFinalPosition(col, s);
+        this.reelManager.finishReel(col);
+        this.callbacks.onReelStop?.(col);
+        return;
       }
-      sp.y = y;
     }
 
-    // Обновляем текстуру барабана
-    if (barabanSprites[col]) barabanSprites[col].tilePosition.y = s.pos;
+    s.position += s.velocity;
+    s.pos = s.position;
+    this.reelManager.updateReelDisplay(col);
+  }
 
-    // Проверка на остановку
-    if (s.stop && Math.floor(s.pos / cellHeight) >= 3) {
-      s.on = false;
-      blurFilters[col].blurY = 0;
-      this.reelManager.finishReel(col);
-      this.callbacks.onReelStop?.(col);
-      s.bouncing = true;
-      s.bounceStart = Date.now();
-    }
+  private snapToFinalPosition(col: number, s: ReelState): void {
+    const { cellHeight } = this.config.dimensions;
+    s.position = Math.round(s.position / cellHeight) * cellHeight;
+    this.reelManager.updateReelDisplay(col);
   }
 
   private animateBounce(col: number, s: ReelState): void {
     const { animation, dimensions } = this.config;
     const blurFilters = this.reelManager.getBlurFilters();
     const barabanSprites = this.reelManager.getBarabanSprites();
-    const symbols = this.reelManager.getSymbols();
 
     blurFilters[col].blurY = 0;
 
@@ -129,18 +130,23 @@ export class ReelAnimator {
     const progress = Math.min(elapsed / animation.bounceTime, 1);
     const bounce = Math.sin(progress * Math.PI) * animation.bounceHeight * (1 - progress);
 
-    const { cellHeight, buffer, rows } = dimensions;
+    const { cellHeight, rows } = dimensions;
 
+    // Анимируем только видимые символы (используем getSymbol)
     for (let r = 0; r < rows; r++) {
-      symbols[col][r + buffer].y = r * cellHeight + cellHeight / 2 + bounce;
+      const sprite = this.reelManager.getSymbol(col, r);
+      if (sprite) sprite.y = r * cellHeight + cellHeight / 2 + bounce;
     }
 
     if (barabanSprites[col]) barabanSprites[col].tilePosition.y = bounce;
 
     if (progress >= 1) {
       s.bouncing = false;
+      s.phase = 'idle';
+      // Финальные позиции
       for (let r = 0; r < rows; r++) {
-        symbols[col][r + buffer].y = r * cellHeight + cellHeight / 2;
+        const sprite = this.reelManager.getSymbol(col, r);
+        if (sprite) sprite.y = r * cellHeight + cellHeight / 2;
       }
       if (barabanSprites[col]) barabanSprites[col].tilePosition.y = 0;
     }

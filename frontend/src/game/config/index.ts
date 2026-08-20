@@ -5,5 +5,6 @@ export type {
   AnimationConfig,
   VisualConfig,
   SymbolConfig,
+  ReelStripConfig,
   PaylinePattern,
 } from './SlotConfig';

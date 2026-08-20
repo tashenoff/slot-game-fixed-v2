@@ -27,6 +27,10 @@ export interface AnimationConfig {
   maxBlur: number;
   winSymbolScale: number; // Увеличение выигрышного символа
   winAnimationDuration: number;
+  // Параметры ленты
+  reelStripLength: number; // Количество символов на ленте каждого барабана
+  minSpinCycles: number; // Минимальное количество оборотов ленты перед остановкой
+  decelerationDistance: number; // Расстояние торможения в символах
 }
 
 export interface VisualConfig {
@@ -41,6 +45,12 @@ export interface SymbolConfig {
   fallbackColors: Record<string, string>;
 }
 
+export interface ReelStripConfig {
+  // Ленты для каждого барабана (каждая лента — массив символов)
+  // Если не задана — генерируется случайно при инициализации
+  strips?: string[][];
+}
+
 export interface PaylinePattern {
   positions: { row: number; col: number }[];
 }
@@ -50,6 +60,7 @@ export interface SlotConfigData {
   animation: AnimationConfig;
   visual: VisualConfig;
   symbols: SymbolConfig;
+  reelStrips: ReelStripConfig;
   paylines: PaylinePattern[];
 }
 
@@ -72,14 +83,18 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     buffer: 1,
   },
   animation: {
-    spinSpeed: 35,
-    spinTime: 600,
-    stopDelay: 120,
-    bounceHeight: 20,
-    bounceTime: 150,
-    maxBlur: 20,
+    spinSpeed: 45,           // Скорость вращения (пикселей/кадр)
+    spinTime: 400,           // Время до начала остановки первого барабана (мс) - было 800
+    stopDelay: 100,          // Задержка между остановкой барабанов (мс) - было 150
+    bounceHeight: 12,        // Высота отскока
+    bounceTime: 150,         // Время отскока
+    maxBlur: 10,             // Максимальное размытие
     winSymbolScale: 1.03,
     winAnimationDuration: 300,
+    // Параметры ленты
+    reelStripLength: 20,     // Символов на ленте
+    minSpinCycles: 1,        // Минимум оборотов перед остановкой - было 2
+    decelerationDistance: 3, // Символов для торможения - было 4
   },
   visual: {
     nonWinAlpha: 0.5,
@@ -96,6 +111,10 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
       D: '#f1c40f',
       E: '#9b59b6',
     },
+  },
+  reelStrips: {
+    // Ленты будут сгенерированы автоматически при инициализации
+    strips: undefined,
   },
   paylines: [
     // Линия 0: средняя горизонтальная
@@ -133,6 +152,7 @@ export class SlotConfig {
       animation: { ...defaults.animation, ...overrides.animation },
       visual: { ...defaults.visual, ...overrides.visual },
       symbols: { ...defaults.symbols, ...overrides.symbols },
+      reelStrips: { ...defaults.reelStrips, ...overrides.reelStrips },
       paylines: overrides.paylines || defaults.paylines,
     };
   }
@@ -141,6 +161,7 @@ export class SlotConfig {
   get animation(): AnimationConfig { return this.config.animation; }
   get visual(): VisualConfig { return this.config.visual; }
   get symbols(): SymbolConfig { return this.config.symbols; }
+  get reelStrips(): ReelStripConfig { return this.config.reelStrips; }
   get paylines(): PaylinePattern[] { return this.config.paylines; }
 
   // Вспомогательные геттеры
