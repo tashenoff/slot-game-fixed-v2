@@ -42,11 +42,13 @@ export class ReelAnimator {
     const { spinTime, stopDelay } = this.config.animation;
     const state = this.reelManager.getState();
 
+    // Все барабаны останавливаются по одному таймеру (одновременно если stopDelay=0)
     for (let c = 0; c < this.config.cols; c++) {
+      const delay = spinTime + c * stopDelay;
       const timer = window.setTimeout(() => {
         state[c].stop = true;
         state[c].phase = 'stopping';
-      }, spinTime + c * stopDelay);
+      }, delay);
       this.timers.push(timer);
     }
   }
@@ -114,8 +116,8 @@ export class ReelAnimator {
   }
 
   private snapToFinalPosition(col: number, s: ReelState): void {
-    const { cellHeight } = this.config.dimensions;
-    s.position = Math.round(s.position / cellHeight) * cellHeight;
+    // Позиция уже установлена на targetPosition в animateReel
+    // Просто обновляем отображение
     this.reelManager.updateReelDisplay(col);
   }
 

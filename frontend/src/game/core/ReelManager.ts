@@ -145,7 +145,7 @@ export class ReelManager {
   /**
    * Обновить отображение барабана - просто двигаем ВСЕ спрайты ленты
    * Текстуры НЕ меняются - каждый спрайт привязан к своему символу на ленте
-   * Направление: сверху вниз (как в реальных слотах)
+   * Направление: символы движутся ВНИЗ (новые входят сверху, старые выходят снизу)
    */
   updateReelDisplay(col: number): void {
     const { cellHeight, rows } = this.config.dimensions;
@@ -161,14 +161,14 @@ export class ReelManager {
     for (let i = 0; i < reelStripLength; i++) {
       const sp = sprites[i];
       // Базовая позиция символа на ленте + смещение от вращения
-      // Когда offset растёт, символы двигаются ВНИЗ (сверху вниз)
+      // Когда offset растёт, символы двигаются ВНИЗ
       let y = i * cellHeight + cellHeight / 2 + offset;
       
-      // Цикличность: если символ ушёл слишком вниз - перемещаем наверх
+      // Цикличность: если символ ушёл слишком низко - перемещаем вверх
       while (y > (rows + 1) * cellHeight) {
         y -= stripHeightPx;
       }
-      // Если символ слишком высоко - перемещаем вниз  
+      // Если символ слишком высоко - перемещаем вниз
       while (y < -cellHeight) {
         y += stripHeightPx;
       }
@@ -231,14 +231,15 @@ export class ReelManager {
       const finalSymbols = matrix.map(row => row[c]);
       const targetStripIndex = this.findOrInsertFinalSymbols(c, finalSymbols);
       
-      // При движении символов ВНИЗ:
-      // - offset растёт
-      // - символ с индексом i появляется в row=0 когда offset = i * cellHeight
-      // - Но нам нужен символ "выше" на rows-1 позиций для учёта видимой области
-      // Финальный символ row=0 должен быть targetStripIndex
-      // Значит offset должен быть = (stripHeightPx - targetStripIndex * cellHeight) % stripHeightPx
+      // При движении символов ВНИЗ (y = base + offset):
+      // - offset растёт, символы опускаются
+      // - символ с индексом i в row 0 когда: i*cellHeight + offset ≡ 0 (mod stripHeightPx)
+      // - offset = stripHeightPx - i*cellHeight (для i > 0)
+      // Чтобы символ targetStripIndex был в row 0:
       
-      const targetOffset = (stripHeightPx - targetStripIndex * cellHeight) % stripHeightPx;
+      const targetOffset = targetStripIndex === 0 
+        ? 0 
+        : (stripHeightPx - targetStripIndex * cellHeight) % stripHeightPx;
       const currentOffset = this.state[c].position % stripHeightPx;
       
       // Сколько нужно прокрутить чтобы достичь targetOffset
