@@ -1,19 +1,65 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { SlotMachine } from '../game/SlotMachine';
+import { SnowEffect } from '../game/SnowEffect';
+import Navbar from './Navbar';
+import Modal from './Modal';
 import * as API from '../api';
 import { Stats } from '../types';
 
+const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
+
 const SlotGame: React.FC = () => {
   const slotContainerRef = useRef<HTMLDivElement>(null);
+  const snowContainerRef = useRef<HTMLDivElement>(null);
+  const snowEffectRef = useRef<SnowEffect | null>(null);
+  const spinSoundRef = useRef<HTMLAudioElement | null>(null);
+  const stopSoundRef = useRef<HTMLAudioElement | null>(null);
+  const musicRef = useRef<HTMLAudioElement | null>(null);
+  const eSoundRef = useRef<HTMLAudioElement | null>(null);
+  const cSoundRef = useRef<HTMLAudioElement | null>(null);
+  const bSoundRef = useRef<HTMLAudioElement | null>(null);
+  const musicFadeTimerRef = useRef<number | null>(null);
+  const musicFadeIntervalRef = useRef<number | null>(null);
+  const [isMusicOn, setIsMusicOn] = useState<boolean>(true);
   const [slotMachine, setSlotMachine] = useState<SlotMachine | null>(null);
   const [balance, setBalance] = useState<number>(1000);
   const [bet, setBet] = useState<number>(1);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [winAmount, setWinAmount] = useState<number>(0);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [showStats, setShowStats] = useState<boolean>(false);
+  const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
+  const [showStatsModal, setShowStatsModal] = useState<boolean>(false);
   const [isProcessingMultiSpin, setIsProcessingMultiSpin] = useState<boolean>(false);
   const [multiSpinProgress, setMultiSpinProgress] = useState<number>(0);
+  
+  // Состояния автоспина
+  const [isAutoSpin, setIsAutoSpin] = useState<boolean>(false);
+  const [autoSpinCount, setAutoSpinCount] = useState<number>(0);
+  const [showAutoSpinMenu, setShowAutoSpinMenu] = useState<boolean>(false);
+  const autoSpinRef = useRef<boolean>(false); // Для отслеживания состояния автоспина в колбэках
+  const betRef = useRef<number>(bet); // Для хранения текущей ставки в колбэках
+  const balanceRef = useRef<number>(balance); // Для хранения актуального баланса
+  const isSpinningRef = useRef<boolean>(false); // Для защиты от двойного вызова
+  
+  // История спинов для отладки
+  interface SpinHistoryItem {
+    spinNumber: number;
+    bet: number;
+    win: number;
+    balanceBefore: number;
+    balanceAfter: number;
+  }
+  const [spinHistory, setSpinHistory] = useState<SpinHistoryItem[]>([]);
+  const spinCounterRef = useRef<number>(0);
+  
+  // Обновляем refs при изменении значений
+  useEffect(() => {
+    betRef.current = bet;
+  }, [bet]);
+  
+  useEffect(() => {
+    balanceRef.current = balance;
+  }, [balance]);
 
   // Инициализация слот-машины
   useEffect(() => {
@@ -31,9 +77,35 @@ const SlotGame: React.FC = () => {
           slotMachine.destroy();
         }
         
+        // Уничтожаем снег, если он был
+        if (snowEffectRef.current) {
+          snowEffectRef.current.destroy();
+          snowEffectRef.current = null;
+        }
+        
         // Создаем экземпляр слот-машины
         const machine = new SlotMachine();
         machine.init(slotContainerRef.current);
+        
+        // Инициализируем эффект снега
+        if (snowContainerRef.current) {
+          if (snowEffectRef.current) {
+            snowEffectRef.current.destroy();
+          }
+          const snow = new SnowEffect();
+          snow.init(snowContainerRef.current);
+          snowEffectRef.current = snow;
+        }
+        
+        // Устанавливаем колбэк для звука остановки каждого барабана
+        machine.setReelStopCallback(() => {
+          if (stopSoundRef.current) {
+            // Клонируем звук для одновременного воспроизведения нескольких
+            const sound = stopSoundRef.current.cloneNode() as HTMLAudioElement;
+            sound.play().catch(err => console.log('Audio play error:', err));
+          }
+        });
+        
         setSlotMachine(machine);
 
         // Получаем начальный баланс
@@ -56,17 +128,111 @@ const SlotGame: React.FC = () => {
     };
   }, []); // Пустой массив зависимостей для выполнения только при монтировании
 
-  // Обработчик спина
-  const handleSpin = useCallback(async () => {
-    if (!slotMachine || isSpinning || balance < bet) return;
+  // Остановка автоспина
+  const stopAutoSpin = useCallback(() => {
+    autoSpinRef.current = false;
+    setIsAutoSpin(false);
+    setAutoSpinCount(0);
+    setShowAutoSpinMenu(false);
+  }, []);
+
+  // Функция для плавного затухания музыки
+  const fadeOutMusic = useCallback(() => {
+    const musicEl = musicRef.current;
+    if (!musicEl || musicEl.paused) return;
+    
+    if (musicFadeIntervalRef.current) {
+      clearInterval(musicFadeIntervalRef.current);
+    }
+    
+    musicFadeIntervalRef.current = window.setInterval(() => {
+      if (musicEl.volume > 0.05) {
+        musicEl.volume = Math.max(0, musicEl.volume - 0.05);
+      } else {
+        musicEl.pause();
+        musicEl.volume = 1;
+        if (musicFadeIntervalRef.current) {
+          clearInterval(musicFadeIntervalRef.current);
+          musicFadeIntervalRef.current = null;
+        }
+      }
+    }, 50);
+  }, []);
+
+  // Функция для запуска музыки при спине
+  const startMusicOnSpin = useCallback(() => {
+    const musicEl = musicRef.current;
+    if (!musicEl || !isMusicOn) return;
+    
+    if (musicFadeTimerRef.current) {
+      clearTimeout(musicFadeTimerRef.current);
+      musicFadeTimerRef.current = null;
+    }
+    if (musicFadeIntervalRef.current) {
+      clearInterval(musicFadeIntervalRef.current);
+      musicFadeIntervalRef.current = null;
+    }
+    
+    musicEl.volume = 1;
+    if (musicEl.paused) {
+      musicEl.play().catch(() => console.log('Music play blocked'));
+    }
+  }, [isMusicOn]);
+
+  // Функция для запуска таймера затухания после окончания спина
+  const scheduleMusicFade = useCallback(() => {
+    if (!isMusicOn) return;
+    
+    if (musicFadeTimerRef.current) {
+      clearTimeout(musicFadeTimerRef.current);
+    }
+    
+    musicFadeTimerRef.current = window.setTimeout(() => {
+      fadeOutMusic();
+    }, 2000);
+  }, [isMusicOn, fadeOutMusic]);
+
+  // Обработчик спина (поддерживает автоспин)
+  const handleSpin = useCallback(async (isFromAutoSpin = false) => {
+    // Защита от двойного вызова с помощью ref (синхронная проверка)
+    if (isSpinningRef.current) {
+      return;
+    }
+    
+    // Используем актуальные значения из refs для автоспина
+    const currentBalance = isFromAutoSpin ? balanceRef.current : balance;
+    const currentBet = betRef.current;
+    
+    if (!slotMachine || currentBalance < currentBet) {
+      // Если автоспин и баланс недостаточен - останавливаем
+      if (isFromAutoSpin && currentBalance < currentBet) {
+        stopAutoSpin();
+      }
+      return;
+    }
+
+    // Блокируем повторный вызов
+    isSpinningRef.current = true;
+    
+    // Воспроизводим звук спина
+    if (spinSoundRef.current) {
+      spinSoundRef.current.currentTime = 0;
+      spinSoundRef.current.play().catch(err => console.log('Audio play error:', err));
+    }
+    
+    // Запускаем музыку при спине
+    startMusicOnSpin();
+    
+    // Сохраняем баланс до спина
+    const balanceBefore = currentBalance;
 
     setIsSpinning(true);
     setWinAmount(0);
-    setShowStats(false);
+    setShowStatsModal(false);
 
     try {
       // Запрашиваем результат спина с сервера
-      const result = await API.spin(bet);
+      const result = await API.spin(currentBet);
       
       // Устанавливаем результат в слот-машину
       slotMachine.setSpinResult(result);
@@ -75,14 +241,107 @@ const SlotGame: React.FC = () => {
       slotMachine.spin((spinResult) => {
         // Колбэк после завершения анимации
         setBalance(spinResult.balance);
+        balanceRef.current = spinResult.balance; // Обновляем ref сразу
         setWinAmount(spinResult.win_amount);
-        setIsSpinning(false); // Важно: разблокируем кнопку
+        setIsSpinning(false);
+        isSpinningRef.current = false; // Разблокируем
+        
+        // Записываем в историю
+        spinCounterRef.current += 1;
+        setSpinHistory(prev => [...prev, {
+          spinNumber: spinCounterRef.current,
+          bet: currentBet,
+          win: spinResult.win_amount,
+          balanceBefore: balanceBefore,
+          balanceAfter: spinResult.balance
+        }]);
+        
+        // Проигрываем звук для символов при выигрыше
+        if (spinResult.wins && spinResult.wins.length > 0) {
+          const hasEWin = spinResult.wins.some(win => win.symbol === 'E');
+          if (hasEWin && eSoundRef.current) {
+            eSoundRef.current.currentTime = 0;
+            eSoundRef.current.play().catch(err => console.log('E sound play error:', err));
+          }
+          
+          const hasCWin = spinResult.wins.some(win => win.symbol === 'C');
+          if (hasCWin && cSoundRef.current) {
+            cSoundRef.current.currentTime = 0;
+            cSoundRef.current.play().catch(err => console.log('C sound play error:', err));
+          }
+          
+          const hasBWin = spinResult.wins.some(win => win.symbol === 'B');
+          if (hasBWin && bSoundRef.current) {
+            bSoundRef.current.currentTime = 0;
+            bSoundRef.current.play().catch(err => console.log('B sound play error:', err));
+          }
+        }
+        
+        // Если автоспин активен - продолжаем
+        if (autoSpinRef.current) {
+          setAutoSpinCount(prev => {
+            const newCount = prev - 1;
+            if (newCount <= 0 || spinResult.balance < betRef.current) {
+              // Останавливаем автоспин
+              stopAutoSpin();
+              // Запускаем затухание музыки после окончания автоспина
+              scheduleMusicFade();
+              return 0;
+            }
+            // Задержка перед следующим спином - дольше если был выигрыш
+            // чтобы успела проиграться анимация линии и блика
+            const hasWin = spinResult.wins && spinResult.wins.length > 0;
+            const delay = hasWin ? 2500 : 500;
+            setTimeout(() => {
+              if (autoSpinRef.current) {
+                handleSpin(true);
+              }
+            }, delay);
+            return newCount;
+          });
+        } else {
+          // Для обычного спина - запускаем таймер затухания музыки
+          scheduleMusicFade();
+        }
       });
     } catch (error) {
       console.error('Spin failed:', error);
-      setIsSpinning(false); // Разблокируем кнопку в случае ошибки
+      setIsSpinning(false);
+      isSpinningRef.current = false; // Разблокируем при ошибке
+      // При ошибке останавливаем автоспин
+      if (isFromAutoSpin) {
+        stopAutoSpin();
+      }
     }
-  }, [slotMachine, isSpinning, balance, bet]);
+  }, [slotMachine, balance, stopAutoSpin, startMusicOnSpin, scheduleMusicFade]);
+
+  // Запуск автоспина
+  const startAutoSpin = useCallback((count: number) => {
+    if (isSpinning || balance < bet) return;
+    
+    // Очищаем историю спинов и сбрасываем счётчик
+    setSpinHistory([]);
+    spinCounterRef.current = 0;
+    
+    autoSpinRef.current = true;
+    setIsAutoSpin(true);
+    setAutoSpinCount(count);
+    setShowAutoSpinMenu(false);
+    
+    // Запускаем первый спин
+    handleSpin(true);
+  }, [isSpinning, balance, bet, handleSpin]);
+
+  // Переключение меню автоспина
+  const toggleAutoSpinMenu = useCallback(() => {
+    if (isAutoSpin) {
+      // Если автоспин активен - останавливаем
+      stopAutoSpin();
+    } else {
+      // Если не активен - показываем меню
+      setShowAutoSpinMenu(prev => !prev);
+    }
+  }, [isAutoSpin, stopAutoSpin]);
 
   // Обработчик 1000 спинов
   const handleMultiSpin = useCallback(async () => {
@@ -100,7 +359,7 @@ const SlotGame: React.FC = () => {
       // Обновляем баланс и статистику
       setBalance(result.balance);
       setStats(result.stats);
-      setShowStats(true);
+      setShowStatsModal(true);
       
       // Имитируем прогресс для UI
       let progress = 0;
@@ -140,90 +399,243 @@ const SlotGame: React.FC = () => {
     }
   }, []);
 
+  // Переключение фоновой музыки
+  const handleToggleMusic = useCallback(() => {
+    setIsMusicOn(prev => !prev);
+  }, []);
+
+  // Управление при переключении кнопки музыки
+  useEffect(() => {
+    const musicEl = musicRef.current;
+    if (!musicEl) return;
+
+    if (!isMusicOn) {
+      // Сразу останавливаем музыку если выключена
+      if (musicFadeTimerRef.current) clearTimeout(musicFadeTimerRef.current);
+      if (musicFadeIntervalRef.current) clearInterval(musicFadeIntervalRef.current);
+      musicEl.pause();
+      musicEl.volume = 1;
+    }
+  }, [isMusicOn]);
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-center mb-6">Слот-машина 5x3</h1>
+    <div className="game-container">
+      {/* Аудио для звуков */}
+      <audio ref={spinSoundRef} src="/assets/audio/start.mp3" preload="auto" />
+      <audio ref={stopSoundRef} src="/assets/audio/stop.mp3" preload="auto" />
+      <audio ref={musicRef} src="/assets/audio/music.mp3" preload="auto" loop />
+      <audio ref={eSoundRef} src="/assets/audio/e-sound.mp3" preload="auto" />
+      <audio ref={cSoundRef} src="/assets/audio/c-sound.mp3" preload="auto" />
+      <audio ref={bSoundRef} src="/assets/audio/b-sound.mp3" preload="auto" />
       
-      {/* Информация о балансе и ставке */}
-      <div className="flex justify-between mb-4">
-        <div className="text-xl">
-          <span className="font-bold">Баланс:</span> {balance}
-        </div>
-        <div className="text-xl">
-          <span className="font-bold">Ставка:</span>
-          <input
-            type="number"
-            min="1"
-            max={balance}
-            value={bet}
-            onChange={handleBetChange}
-            disabled={isSpinning}
-            className="ml-2 w-20 px-2 py-1 text-black rounded"
-          />
-        </div>
-        {winAmount > 0 && (
-          <div className="text-xl text-green-500">
-            <span className="font-bold">Выигрыш:</span> {winAmount}
-          </div>
-        )}
-      </div>
+      {/* Навбар с кнопками управления */}
+      <Navbar
+        onResetBalance={handleResetBalance}
+        onMultiSpin={handleMultiSpin}
+        onShowHistory={() => setShowHistoryModal(true)}
+        isSpinning={isSpinning}
+        isAutoSpin={isAutoSpin}
+        isProcessingMultiSpin={isProcessingMultiSpin}
+        multiSpinProgress={multiSpinProgress}
+        balance={balance}
+        bet={bet}
+        isMusicOn={isMusicOn}
+        onToggleMusic={handleToggleMusic}
+      />
+      
+      {/* Фоновый эффект снега */}
+      <div className="snow-container" ref={snowContainerRef}></div>
       
       {/* Контейнер для слот-машины */}
-      <div className="slot-container mb-6" ref={slotContainerRef}></div>
-      
-      {/* Кнопки управления */}
-      <div className="controls">
-        <button
-          className="btn btn-primary"
-          onClick={handleSpin}
-          disabled={isSpinning || balance < bet}
-        >
-          {isSpinning && !isProcessingMultiSpin ? 'Вращение...' : 'Спин'}
+      <div className="slot-container" ref={slotContainerRef}></div>
+
+      {/* Основная панель управления */}
+      <div className="main-controls">
+        {/* Кнопка информации */}
+        <button className="control-btn info-btn" title="Информация">
+          <span>i</span>
         </button>
-        <button
-          className="btn btn-secondary"
-          onClick={handleMultiSpin}
-          disabled={isSpinning || balance < bet}
+
+        {/* Кнопка уменьшения ставки */}
+        <button 
+          className="control-btn minus-btn"
+          onClick={() => setBet(Math.max(1, bet - 1))}
+          disabled={isSpinning || isAutoSpin || bet <= 1}
         >
-          {isProcessingMultiSpin ? `Обработка... ${multiSpinProgress}%` : '1000 спинов'}
+          −
         </button>
-        <button
-          className="btn btn-secondary"
-          onClick={handleResetBalance}
-          disabled={isSpinning}
+
+        {/* Панель баланса и ставки */}
+        <div className="balance-bet-panel">
+          <div className="panel-row">
+            <span className="panel-label">БАЛАНС:</span>
+            <span className="panel-value">◎{balance.toLocaleString()}</span>
+          </div>
+          <div className="panel-row">
+            <span className="panel-label">ОБЩАЯ СТАВКА:</span>
+            <span className="panel-value bet-value">◎{bet}</span>
+          </div>
+        </div>
+
+        {/* Кнопка увеличения ставки */}
+        <button 
+          className="control-btn plus-btn"
+          onClick={() => setBet(bet + 1)}
+          disabled={isSpinning || isAutoSpin || bet >= balance}
         >
-          Сбросить баланс
+          +
+        </button>
+
+        {/* Панель выигрыша */}
+        <div className="win-panel">
+          <span className="win-label">ВЫИГРЫШ:</span>
+          <span className="win-value">◎{winAmount}</span>
+        </div>
+
+        {/* Макс. ставка */}
+        <button 
+          className="control-btn max-bet-btn"
+          onClick={() => setBet(Math.min(100, balance))}
+          disabled={isSpinning || isAutoSpin}
+        >
+          <span className="btn-text-small">МАКС.</span>
+          <span className="btn-text-small">СТАВКА</span>
+        </button>
+
+        {/* Автоспин */}
+        <div className="relative">
+          {isAutoSpin ? (
+            <button
+              className="control-btn autospin-active-btn"
+              onClick={toggleAutoSpinMenu}
+            >
+              <span className="btn-text-small">СТОП</span>
+              <span className="btn-text-small">({autoSpinCount})</span>
+            </button>
+          ) : (
+            <>
+              <button
+                className="control-btn auto-btn"
+                onClick={toggleAutoSpinMenu}
+                disabled={isSpinning || balance < bet}
+              >
+                <span className="btn-text-small">АВТО</span>
+                <span className="btn-text-small">СПИН</span>
+              </button>
+              {showAutoSpinMenu && (
+                <div className="autospin-menu">
+                  {AUTO_SPIN_OPTIONS.map((count) => (
+                    <button
+                      key={count}
+                      className="autospin-option"
+                      onClick={() => startAutoSpin(count)}
+                      disabled={balance < bet}
+                    >
+                      {count} спинов
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Главная кнопка СПИН */}
+        <button
+          className="spin-btn"
+          onClick={() => handleSpin(false)}
+          disabled={isSpinning || balance < bet || isAutoSpin}
+        >
+          {isSpinning && !isProcessingMultiSpin && !isAutoSpin ? '...' : 'СПИН'}
         </button>
       </div>
       
-      {/* Статистика после 1000 спинов */}
-      {showStats && stats && (
-        <div className="stats-container mt-6">
-          <h2 className="text-2xl font-bold mb-4">Статистика 1000 спинов</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p><span className="font-bold">Всего ставок:</span> {stats.total_bet}</p>
-              <p><span className="font-bold">Всего выигрышей:</span> {stats.total_win}</p>
-              <p><span className="font-bold">Количество спинов:</span> {stats.spins}</p>
-              <p><span className="font-bold">Частота выигрышей:</span> {(stats.win_frequency * 100).toFixed(2)}%</p>
-            </div>
-            <div>
-              <p><span className="font-bold">Самый большой выигрыш:</span> {stats.biggest_win}</p>
-              <p><span className="font-bold">RTP:</span> {(stats.rtp * 100).toFixed(2)}%</p>
-              <p><span className="font-bold">Баланс после тестов:</span> {stats.balance}</p>
-            </div>
+      {/* Модальное окно истории спинов */}
+      <Modal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        title={`История спинов (${spinHistory.length})`}
+      >
+        {spinHistory.length > 0 ? (
+          <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
+            <table className="spin-history-table w-full">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Ставка</th>
+                  <th>Выигрыш</th>
+                  <th>Баланс до</th>
+                  <th>Баланс после</th>
+                  <th>Изменение</th>
+                </tr>
+              </thead>
+              <tbody>
+                {spinHistory.map((item) => {
+                  const change = item.balanceAfter - item.balanceBefore;
+                  return (
+                    <tr key={item.spinNumber}>
+                      <td>{item.spinNumber}</td>
+                      <td>{item.bet}</td>
+                      <td className={item.win > 0 ? 'text-green-400' : ''}>{item.win}</td>
+                      <td>{item.balanceBefore}</td>
+                      <td>{item.balanceAfter}</td>
+                      <td className={change >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        {change >= 0 ? '+' : ''}{change}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          
-          <h3 className="text-xl font-bold mt-4 mb-2">Частота символов</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-            {Object.entries(stats.symbol_frequency).map(([symbol, frequency]) => (
-              <div key={symbol} className="bg-gray-800 p-2 rounded">
-                <p><span className="font-bold">{symbol}:</span> {frequency}%</p>
+        ) : (
+          <p className="text-gray-400 text-center py-8">
+            История спинов пуста. Запустите автоспин или серию спинов.
+          </p>
+        )}
+        {spinHistory.length > 0 && (
+          <button
+            className="btn btn-secondary mt-4"
+            onClick={() => setSpinHistory([])}
+          >
+            Очистить историю
+          </button>
+        )}
+      </Modal>
+
+      {/* Модальное окно статистики 1000 спинов */}
+      <Modal
+        isOpen={showStatsModal && !!stats}
+        onClose={() => setShowStatsModal(false)}
+        title="Статистика 1000 спинов"
+      >
+        {stats && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p><span className="font-bold">Всего ставок:</span> {stats.total_bet}</p>
+                <p><span className="font-bold">Всего выигрышей:</span> {stats.total_win}</p>
+                <p><span className="font-bold">Количество спинов:</span> {stats.spins}</p>
+                <p><span className="font-bold">Частота выигрышей:</span> {(stats.win_frequency * 100).toFixed(2)}%</p>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+              <div>
+                <p><span className="font-bold">Самый большой выигрыш:</span> {stats.biggest_win}</p>
+                <p><span className="font-bold">RTP:</span> {(stats.rtp * 100).toFixed(2)}%</p>
+                <p><span className="font-bold">Баланс после тестов:</span> {stats.balance}</p>
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold mt-4 mb-2">Частота символов</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              {Object.entries(stats.symbol_frequency).map(([symbol, frequency]) => (
+                <div key={symbol} className="bg-gray-800 p-2 rounded">
+                  <p><span className="font-bold">{symbol}:</span> {frequency}%</p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 };
