@@ -80,22 +80,45 @@ export class ReelAnimator {
   private animateReel(col: number, s: ReelState): void {
     const { animation, dimensions } = this.config;
     const blurFilters = this.reelManager.getBlurFilters();
+    const { cellHeight } = dimensions;
 
     if (s.phase === 'spinning') {
       s.velocity = animation.spinSpeed;
-      blurFilters[col].blurY += (animation.maxBlur - blurFilters[col].blurY) * 0.3;
+      // Быстрое нарастание размытия для выраженного motion blur
+      const targetBlur = animation.maxBlur;
+      blurFilters[col].blurY += (targetBlur - blurFilters[col].blurY) * 0.5;
+      
+      // Продолжаем крутить
+      s.position += s.velocity;
+      s.pos = s.position;
+      this.reelManager.updateReelDisplay(col);
     } else if (s.phase === 'stopping') {
-      const { decelerationDistance } = animation;
-      const { cellHeight } = dimensions;
       const distanceToTarget = s.targetPosition - s.position;
-      const decelerationZone = decelerationDistance * cellHeight;
-
-      if (distanceToTarget <= decelerationZone && distanceToTarget > 0) {
-        const progress = 1 - (distanceToTarget / decelerationZone);
-        const easedProgress = 1 - Math.pow(1 - progress, 2);
-        s.velocity = Math.max(3, animation.spinSpeed * (1 - easedProgress * 0.9));
-        blurFilters[col].blurY += (animation.maxBlur * (1 - easedProgress) - blurFilters[col].blurY) * 0.3;
-      } else if (distanceToTarget <= 0) {
+      // Короткая зона торможения - 1 символ
+      const shortBrakeZone = cellHeight * 1;
+      
+      if (distanceToTarget > shortBrakeZone) {
+        // Ещё далеко - крутим на полной скорости
+        s.velocity = animation.spinSpeed;
+        blurFilters[col].blurY = animation.maxBlur;
+        s.position += s.velocity;
+        s.pos = s.position;
+        this.reelManager.updateReelDisplay(col);
+      } else if (distanceToTarget > 0) {
+        // Быстрое торможение в короткой зоне
+        const progress = 1 - (distanceToTarget / shortBrakeZone);
+        // Очень резкое торможение с easeOutQuart
+        const easedProgress = 1 - Math.pow(1 - progress, 4);
+        s.velocity = Math.max(8, animation.spinSpeed * (1 - easedProgress * 0.9));
+        
+        // Быстрое снижение размытия
+        blurFilters[col].blurY = animation.maxBlur * (1 - easedProgress);
+        
+        s.position += s.velocity;
+        s.pos = s.position;
+        this.reelManager.updateReelDisplay(col);
+      } else {
+        // Финальная остановка на целевой позиции
         s.position = s.targetPosition;
         s.velocity = 0;
         s.on = false;
@@ -103,16 +126,11 @@ export class ReelAnimator {
         s.bouncing = true;
         s.bounceStart = Date.now();
         blurFilters[col].blurY = 0;
-        this.snapToFinalPosition(col, s);
         this.reelManager.finishReel(col);
+        this.reelManager.updateReelDisplay(col);
         this.callbacks.onReelStop?.(col);
-        return;
       }
     }
-
-    s.position += s.velocity;
-    s.pos = s.position;
-    this.reelManager.updateReelDisplay(col);
   }
 
   private snapToFinalPosition(col: number, s: ReelState): void {

@@ -102,7 +102,11 @@ export class ReelManager {
       this.barabanSprites.push(bs);
     }
 
-    const blur = new PIXI.filters.BlurFilter(); blur.blurX = 0; blur.blurY = 0; blur.quality = 2;
+    // Blur фильтр для motion blur эффекта при вращении
+    const blur = new PIXI.filters.BlurFilter(); 
+    blur.blurX = 0; 
+    blur.blurY = 0; 
+    blur.quality = 4; // Повышенное качество для плавного размытия
     this.blurFilters.push(blur);
 
     // Создаём спрайт для КАЖДОГО символа на ленте
@@ -223,12 +227,17 @@ export class ReelManager {
   }
 
   initSpinState(matrix: string[][]): void {
-    const { cellHeight, rows } = this.config.dimensions;
-    const { reelStripLength, minSpinCycles, spinSpeed } = this.config.animation;
+    const { cellHeight, rows, cols } = this.config.dimensions;
+    const { reelStripLength, minSpinCycles, spinSpeed, stopDelay } = this.config.animation;
     const stripHeightPx = reelStripLength * cellHeight;
     
-    for (let c = 0; c < this.config.cols; c++) {
+    // Сначала рассчитаем все целевые дистанции
+    const targetDistances: number[] = [];
+    const finalSymbolsAll: string[][] = [];
+    
+    for (let c = 0; c < cols; c++) {
       const finalSymbols = matrix.map(row => row[c]);
+      finalSymbolsAll[c] = finalSymbols;
       const targetStripIndex = this.findOrInsertFinalSymbols(c, finalSymbols);
       
       // При движении символов ВНИЗ (y = base + offset):
@@ -248,11 +257,26 @@ export class ReelManager {
       
       // Добавляем минимум minSpinCycles полных оборотов
       const minDistance = minSpinCycles * stripHeightPx;
-      const totalDistance = this.state[c].position + minDistance + distanceToTarget;
+      targetDistances[c] = this.state[c].position + minDistance + distanceToTarget;
+    }
+    
+    // Если stopDelay = 0, синхронизируем остановки - все барабаны должны прокрутить одинаковое расстояние
+    let maxTargetDistance = Math.max(...targetDistances);
+    
+    for (let c = 0; c < cols; c++) {
+      let totalDistance = targetDistances[c];
+      
+      // Если нужна синхронная остановка, выравниваем до максимальной дистанции
+      if (stopDelay === 0) {
+        // Добавляем полные обороты, чтобы достичь максимальной дистанции
+        while (totalDistance < maxTargetDistance) {
+          totalDistance += stripHeightPx;
+        }
+      }
       
       this.state[c] = {
         on: true, phase: 'spinning', position: this.state[c].position,
-        velocity: spinSpeed, targetPosition: totalDistance, final: finalSymbols,
+        velocity: spinSpeed, targetPosition: totalDistance, final: finalSymbolsAll[c],
         bounceStart: 0, stop: false, pos: this.state[c].position, bouncing: false,
       };
     }
