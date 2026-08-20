@@ -14,6 +14,7 @@ export interface ReelState {
   targetPosition: number; // Целевая позиция для остановки
   final: string[];       // Финальные символы
   bounceStart: number;
+  targetRecalculated: boolean; // Флаг пересчёта позиции при остановке
   // Legacy поля для совместимости
   stop: boolean;
   pos: number;
@@ -126,7 +127,7 @@ export class ReelManager {
   private createInitialState(): ReelState {
     return {
       on: false, phase: 'idle', position: 0, velocity: 0, targetPosition: 0,
-      final: [], bounceStart: 0, stop: false, pos: 0, bouncing: false,
+      final: [], bounceStart: 0, targetRecalculated: false, stop: false, pos: 0, bouncing: false,
     };
   }
 
@@ -277,9 +278,44 @@ export class ReelManager {
       this.state[c] = {
         on: true, phase: 'spinning', position: this.state[c].position,
         velocity: spinSpeed, targetPosition: totalDistance, final: finalSymbolsAll[c],
-        bounceStart: 0, stop: false, pos: this.state[c].position, bouncing: false,
+        bounceStart: 0, targetRecalculated: false, stop: false, pos: this.state[c].position, bouncing: false,
       };
     }
+  }
+
+  /**
+   * Пересчитать целевую позицию для барабана на ближайшую позицию с финальными символами
+   * Вызывается при получении команды на остановку для синхронной остановки слева направо
+   */
+  recalculateTargetPosition(col: number, currentPosition: number, cellHeight: number): number {
+    const { reelStripLength } = this.config.animation;
+    const stripHeightPx = reelStripLength * cellHeight;
+    const finalSymbols = this.state[col].final;
+    
+    // Находим индекс финальных символов на ленте
+    const targetStripIndex = this.findOrInsertFinalSymbols(col, finalSymbols);
+    
+    // Целевой offset для этого индекса
+    const targetOffset = targetStripIndex === 0 
+      ? 0 
+      : (stripHeightPx - targetStripIndex * cellHeight) % stripHeightPx;
+    
+    // Текущий offset
+    const currentOffset = ((currentPosition % stripHeightPx) + stripHeightPx) % stripHeightPx;
+    
+    // Сколько нужно прокрутить до ближайшей целевой позиции
+    let distanceToTarget = targetOffset - currentOffset;
+    if (distanceToTarget <= 0) {
+      distanceToTarget += stripHeightPx;
+    }
+    
+    // Добавляем немного "разбега" - минимум пол-символа, чтобы было видно торможение
+    const minDistance = cellHeight * 0.5;
+    if (distanceToTarget < minDistance) {
+      distanceToTarget += stripHeightPx;
+    }
+    
+    return currentPosition + distanceToTarget;
   }
 
   private findOrInsertFinalSymbols(col: number, finalSymbols: string[]): number {

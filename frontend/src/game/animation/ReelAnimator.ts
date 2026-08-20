@@ -81,6 +81,8 @@ export class ReelAnimator {
     const { animation, dimensions } = this.config;
     const blurFilters = this.reelManager.getBlurFilters();
     const { cellHeight } = dimensions;
+    const { reelStripLength } = animation;
+    const stripHeightPx = reelStripLength * cellHeight;
 
     if (s.phase === 'spinning') {
       s.velocity = animation.spinSpeed;
@@ -93,43 +95,23 @@ export class ReelAnimator {
       s.pos = s.position;
       this.reelManager.updateReelDisplay(col);
     } else if (s.phase === 'stopping') {
-      const distanceToTarget = s.targetPosition - s.position;
-      // Короткая зона торможения - 1 символ
-      const shortBrakeZone = cellHeight * 1;
-      
-      if (distanceToTarget > shortBrakeZone) {
-        // Ещё далеко - крутим на полной скорости
-        s.velocity = animation.spinSpeed;
-        blurFilters[col].blurY = animation.maxBlur;
-        s.position += s.velocity;
-        s.pos = s.position;
-        this.reelManager.updateReelDisplay(col);
-      } else if (distanceToTarget > 0) {
-        // Быстрое торможение в короткой зоне
-        const progress = 1 - (distanceToTarget / shortBrakeZone);
-        // Очень резкое торможение с easeOutQuart
-        const easedProgress = 1 - Math.pow(1 - progress, 4);
-        s.velocity = Math.max(8, animation.spinSpeed * (1 - easedProgress * 0.9));
-        
-        // Быстрое снижение размытия
-        blurFilters[col].blurY = animation.maxBlur * (1 - easedProgress);
-        
-        s.position += s.velocity;
-        s.pos = s.position;
-        this.reelManager.updateReelDisplay(col);
-      } else {
-        // Финальная остановка на целевой позиции
-        s.position = s.targetPosition;
-        s.velocity = 0;
-        s.on = false;
-        s.phase = 'bouncing';
-        s.bouncing = true;
-        s.bounceStart = Date.now();
-        blurFilters[col].blurY = 0;
-        this.reelManager.finishReel(col);
-        this.reelManager.updateReelDisplay(col);
-        this.callbacks.onReelStop?.(col);
+      // Пересчитываем targetPosition на ближайшую позицию с финальными символами
+      if (!s.targetRecalculated) {
+        s.targetPosition = this.reelManager.recalculateTargetPosition(col, s.position, cellHeight);
+        (s as any).targetRecalculated = true;
       }
+      
+      // Мгновенная остановка без плавного торможения
+      s.position = s.targetPosition;
+      s.velocity = 0;
+      s.on = false;
+      s.phase = 'bouncing';
+      s.bouncing = true;
+      s.bounceStart = Date.now();
+      blurFilters[col].blurY = 0;
+      this.reelManager.finishReel(col);
+      this.reelManager.updateReelDisplay(col);
+      this.callbacks.onReelStop?.(col);
     }
   }
 

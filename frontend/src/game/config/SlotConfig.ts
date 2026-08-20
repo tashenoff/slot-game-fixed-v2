@@ -103,13 +103,14 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     separatorWidth: 2,
   },
   symbols: {
-    ids: ['A', 'B', 'C', 'D', 'E'],
+    ids: ['A', 'B', 'C', 'D', 'E', 'F'],
     fallbackColors: {
       A: '#e74c3c',
       B: '#2ecc71',
       C: '#3498db',
       D: '#f1c40f',
       E: '#9b59b6',
+      F: '#ff6600',
     },
   },
   reelStrips: {
