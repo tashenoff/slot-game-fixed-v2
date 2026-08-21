@@ -18,6 +18,7 @@ const SlotGame: React.FC = () => {
   const eSoundRef = useRef<HTMLAudioElement | null>(null);
   const cSoundRef = useRef<HTMLAudioElement | null>(null);
   const bSoundRef = useRef<HTMLAudioElement | null>(null);
+  const barabanSoundRef = useRef<HTMLAudioElement | null>(null);
   const musicFadeTimerRef = useRef<number | null>(null);
   const musicFadeIntervalRef = useRef<number | null>(null);
   const [isMusicOn, setIsMusicOn] = useState<boolean>(true);
@@ -220,6 +221,13 @@ const SlotGame: React.FC = () => {
       spinSoundRef.current.play().catch(err => console.log('Audio play error:', err));
     }
     
+    // Воспроизводим звук вращения барабанов (loop пока крутятся)
+    if (barabanSoundRef.current) {
+      barabanSoundRef.current.currentTime = 0;
+      barabanSoundRef.current.loop = true;
+      barabanSoundRef.current.play().catch(err => console.log('Baraban audio play error:', err));
+    }
+    
     // Запускаем музыку при спине
     startMusicOnSpin();
     
@@ -240,6 +248,13 @@ const SlotGame: React.FC = () => {
       // Запускаем анимацию вращения
       slotMachine.spin((spinResult) => {
         // Колбэк после завершения анимации
+        
+        // Останавливаем звук вращения барабанов
+        if (barabanSoundRef.current) {
+          barabanSoundRef.current.pause();
+          barabanSoundRef.current.currentTime = 0;
+        }
+        
         setBalance(spinResult.balance);
         balanceRef.current = spinResult.balance; // Обновляем ref сразу
         setWinAmount(spinResult.win_amount);
@@ -427,6 +442,7 @@ const SlotGame: React.FC = () => {
       <audio ref={eSoundRef} src="/assets/audio/e-sound.mp3" preload="auto" />
       <audio ref={cSoundRef} src="/assets/audio/c-sound.mp3" preload="auto" />
       <audio ref={bSoundRef} src="/assets/audio/b-sound.mp3" preload="auto" />
+      <audio ref={barabanSoundRef} src="/assets/audio/baraban.mp3" preload="auto" />
       
       {/* Навбар с кнопками управления */}
       <Navbar

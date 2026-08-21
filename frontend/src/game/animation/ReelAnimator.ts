@@ -39,17 +39,54 @@ export class ReelAnimator {
   }
 
   private scheduleStops(): void {
-    const { spinTime, stopDelay } = this.config.animation;
-    const state = this.reelManager.getState();
+    const { spinTime } = this.config.animation;
+    
+    // Один таймер для всех барабанов - рассчитываем дистанции так,
+    // чтобы барабаны останавливались слева направо
+    const timer = window.setTimeout(() => {
+      this.calculateOrderedStops();
+    }, spinTime);
+    this.timers.push(timer);
+  }
 
-    // Все барабаны останавливаются по одному таймеру (одновременно если stopDelay=0)
-    for (let c = 0; c < this.config.cols; c++) {
-      const delay = spinTime + c * stopDelay;
-      const timer = window.setTimeout(() => {
-        state[c].stop = true;
-        state[c].phase = 'stopping';
-      }, delay);
-      this.timers.push(timer);
+  /**
+   * Рассчитать дистанции для всех барабанов так, чтобы они останавливались слева направо
+   */
+  private calculateOrderedStops(): void {
+    const state = this.reelManager.getState();
+    const { cellHeight } = this.config.dimensions;
+    const { cols } = this.config.dimensions;
+    const { reelStripLength, spinSpeed } = this.config.animation;
+    const stripHeightPx = reelStripLength * cellHeight;
+    
+    // Минимальная разница между остановками барабанов (в пикселях)
+    // Примерно 2 кадра разницы между остановками
+    const minGap = spinSpeed * 2;
+    
+    // Сначала рассчитываем базовые дистанции для всех барабанов
+    const distances: number[] = [];
+    for (let c = 0; c < cols; c++) {
+      const baseTarget = this.reelManager.recalculateTargetPosition(c, state[c].position, cellHeight);
+      distances[c] = baseTarget - state[c].position;
+    }
+    
+    // Корректируем дистанции чтобы каждый следующий барабан останавливался позже
+    for (let c = 1; c < cols; c++) {
+      const minRequired = distances[c - 1] + minGap;
+      if (distances[c] < minRequired) {
+        // Добавляем ПОЛНЫЕ обороты чтобы сохранить выравнивание на финальные символы
+        while (distances[c] < minRequired) {
+          distances[c] += stripHeightPx;
+        }
+      }
+    }
+    
+    // Устанавливаем скорректированные целевые позиции и переводим в режим остановки
+    for (let c = 0; c < cols; c++) {
+      state[c].targetPosition = state[c].position + distances[c];
+      state[c].targetRecalculated = true;
+      state[c].stop = true;
+      state[c].phase = 'stopping';
     }
   }
 
@@ -95,23 +132,29 @@ export class ReelAnimator {
       s.pos = s.position;
       this.reelManager.updateReelDisplay(col);
     } else if (s.phase === 'stopping') {
-      // Пересчитываем targetPosition на ближайшую позицию с финальными символами
-      if (!s.targetRecalculated) {
-        s.targetPosition = this.reelManager.recalculateTargetPosition(col, s.position, cellHeight);
-        (s as any).targetRecalculated = true;
-      }
+      // targetPosition уже рассчитан в calculateOrderedStops()
+      const distanceToTarget = s.targetPosition - s.position;
       
-      // Мгновенная остановка без плавного торможения
-      s.position = s.targetPosition;
-      s.velocity = 0;
-      s.on = false;
-      s.phase = 'bouncing';
-      s.bouncing = true;
-      s.bounceStart = Date.now();
-      blurFilters[col].blurY = 0;
-      this.reelManager.finishReel(col);
-      this.reelManager.updateReelDisplay(col);
-      this.callbacks.onReelStop?.(col);
+      if (distanceToTarget > s.velocity) {
+        // Ещё не доехали - продолжаем крутить на полной скорости
+        s.velocity = animation.spinSpeed;
+        blurFilters[col].blurY = animation.maxBlur;
+        s.position += s.velocity;
+        s.pos = s.position;
+        this.reelManager.updateReelDisplay(col);
+      } else {
+        // Доехали до цели - мгновенная остановка
+        s.position = s.targetPosition;
+        s.velocity = 0;
+        s.on = false;
+        s.phase = 'bouncing';
+        s.bouncing = true;
+        s.bounceStart = Date.now();
+        blurFilters[col].blurY = 0;
+        this.reelManager.finishReel(col);
+        this.reelManager.updateReelDisplay(col);
+        this.callbacks.onReelStop?.(col);
+      }
     }
   }
 

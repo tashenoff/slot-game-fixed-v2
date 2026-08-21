@@ -83,16 +83,16 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     buffer: 1,
   },
   animation: {
-    spinSpeed: 50,           // Скорость вращения (пикселей/кадр) - увеличена для быстрого спина
+    spinSpeed: 45,           // Скорость вращения (пикселей/кадр)
     spinTime: 300,           // Время до остановки ПЕРВОГО барабана (мс)
     stopDelay: 100,          // Задержка между остановками барабанов (мс) - слева направо
     bounceHeight: 12,        // Высота отскока
     bounceTime: 100,         // Время отскока
-    maxBlur: 20,             // Максимальное размытие для выраженного motion blur
+    maxBlur: 45,             // Размытие при вращении
     winSymbolScale: 1.03,
     winAnimationDuration: 300,
     // Параметры ленты
-    reelStripLength: 15,     // Символов на ленте
+    reelStripLength: 5,      // Символов на ленте (меньше = короче оборот)
     minSpinCycles: 0,        // Без полных оборотов - сразу к результату
     decelerationDistance: 2, // Не используется при мгновенной остановке
   },

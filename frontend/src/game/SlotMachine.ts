@@ -53,6 +53,11 @@ export class SlotMachine {
 
     window.addEventListener('resize', () => this.resize());
     this.resize();
+    
+    // Повторный resize через RAF для гарантии правильного расчёта flex-контейнера
+    requestAnimationFrame(() => {
+      this.resize();
+    });
   }
 
   private buildScene(): void {
@@ -75,7 +80,20 @@ export class SlotMachine {
   private resize(): void {
     if (!this.container) return;
     const { borderWidth, borderHeight } = this.config.dimensions;
-    const scale = Math.min(this.container.clientWidth / borderWidth, this.container.clientHeight / borderHeight);
+    
+    // Получаем размеры контейнера
+    const containerWidth = this.container.clientWidth;
+    const containerHeight = this.container.clientHeight;
+    
+    if (containerWidth <= 0 || containerHeight <= 0) return;
+    
+    // Вычисляем масштаб, чтобы слот вписался в контейнер с сохранением пропорций
+    const scaleByWidth = containerWidth / borderWidth;
+    const scaleByHeight = containerHeight / borderHeight;
+    
+    // Выбираем меньший масштаб, чтобы слот полностью помещался
+    const scale = Math.min(scaleByWidth, scaleByHeight);
+    
     this.app.renderer.resize(borderWidth * scale, borderHeight * scale);
     this.app.stage.scale.set(scale);
   }
