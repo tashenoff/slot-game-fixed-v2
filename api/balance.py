@@ -1,7 +1,11 @@
-from flask import Flask, jsonify
+import json
 
-app = Flask(__name__)
-
-@app.route('/api/balance', methods=['GET'])
-def handler():
-    return jsonify({"balance": 1000})
+def handler(request):
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+        },
+        "body": json.dumps({"balance": 1000})
+    }

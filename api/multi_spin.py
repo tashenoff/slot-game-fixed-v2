@@ -1,7 +1,5 @@
-from flask import Flask, jsonify, request
+import json
 import random
-
-app = Flask(__name__)
 
 config = {
     "symbols": {
@@ -66,53 +64,53 @@ def check_winlines(matrix):
     
     return {"wins": wins, "total_win": total_win}
 
-@app.route('/api/multi_spin', methods=['POST', 'OPTIONS'])
-def handler():
-    if request.method == 'OPTIONS':
-        return '', 200
+def handler(request):
+    headers = {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+    }
     
-    data = request.get_json() or {}
+    if request.method == 'OPTIONS':
+        return {"statusCode": 200, "headers": headers, "body": ""}
+    
+    try:
+        body = request.body
+        data = json.loads(body) if body else {}
+    except:
+        data = {}
+    
     bet = data.get('bet', 1)
     spins = min(data.get('spins', 1000), 1000)
     balance = data.get('balance', 1000)
     
     if balance < bet:
-        return jsonify({"error": "Недостаточно средств"}), 400
+        return {"statusCode": 400, "headers": headers, "body": json.dumps({"error": "Недостаточно средств"})}
     
     stats = {
-        "total_bet": 0,
-        "total_win": 0,
-        "spins": 0,
+        "total_bet": 0, "total_win": 0, "spins": 0,
         "symbol_frequency": {s: 0 for s in config["symbols"]},
-        "win_frequency": 0,
-        "biggest_win": 0,
-        "rtp": 0,
-        "balance": balance
+        "win_frequency": 0, "biggest_win": 0, "rtp": 0, "balance": balance
     }
     
     for _ in range(spins):
         if balance < bet:
             break
-            
         balance -= bet
         stats["total_bet"] += bet
         stats["spins"] += 1
-        
         matrix = generate_spin_result()
-        
         for row in matrix:
             for symbol in row:
                 stats["symbol_frequency"][symbol] += 1
-        
         win_result = check_winlines(matrix)
         win_amount = win_result["total_win"] * bet
-        
         stats["total_win"] += win_amount
         if win_amount > 0:
             stats["win_frequency"] += 1
         if win_amount > stats["biggest_win"]:
             stats["biggest_win"] = win_amount
-        
         balance += win_amount
     
     stats["balance"] = balance
@@ -123,7 +121,4 @@ def handler():
     for symbol in stats["symbol_frequency"]:
         stats["symbol_frequency"][symbol] = round(stats["symbol_frequency"][symbol] * 100 / total_symbols, 2) if total_symbols > 0 else 0
     
-    return jsonify({
-        "stats": stats,
-        "balance": balance
-    })
+    return {"statusCode": 200, "headers": headers, "body": json.dumps({"stats": stats, "balance": balance})}

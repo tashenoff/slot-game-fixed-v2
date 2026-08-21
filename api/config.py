@@ -1,6 +1,4 @@
-from flask import Flask, jsonify
-
-app = Flask(__name__)
+import json
 
 config = {
     "symbols": {
@@ -21,6 +19,12 @@ config = {
     "rtp_target": 0.95
 }
 
-@app.route('/api/config', methods=['GET'])
-def handler():
-    return jsonify(config)
+def handler(request):
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+        },
+        "body": json.dumps(config)
+    }

@@ -1,7 +1,5 @@
-from flask import Flask, jsonify, request
+import json
 import random
-
-app = Flask(__name__)
 
 config = {
     "symbols": {
@@ -66,17 +64,37 @@ def check_winlines(matrix):
     
     return {"wins": wins, "total_win": total_win}
 
-@app.route('/api/spin', methods=['POST', 'OPTIONS'])
-def handler():
+def handler(request):
+    # CORS preflight
     if request.method == 'OPTIONS':
-        return '', 200
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            },
+            "body": ""
+        }
     
-    data = request.get_json() or {}
+    try:
+        body = request.body
+        data = json.loads(body) if body else {}
+    except:
+        data = {}
+    
     bet = data.get('bet', 1)
     balance = data.get('balance', 1000)
     
     if balance < bet:
-        return jsonify({"error": "Недостаточно средств"}), 400
+        return {
+            "statusCode": 400,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+            },
+            "body": json.dumps({"error": "Недостаточно средств"})
+        }
     
     balance -= bet
     matrix = generate_spin_result()
@@ -84,9 +102,16 @@ def handler():
     win_amount = win_result["total_win"] * bet
     balance += win_amount
     
-    return jsonify({
-        "matrix": matrix,
-        "wins": win_result["wins"],
-        "win_amount": win_amount,
-        "balance": balance
-    })
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+        },
+        "body": json.dumps({
+            "matrix": matrix,
+            "wins": win_result["wins"],
+            "win_amount": win_amount,
+            "balance": balance
+        })
+    }

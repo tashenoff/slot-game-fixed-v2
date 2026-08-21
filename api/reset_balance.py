@@ -1,7 +1,13 @@
-from flask import Flask, jsonify
+import json
 
-app = Flask(__name__)
-
-@app.route('/api/reset_balance', methods=['POST', 'OPTIONS'])
-def handler():
-    return jsonify({"balance": 1000})
+def handler(request):
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+        },
+        "body": json.dumps({"balance": 1000})
+    }
