@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { SpinResult, Stats } from '../types';
 
-const API_URL = 'http://localhost:5000/api';
+// В production используем относительный путь, в dev - localhost
+const API_URL = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
 
 // Получение баланса пользователя
 export const fetchBalance = async (): Promise<number> => {
