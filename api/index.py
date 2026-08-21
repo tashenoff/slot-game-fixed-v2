@@ -1,11 +1,7 @@
-from http.server import BaseHTTPRequestHandler
-import json
+from flask import Flask, jsonify
 
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        self.wfile.write(json.dumps({"status": "ok", "message": "Slot Game API"}).encode())
-        return
+app = Flask(__name__)
+
+@app.route('/api', methods=['GET'])
+def handler():
+    return jsonify({"status": "ok", "message": "Slot Game API"})

@@ -1,5 +1,6 @@
-from http.server import BaseHTTPRequestHandler
-import json
+from flask import Flask, jsonify
+
+app = Flask(__name__)
 
 config = {
     "symbols": {
@@ -20,11 +21,6 @@ config = {
     "rtp_target": 0.95
 }
 
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        self.wfile.write(json.dumps(config).encode())
-        return
+@app.route('/api/config', methods=['GET'])
+def handler():
+    return jsonify(config)

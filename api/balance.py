@@ -1,13 +1,7 @@
-from http.server import BaseHTTPRequestHandler
-import json
+from flask import Flask, jsonify
 
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        # Начальный баланс - в serverless окружении состояние не сохраняется
-        # Баланс должен храниться на клиенте или в базе данных
-        self.wfile.write(json.dumps({"balance": 1000}).encode())
-        return
+app = Flask(__name__)
+
+@app.route('/api/balance', methods=['GET'])
+def handler():
+    return jsonify({"balance": 1000})

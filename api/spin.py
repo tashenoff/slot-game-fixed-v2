@@ -1,8 +1,8 @@
-from http.server import BaseHTTPRequestHandler
-import json
+from flask import Flask, jsonify, request
 import random
 
-# Конфигурация
+app = Flask(__name__)
+
 config = {
     "symbols": {
         "A": {"weight": 1, "payout": {"3": 5, "4": 10, "5": 20}},
@@ -66,51 +66,27 @@ def check_winlines(matrix):
     
     return {"wins": wins, "total_win": total_win}
 
-class handler(BaseHTTPRequestHandler):
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
-        return
-
-    def do_POST(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length)
-        
-        try:
-            data = json.loads(body) if body else {}
-        except:
-            data = {}
-        
-        bet = data.get('bet', 1)
-        balance = data.get('balance', 1000)
-        
-        if balance < bet:
-            self.send_response(400)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": "Недостаточно средств"}).encode())
-            return
-        
-        balance -= bet
-        matrix = generate_spin_result()
-        win_result = check_winlines(matrix)
-        win_amount = win_result["total_win"] * bet
-        balance += win_amount
-        
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        
-        response = {
-            "matrix": matrix,
-            "wins": win_result["wins"],
-            "win_amount": win_amount,
-            "balance": balance
-        }
-        self.wfile.write(json.dumps(response).encode())
-        return
+@app.route('/api/spin', methods=['POST', 'OPTIONS'])
+def handler():
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    data = request.get_json() or {}
+    bet = data.get('bet', 1)
+    balance = data.get('balance', 1000)
+    
+    if balance < bet:
+        return jsonify({"error": "Недостаточно средств"}), 400
+    
+    balance -= bet
+    matrix = generate_spin_result()
+    win_result = check_winlines(matrix)
+    win_amount = win_result["total_win"] * bet
+    balance += win_amount
+    
+    return jsonify({
+        "matrix": matrix,
+        "wins": win_result["wins"],
+        "win_amount": win_amount,
+        "balance": balance
+    })
