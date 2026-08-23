@@ -5,6 +5,7 @@ import sqlite3
 import os
 from contextlib import contextmanager
 from datetime import datetime
+from typing import Optional, Dict, Any
 
 # Путь к файлу базы данных
 DB_PATH = os.path.join(os.path.dirname(__file__), 'game.db')
@@ -92,7 +93,7 @@ def get_or_create_user(platform: str, player_id: str) -> dict:
         return dict(user)
 
 
-def get_user_by_id(user_id: int) -> dict | None:
+def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     """Получить пользователя по внутреннему ID"""
     with get_db() as db:
         cursor = db.execute('SELECT * FROM users WHERE id = ?', (user_id,))
@@ -125,7 +126,7 @@ def update_user_stats(user_id: int, bet: int, win: int):
         db.commit()
 
 
-def get_user_stats(user_id: int) -> dict | None:
+def get_user_stats(user_id: int) -> Optional[Dict[str, Any]]:
     """Получить статистику пользователя"""
     with get_db() as db:
         cursor = db.execute('''

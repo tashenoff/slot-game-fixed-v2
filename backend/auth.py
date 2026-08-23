@@ -4,11 +4,12 @@
 import secrets
 import time
 from functools import wraps
+from typing import Optional, Dict, Any
 from flask import request, jsonify
 
 # Хранилище токенов в памяти: token -> {user_id, platform, player_id, created_at}
 # В production лучше использовать Redis
-_tokens: dict[str, dict] = {}
+_tokens = {}  # type: Dict[str, Dict[str, Any]]
 
 # Время жизни токена (24 часа)
 TOKEN_TTL = 24 * 60 * 60
@@ -31,7 +32,7 @@ def create_token(user_id: int, platform: str, player_id: str) -> str:
     return token
 
 
-def validate_token(token: str) -> dict | None:
+def validate_token(token: str) -> Optional[Dict[str, Any]]:
     """
     Проверить токен и вернуть данные пользователя
     
@@ -57,7 +58,7 @@ def invalidate_token(token: str):
         del _tokens[token]
 
 
-def get_token_from_request() -> str | None:
+def get_token_from_request() -> Optional[str]:
     """Извлечь токен из заголовка Authorization"""
     auth_header = request.headers.get('Authorization', '')
     if auth_header.startswith('Bearer '):
