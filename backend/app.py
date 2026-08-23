@@ -4,8 +4,14 @@ import json
 import random
 import os
 
+from database import init_db, get_or_create_user, get_user_by_id, update_user_balance, update_user_stats
+from auth import create_token, require_auth
+
 app = Flask(__name__)
 CORS(app)
+
+# Инициализация БД при старте
+init_db()
 
 # Загрузка конфигурации символов и выигрышных линий
 def load_config():
@@ -42,9 +48,6 @@ def load_config():
 
 # Глобальная переменная для хранения конфигурации
 config = load_config()
-
-# Глобальная переменная для хранения баланса пользователя
-user_balance = 1000
 
 # Генерация случайного символа с учетом весов
 def generate_random_symbol():
@@ -102,20 +105,57 @@ def check_winlines(matrix):
     
     return {"wins": wins, "total_win": total_win}
 
+# ============== АВТОРИЗАЦИЯ ==============
+
+@app.route('/api/auth', methods=['POST'])
+def auth():
+    """
+    Авторизация игрока по platform + player_id
+    Возвращает токен для последующих запросов
+    """
+    data = request.get_json() or {}
+    platform = data.get('platform')
+    player_id = data.get('player_id')
+    
+    if not platform or not player_id:
+        return jsonify({'error': 'Требуются platform и player_id'}), 400
+    
+    # Получаем или создаём пользователя
+    user = get_or_create_user(platform, player_id)
+    
+    # Создаём токен
+    token = create_token(user['id'], platform, player_id)
+    
+    print(f"[AUTH] {platform}:{player_id} -> user_id={user['id']}, balance={user['balance']}")
+    
+    return jsonify({
+        'token': token,
+        'user': {
+            'id': user['id'],
+            'balance': user['balance'],
+            'total_spins': user['total_spins'],
+            'biggest_win': user['biggest_win']
+        }
+    })
+
+
+# ============== ИГРОВЫЕ ЭНДПОИНТЫ ==============
+
 @app.route('/api/spin', methods=['POST'])
-def spin():
-    global user_balance
+@require_auth
+def spin(user_id: int):
+    """Спин с авторизацией"""
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'Пользователь не найден'}), 404
     
     # Получаем ставку из запроса
-    data = request.get_json()
+    data = request.get_json() or {}
     bet = data.get('bet', 1)
     
     # Проверяем, достаточно ли баланса
-    if user_balance < bet:
-        return jsonify({"error": "Недостаточно средств"}), 400
-    
-    # Списываем ставку
-    user_balance -= bet
+    if user['balance'] < bet:
+        return jsonify({'error': 'Недостаточно средств'}), 400
     
     # Генерируем результат спина
     matrix = generate_spin_result()
@@ -124,31 +164,50 @@ def spin():
     win_result = check_winlines(matrix)
     
     # Умножаем выигрыш на ставку
-    win_amount = win_result["total_win"] * bet
+    win_amount = win_result['total_win'] * bet
     
-    # Добавляем выигрыш к балансу
-    user_balance += win_amount
+    # Вычисляем новый баланс
+    new_balance = user['balance'] - bet + win_amount
+    
+    # Сохраняем в БД
+    update_user_balance(user_id, new_balance)
+    update_user_stats(user_id, bet, win_amount)
     
     return jsonify({
-        "matrix": matrix,
-        "wins": win_result["wins"],
-        "win_amount": win_amount,
-        "balance": user_balance
+        'matrix': matrix,
+        'wins': win_result['wins'],
+        'win_amount': win_amount,
+        'balance': new_balance
     })
 
+
 @app.route('/api/balance', methods=['GET'])
-def get_balance():
-    return jsonify({"balance": user_balance})
+@require_auth
+def get_balance(user_id: int):
+    """Получить баланс авторизованного пользователя"""
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'Пользователь не найден'}), 404
+    
+    return jsonify({'balance': user['balance']})
+
 
 @app.route('/api/reset_balance', methods=['POST'])
-def reset_balance():
-    global user_balance
-    user_balance = 1000
-    return jsonify({"balance": user_balance})
+@require_auth
+def reset_balance(user_id: int):
+    """Сбросить баланс (для тестирования)"""
+    update_user_balance(user_id, 10000)
+    return jsonify({'balance': 10000})
 
 @app.route('/api/multi_spin', methods=['POST'])
-def multi_spin():
-    global user_balance
+@require_auth
+def multi_spin(user_id: int):
+    """Множественный спин для тестирования"""
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'Пользователь не найден'}), 404
+    
+    balance = user['balance']
     
     # Получаем ставку из запроса
     data = request.get_json() or {}
@@ -160,31 +219,31 @@ def multi_spin():
         spins = 1000
     
     # Проверяем, достаточно ли баланса для одного спина
-    if user_balance < bet:
-        return jsonify({"error": "Недостаточно средств"}), 400
+    if balance < bet:
+        return jsonify({'error': 'Недостаточно средств'}), 400
     
     # Статистика
     stats = {
-        "total_bet": 0,
-        "total_win": 0,
-        "spins": 0,
-        "symbol_frequency": {s: 0 for s in config["symbols"]},
-        "win_frequency": 0,
-        "biggest_win": 0,
-        "rtp": 0,
-        "balance": user_balance
+        'total_bet': 0,
+        'total_win': 0,
+        'spins': 0,
+        'symbol_frequency': {s: 0 for s in config['symbols']},
+        'win_frequency': 0,
+        'biggest_win': 0,
+        'rtp': 0,
+        'balance': balance
     }
     
     # Выполняем спины
     for _ in range(spins):
         # Проверяем, достаточно ли баланса для текущего спина
-        if user_balance < bet:
+        if balance < bet:
             break
             
         # Списываем ставку
-        user_balance -= bet
-        stats["total_bet"] += bet
-        stats["spins"] += 1
+        balance -= bet
+        stats['total_bet'] += bet
+        stats['spins'] += 1
         
         # Генерируем результат спина
         matrix = generate_spin_result()
@@ -192,37 +251,40 @@ def multi_spin():
         # Подсчитываем частоту символов
         for row in matrix:
             for symbol in row:
-                stats["symbol_frequency"][symbol] += 1
+                stats['symbol_frequency'][symbol] += 1
         
         # Проверяем выигрыш
         win_result = check_winlines(matrix)
-        win_amount = win_result["total_win"] * bet
+        win_amount = win_result['total_win'] * bet
         
         # Обновляем статистику
-        stats["total_win"] += win_amount
+        stats['total_win'] += win_amount
         if win_amount > 0:
-            stats["win_frequency"] += 1
-        if win_amount > stats["biggest_win"]:
-            stats["biggest_win"] = win_amount
+            stats['win_frequency'] += 1
+        if win_amount > stats['biggest_win']:
+            stats['biggest_win'] = win_amount
         
         # Добавляем выигрыш к балансу
-        user_balance += win_amount
+        balance += win_amount
+    
+    # Сохраняем баланс в БД
+    update_user_balance(user_id, balance)
     
     # Обновляем баланс в статистике
-    stats["balance"] = user_balance
+    stats['balance'] = balance
     
     # Рассчитываем RTP
-    stats["rtp"] = stats["total_win"] / stats["total_bet"] if stats["total_bet"] > 0 else 0
-    stats["win_frequency"] = stats["win_frequency"] / stats["spins"] if stats["spins"] > 0 else 0
+    stats['rtp'] = stats['total_win'] / stats['total_bet'] if stats['total_bet'] > 0 else 0
+    stats['win_frequency'] = stats['win_frequency'] / stats['spins'] if stats['spins'] > 0 else 0
     
     # Нормализуем частоту символов (в процентах)
-    total_symbols = sum(stats["symbol_frequency"].values())
-    for symbol in stats["symbol_frequency"]:
-        stats["symbol_frequency"][symbol] = round(stats["symbol_frequency"][symbol] * 100 / total_symbols, 2) if total_symbols > 0 else 0
+    total_symbols = sum(stats['symbol_frequency'].values())
+    for symbol in stats['symbol_frequency']:
+        stats['symbol_frequency'][symbol] = round(stats['symbol_frequency'][symbol] * 100 / total_symbols, 2) if total_symbols > 0 else 0
     
     return jsonify({
-        "stats": stats,
-        "balance": user_balance
+        'stats': stats,
+        'balance': balance
     })
 
 @app.route('/api/config', methods=['GET'])

@@ -94,14 +94,15 @@ export class ReelManager {
     reel.mask = mask as any;
     this.masks.push(mask);
 
-    const barabanTex = this.assetLoader.getBarabanTexture();
-    if (barabanTex) {
-      const bs = new PIXI.TilingSprite(barabanTex, cellWidth, reelsHeight * 2);
-      bs.anchor.set(0.5, 0); bs.x = 0; bs.y = -cellHeight;
-      bs.tileScale.set(cellWidth / barabanTex.width, reelsHeight / barabanTex.height);
-      reel.addChild(bs);
-      this.barabanSprites.push(bs);
-    }
+    // Фон барабана отключён
+    // const barabanTex = this.assetLoader.getBarabanTexture();
+    // if (barabanTex) {
+    //   const bs = new PIXI.TilingSprite(barabanTex, cellWidth, reelsHeight * 2);
+    //   bs.anchor.set(0.5, 0); bs.x = 0; bs.y = -cellHeight;
+    //   bs.tileScale.set(cellWidth / barabanTex.width, reelsHeight / barabanTex.height);
+    //   reel.addChild(bs);
+    //   this.barabanSprites.push(bs);
+    // }
 
     // Blur фильтр для motion blur эффекта при вращении
     const blur = new PIXI.filters.BlurFilter(); 

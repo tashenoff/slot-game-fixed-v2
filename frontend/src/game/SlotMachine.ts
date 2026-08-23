@@ -61,10 +61,7 @@ export class SlotMachine {
   }
 
   private buildScene(): void {
-    // Барабаны
-    this.reelManager.build(this.app.stage);
-
-    // Рамка поверх барабанов
+    // Рамка (нижний слой)
     const borderTexture = this.assetLoader.getBorderTexture();
     if (borderTexture) {
       this.borderSprite = new PIXI.Sprite(borderTexture);
@@ -72,6 +69,9 @@ export class SlotMachine {
       this.borderSprite.height = this.config.dimensions.borderHeight;
       this.app.stage.addChild(this.borderSprite);
     }
+
+    // Барабаны поверх рамки (z-index выше)
+    this.reelManager.build(this.app.stage);
 
     // Инициализация отображения выигрышей
     this.winDisplayManager.init(this.app.stage, this.app.ticker);

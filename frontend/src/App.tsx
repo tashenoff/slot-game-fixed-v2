@@ -1,10 +1,14 @@
 import React from 'react';
 import SlotGame from './components/SlotGame';
 
-function App() {
+interface AppProps {
+  initialBalance?: number;
+}
+
+function App({ initialBalance }: AppProps) {
   return (
     <div className="App min-h-screen text-white">
-      <SlotGame />
+      <SlotGame initialBalance={initialBalance} />
     </div>
   );
 }

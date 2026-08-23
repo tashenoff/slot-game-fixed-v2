@@ -1,30 +1,33 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { SlotMachine } from '../game/SlotMachine';
-import { SnowEffect } from '../game/SnowEffect';
 import Navbar from './Navbar';
 import Modal from './Modal';
 import * as API from '../api';
 import { Stats } from '../types';
+import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
 
-const SlotGame: React.FC = () => {
+interface SlotGameProps {
+  initialBalance?: number;
+}
+
+const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000 }) => {
   const slotContainerRef = useRef<HTMLDivElement>(null);
-  const snowContainerRef = useRef<HTMLDivElement>(null);
-  const snowEffectRef = useRef<SnowEffect | null>(null);
   const spinSoundRef = useRef<HTMLAudioElement | null>(null);
   const stopSoundRef = useRef<HTMLAudioElement | null>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const eSoundRef = useRef<HTMLAudioElement | null>(null);
   const cSoundRef = useRef<HTMLAudioElement | null>(null);
   const bSoundRef = useRef<HTMLAudioElement | null>(null);
+  const fSoundRef = useRef<HTMLAudioElement | null>(null);
   const barabanSoundRef = useRef<HTMLAudioElement | null>(null);
   const musicFadeTimerRef = useRef<number | null>(null);
   const musicFadeIntervalRef = useRef<number | null>(null);
   const [isMusicOn, setIsMusicOn] = useState<boolean>(true);
   const [slotMachine, setSlotMachine] = useState<SlotMachine | null>(null);
-  const [balance, setBalance] = useState<number>(1000);
-  const [bet, setBet] = useState<number>(1);
+  const [balance, setBalance] = useState<number>(initialBalance);
+  const [bet, setBet] = useState<number>(100);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [winAmount, setWinAmount] = useState<number>(0);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -52,6 +55,9 @@ const SlotGame: React.FC = () => {
   }
   const [spinHistory, setSpinHistory] = useState<SpinHistoryItem[]>([]);
   const spinCounterRef = useRef<number>(0);
+
+  // Анимированное значение выигрыша (от 0 до суммы)
+  const animatedWinAmount = useAnimatedNumber(winAmount, 800);
   
   // Обновляем refs при изменении значений
   useEffect(() => {
@@ -78,25 +84,9 @@ const SlotGame: React.FC = () => {
           slotMachine.destroy();
         }
         
-        // Уничтожаем снег, если он был
-        if (snowEffectRef.current) {
-          snowEffectRef.current.destroy();
-          snowEffectRef.current = null;
-        }
-        
         // Создаем экземпляр слот-машины
         const machine = new SlotMachine();
         machine.init(slotContainerRef.current);
-        
-        // Инициализируем эффект снега
-        if (snowContainerRef.current) {
-          if (snowEffectRef.current) {
-            snowEffectRef.current.destroy();
-          }
-          const snow = new SnowEffect();
-          snow.init(snowContainerRef.current);
-          snowEffectRef.current = snow;
-        }
         
         // Устанавливаем колбэк для звука остановки каждого барабана
         machine.setReelStopCallback(() => {
@@ -108,14 +98,7 @@ const SlotGame: React.FC = () => {
         });
         
         setSlotMachine(machine);
-
-        // Получаем начальный баланс
-        try {
-          const initialBalance = await API.fetchBalance();
-          setBalance(initialBalance);
-        } catch (error) {
-          console.error('Failed to fetch initial balance:', error);
-        }
+        // Баланс уже получен при авторизации и передан через props
       }
     };
 
@@ -290,6 +273,12 @@ const SlotGame: React.FC = () => {
             bSoundRef.current.currentTime = 0;
             bSoundRef.current.play().catch(err => console.log('B sound play error:', err));
           }
+          
+          const hasFWin = spinResult.wins.some(win => win.symbol === 'F');
+          if (hasFWin && fSoundRef.current) {
+            fSoundRef.current.currentTime = 0;
+            fSoundRef.current.play().catch(err => console.log('F sound play error:', err));
+          }
         }
         
         // Если автоспин активен - продолжаем
@@ -442,6 +431,7 @@ const SlotGame: React.FC = () => {
       <audio ref={eSoundRef} src="/assets/audio/e-sound.mp3" preload="auto" />
       <audio ref={cSoundRef} src="/assets/audio/c-sound.mp3" preload="auto" />
       <audio ref={bSoundRef} src="/assets/audio/b-sound.mp3" preload="auto" />
+      <audio ref={fSoundRef} src="/assets/audio/f-sound.mp3" preload="auto" />
       <audio ref={barabanSoundRef} src="/assets/audio/baraban.mp3" preload="auto" />
       
       {/* Навбар с кнопками управления */}
@@ -459,9 +449,6 @@ const SlotGame: React.FC = () => {
         onToggleMusic={handleToggleMusic}
       />
       
-      {/* Фоновый эффект снега */}
-      <div className="snow-container" ref={snowContainerRef}></div>
-      
       {/* Контейнер для слот-машины */}
       <div className="slot-container" ref={slotContainerRef}></div>
 
@@ -475,7 +462,7 @@ const SlotGame: React.FC = () => {
         {/* Кнопка уменьшения ставки */}
         <button 
           className="control-btn minus-btn"
-          onClick={() => setBet(Math.max(1, bet - 1))}
+          onClick={() => setBet(Math.max(1, bet - 10))}
           disabled={isSpinning || isAutoSpin || bet <= 1}
         >
           −
@@ -496,8 +483,8 @@ const SlotGame: React.FC = () => {
         {/* Кнопка увеличения ставки */}
         <button 
           className="control-btn plus-btn"
-          onClick={() => setBet(bet + 1)}
-          disabled={isSpinning || isAutoSpin || bet >= balance}
+          onClick={() => setBet(Math.min(500, bet + 10))}
+          disabled={isSpinning || isAutoSpin || bet >= 500}
         >
           +
         </button>
@@ -505,13 +492,13 @@ const SlotGame: React.FC = () => {
         {/* Панель выигрыша */}
         <div className="win-panel">
           <span className="win-label">ВЫИГРЫШ:</span>
-          <span className="win-value">◎{winAmount}</span>
+          <span className="win-value">◎{animatedWinAmount}</span>
         </div>
 
         {/* Макс. ставка */}
         <button 
           className="control-btn max-bet-btn"
-          onClick={() => setBet(Math.min(100, balance))}
+          onClick={() => setBet(Math.min(500, balance))}
           disabled={isSpinning || isAutoSpin}
         >
           <span className="btn-text-small">МАКС.</span>
