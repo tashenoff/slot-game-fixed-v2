@@ -11,6 +11,14 @@ export interface IPlayerInfo {
 }
 
 /**
+ * Информация об окружении
+ */
+export interface IEnvironment {
+  /** Язык пользователя (ru, en, tr и т.д.) */
+  lang: string;
+}
+
+/**
  * Интерфейс платформенного адаптера
  * Каждая платформа (Яндекс, VK, CrazyGames и т.д.) реализует этот интерфейс
  * 
@@ -53,6 +61,11 @@ export interface IPlatformAdapter {
    * Проверить, можно ли сейчас показать рекламу
    */
   canShowAd(): Promise<boolean>;
+  
+  /**
+   * Получить информацию об окружении (язык и т.д.)
+   */
+  getEnvironment(): IEnvironment;
   
   /**
    * Отправить событие аналитики (опционально)

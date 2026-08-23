@@ -1,4 +1,4 @@
-import { IPlatformAdapter, IPlayerInfo } from '../IPlatformAdapter';
+import { IPlatformAdapter, IPlayerInfo, IEnvironment } from '../IPlatformAdapter';
 
 /**
  * Адаптер для локальной разработки и собственного сайта
@@ -71,6 +71,14 @@ export class LocalAdapter implements IPlatformAdapter {
   async canShowAd(): Promise<boolean> {
     // В локальном режиме всегда можно показать рекламу
     return true;
+  }
+
+  getEnvironment(): IEnvironment {
+    // Определяем язык из браузера
+    const browserLang = navigator.language.split('-')[0];
+    return {
+      lang: browserLang || 'ru'
+    };
   }
 
   trackEvent(eventName: string, data?: Record<string, unknown>): void {

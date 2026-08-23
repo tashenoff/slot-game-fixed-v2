@@ -16,18 +16,23 @@ async function bootstrap() {
     // 1. Инициализация платформы
     const platform = await platformManager.init();
     const player = platformManager.getPlayer();
+    const env = platform.getEnvironment();
     
     console.log(`🎮 Платформа: ${platform.platformName}`);
+    console.log(`🌐 Язык: ${env.lang}`);
     console.log(`👤 Игрок: ${player.name} (${player.id})`);
     
     // 2. Авторизация на нашем сервере
     const authResult = await API.auth(platform.platformName, player.id);
     console.log(`✅ Авторизация успешна, баланс: ${authResult.user.balance}`);
     
-    // 3. Рендерим React приложение с начальным балансом
+    // 3. Рендерим React приложение с начальным балансом и данными игрока
     ReactDOM.createRoot(document.getElementById('root')!).render(
       <React.StrictMode>
-        <App initialBalance={authResult.user.balance} />
+        <App 
+          initialBalance={authResult.user.balance} 
+          player={{ name: player.name, avatar: player.avatar }}
+        />
       </React.StrictMode>,
     );
     

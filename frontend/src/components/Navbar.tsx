@@ -1,5 +1,10 @@
 import React from 'react';
 
+interface PlayerInfo {
+  name?: string;
+  avatar?: string;
+}
+
 interface NavbarProps {
   onResetBalance: () => void;
   onMultiSpin: () => void;
@@ -12,6 +17,7 @@ interface NavbarProps {
   bet: number;
   isMusicOn: boolean;
   onToggleMusic: () => void;
+  player?: PlayerInfo;
 }
 
 const Navbar: React.FC<NavbarProps> = ({
@@ -26,6 +32,7 @@ const Navbar: React.FC<NavbarProps> = ({
   bet,
   isMusicOn,
   onToggleMusic,
+  player,
 }) => {
   return (
     <nav className="navbar">
@@ -33,6 +40,24 @@ const Navbar: React.FC<NavbarProps> = ({
         <span className="navbar-logo">🎰</span>
         <span className="navbar-title">SLOT GAME</span>
       </div>
+      
+      {/* Информация о игроке */}
+      {player && (
+        <div className="navbar-player">
+          {player.avatar ? (
+            <img 
+              src={player.avatar} 
+              alt={player.name || 'Игрок'} 
+              className="navbar-player-avatar"
+            />
+          ) : (
+            <div className="navbar-player-avatar navbar-player-avatar-default">
+              👤
+            </div>
+          )}
+          <span className="navbar-player-name">{player.name || 'Игрок'}</span>
+        </div>
+      )}
       <div className="navbar-actions">
         <button
           className={`navbar-btn navbar-btn-music ${isMusicOn ? 'music-on' : 'music-off'}`}

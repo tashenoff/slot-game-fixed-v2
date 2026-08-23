@@ -1,4 +1,4 @@
-import { IPlatformAdapter, IPlayerInfo } from '../IPlatformAdapter';
+import { IPlatformAdapter, IPlayerInfo, IEnvironment } from '../IPlatformAdapter';
 
 /**
  * Типы для Yandex Games SDK
@@ -14,6 +14,12 @@ declare global {
 
 interface YandexSDK {
   getPlayer(options?: { scopes?: boolean }): Promise<YandexPlayer>;
+  environment: {
+    i18n: {
+      lang: string;  // 'ru', 'en', 'tr', etc.
+      tld: string;   // 'ru', 'com', etc.
+    };
+  };
   adv: {
     showFullscreenAdv(params: {
       callbacks: {
@@ -93,6 +99,7 @@ export class YandexAdapter implements IPlatformAdapter {
   
   private ysdk: YandexSDK | null = null;
   private player: YandexPlayer | null = null;
+  private lang: string = 'ru';
 
   async init(): Promise<void> {
     console.log('[YandexAdapter] Инициализация Yandex Games SDK...');
@@ -106,6 +113,10 @@ export class YandexAdapter implements IPlatformAdapter {
     
     this.ysdk = await window.YaGames.init();
     console.log('[YandexAdapter] SDK инициализирован');
+    
+    // Получаем язык из SDK (требование п. 2.14)
+    this.lang = this.ysdk.environment.i18n.lang;
+    console.log('[YandexAdapter] Язык пользователя:', this.lang);
     
     // scopes: false — не запрашиваем доступ к персональным данным
     this.player = await this.ysdk.getPlayer({ scopes: false });
@@ -158,6 +169,12 @@ export class YandexAdapter implements IPlatformAdapter {
 
   async canShowAd(): Promise<boolean> {
     return true;
+  }
+
+  getEnvironment(): IEnvironment {
+    return {
+      lang: this.lang
+    };
   }
 
   trackEvent(eventName: string, data?: Record<string, unknown>): void {

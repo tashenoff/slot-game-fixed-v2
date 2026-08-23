@@ -8,11 +8,17 @@ import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
 
-interface SlotGameProps {
-  initialBalance?: number;
+interface PlayerInfo {
+  name?: string;
+  avatar?: string;
 }
 
-const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000 }) => {
+interface SlotGameProps {
+  initialBalance?: number;
+  player?: PlayerInfo;
+}
+
+const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) => {
   const slotContainerRef = useRef<HTMLDivElement>(null);
   const spinSoundRef = useRef<HTMLAudioElement | null>(null);
   const stopSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -447,6 +453,7 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000 }) => {
         bet={bet}
         isMusicOn={isMusicOn}
         onToggleMusic={handleToggleMusic}
+        player={player}
       />
       
       {/* Контейнер для слот-машины */}
