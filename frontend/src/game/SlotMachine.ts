@@ -61,19 +61,26 @@ export class SlotMachine {
   }
 
   private buildScene(): void {
-    // Рамка (нижний слой)
+    // Включаем сортировку по zIndex
+    this.app.stage.sortableChildren = true;
+
+    // Барабаны (нижний слой - zIndex 0)
+    const reelsContainer = this.reelManager.build(this.app.stage);
+    if (reelsContainer) {
+      reelsContainer.zIndex = 0;
+    }
+
+    // Рамка поверх барабанов (zIndex 10)
     const borderTexture = this.assetLoader.getBorderTexture();
     if (borderTexture) {
       this.borderSprite = new PIXI.Sprite(borderTexture);
       this.borderSprite.width = this.config.dimensions.borderWidth;
       this.borderSprite.height = this.config.dimensions.borderHeight;
+      this.borderSprite.zIndex = 10;
       this.app.stage.addChild(this.borderSprite);
     }
 
-    // Барабаны поверх рамки (z-index выше)
-    this.reelManager.build(this.app.stage);
-
-    // Инициализация отображения выигрышей
+    // Инициализация отображения выигрышей (zIndex 20 - выше рамки)
     this.winDisplayManager.init(this.app.stage, this.app.ticker);
   }
 

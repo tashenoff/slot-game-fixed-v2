@@ -71,14 +71,14 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
   dimensions: {
     borderWidth: 1917,
     borderHeight: 1064,
-    reelsOffsetX: 172,     // Центрирование по X: (1917 - 1572) / 2 ≈ 172
-    reelsOffsetY: 230,     // Смещение по Y для центрирования
-    reelsAreaWidth: 1572,  // Уменьшено на ~10%
-    reelsAreaHeight: 738,  // Уменьшено на ~10%
+    reelsOffsetX: 291,     // Центрирование по X: (1917 - 1336) / 2 ≈ 291
+    reelsOffsetY: 285,     // Смещение по Y для центрирования (увеличено пропорционально)
+    reelsAreaWidth: 1336,  // Уменьшено на 15% (было 1572)
+    reelsAreaHeight: 627,  // Уменьшено на 15% (было 738)
     cols: 5,
     rows: 3,
-    cellWidth: 1572 / 5,   // 314.4
-    cellHeight: 738 / 3,   // 246
+    cellWidth: 1336 / 5,   // 267.2 (было 314.4)
+    cellHeight: 627 / 3,   // 209 (было 246)
     symbolSizeRatio: 0.92,
     buffer: 1,
   },
