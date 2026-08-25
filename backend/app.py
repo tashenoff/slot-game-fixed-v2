@@ -8,7 +8,7 @@ from database import init_db, get_or_create_user, get_user_by_id, update_user_ba
 from auth import create_token, require_auth
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}})
 
 # Инициализация БД при старте
 init_db()
@@ -290,6 +290,50 @@ def multi_spin(user_id: int):
 @app.route('/api/config', methods=['GET'])
 def get_config():
     return jsonify(config)
+
+
+# Награда за просмотр рекламы
+AD_REWARD_AMOUNT = 1000
+AD_REWARD_COOLDOWN = 60  # Минимальный интервал между наградами (секунды)
+
+# Словарь для отслеживания времени последней награды (в production использовать Redis/БД)
+last_ad_reward = {}
+
+@app.route('/api/ad_reward', methods=['POST', 'OPTIONS'])
+@require_auth
+def claim_ad_reward(user_id: int):
+    """Начисление награды за просмотр рекламы"""
+    import time
+    
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'Пользователь не найден'}), 404
+    
+    current_time = time.time()
+    
+    # Проверяем cooldown (защита от накрутки)
+    if user_id in last_ad_reward:
+        time_since_last = current_time - last_ad_reward[user_id]
+        if time_since_last < AD_REWARD_COOLDOWN:
+            remaining = int(AD_REWARD_COOLDOWN - time_since_last)
+            return jsonify({
+                'error': f'Подождите {remaining} секунд перед следующей наградой'
+            }), 429
+    
+    # Начисляем награду
+    new_balance = user['balance'] + AD_REWARD_AMOUNT
+    update_user_balance(user_id, new_balance)
+    
+    # Обновляем время последней награды
+    last_ad_reward[user_id] = current_time
+    
+    print(f"[AD_REWARD] user_id={user_id} получил {AD_REWARD_AMOUNT} монет, новый баланс={new_balance}")
+    
+    return jsonify({
+        'balance': new_balance,
+        'reward': AD_REWARD_AMOUNT
+    })
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

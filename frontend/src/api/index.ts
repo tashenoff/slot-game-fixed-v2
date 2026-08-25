@@ -115,3 +115,14 @@ export const resetBalance = async (): Promise<number> => {
     throw error;
   }
 };
+
+// Начисление награды за просмотр рекламы
+export const claimAdReward = async (): Promise<{ balance: number; reward: number }> => {
+  try {
+    const response = await api.post('/ad_reward');
+    return response.data;
+  } catch (error) {
+    console.error('Error claiming ad reward:', error);
+    throw error;
+  }
+};

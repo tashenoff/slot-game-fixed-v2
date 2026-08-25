@@ -74,20 +74,20 @@ export class SlotMachine {
   private async loadTex() {
     // Загружаем рамку border.png
     try {
-      this.borderTexture = await PIXI.Texture.fromURL('/assets/symbols/border.png');
+      this.borderTexture = await PIXI.Texture.fromURL('./assets/symbols/border.png');
     } catch (e) {
       console.warn('Failed to load border.png:', e);
     }
 
     // Загружаем текстуру барабана baraban.png
     try {
-      this.barabanTexture = await PIXI.Texture.fromURL('/assets/symbols/baraban.png');
+      this.barabanTexture = await PIXI.Texture.fromURL('./assets/symbols/baraban.png');
     } catch (e) {
       console.warn('Failed to load baraban.png:', e);
     }
 
     for (const sym of ['A','B','C','D','E']) {
-      try { this.symbolTextures[sym] = await PIXI.Texture.fromURL(`/assets/symbols/${sym.toLowerCase()}.svg`); }
+      try { this.symbolTextures[sym] = await PIXI.Texture.fromURL(`./assets/symbols/${sym.toLowerCase()}.svg`); }
       catch {
         const c = document.createElement('canvas'); c.width = c.height = this.H - 20; const ctx = c.getContext('2d')!;
         ctx.fillStyle = {A:'#e74c3c',B:'#2ecc71',C:'#3498db',D:'#f1c40f',E:'#9b59b6'}[sym]||'#888';

@@ -36,7 +36,7 @@ export class AssetLoader {
    */
   private async loadBorderTexture(): Promise<void> {
     try {
-      this.borderTexture = await PIXI.Texture.fromURL('/assets/symbols/border.png');
+      this.borderTexture = await PIXI.Texture.fromURL('./assets/symbols/border.png');
     } catch (e) {
       console.warn('AssetLoader: Failed to load border.png:', e);
     }
@@ -47,7 +47,7 @@ export class AssetLoader {
    */
   private async loadBarabanTexture(): Promise<void> {
     try {
-      this.barabanTexture = await PIXI.Texture.fromURL('/assets/symbols/baraban.png');
+      this.barabanTexture = await PIXI.Texture.fromURL('./assets/symbols/baraban.png');
     } catch (e) {
       console.warn('AssetLoader: Failed to load baraban.png:', e);
     }
@@ -61,7 +61,7 @@ export class AssetLoader {
 
     for (const sym of ids) {
       try {
-        const texture = await PIXI.Texture.fromURL(`/assets/symbols/${sym.toLowerCase()}.svg`);
+        const texture = await PIXI.Texture.fromURL(`./assets/symbols/${sym.toLowerCase()}.svg`);
         this.symbolTextures.set(sym, texture);
       } catch {
         // Генерируем fallback текстуру

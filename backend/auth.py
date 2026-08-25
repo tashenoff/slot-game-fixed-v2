@@ -73,6 +73,10 @@ def require_auth(f):
     """
     @wraps(f)
     def decorated(*args, **kwargs):
+        # Пропускаем OPTIONS запросы (CORS preflight)
+        if request.method == 'OPTIONS':
+            return '', 200
+        
         token = get_token_from_request()
         if not token:
             return jsonify({'error': 'Требуется авторизация'}), 401

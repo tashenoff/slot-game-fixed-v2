@@ -531,7 +531,9 @@ export class WinLineManager {
     for (let i = 0; i < maxLines; i++) {
       const line = new WinLine(ticker);
       this.lines.push(line);
-      this.stage.addChild(line.getContainer());
+      const container = line.getContainer();
+      container.zIndex = 20; // Поверх рамки (zIndex 10)
+      this.stage.addChild(container);
     }
   }
 

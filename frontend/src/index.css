@@ -9,7 +9,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('/assets/symbols/bg.png');
+  background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('../assets/symbols/bg.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -922,5 +922,137 @@ body {
   
   .btn-text-small {
     font-size: 0.45rem;
+  }
+}
+
+/* ===== МОДАЛЬНОЕ ОКНО НИЗКОГО БАЛАНСА (РЕКЛАМА) ===== */
+
+.low-balance-modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem;
+}
+
+.low-balance-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  animation: bounce-coins 1s infinite;
+}
+
+@keyframes bounce-coins {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.low-balance-text {
+  font-size: 1.1rem;
+  color: #9ca3af;
+  margin-bottom: 0.5rem;
+}
+
+.low-balance-description {
+  font-size: 1rem;
+  color: #d1d5db;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.reward-amount {
+  color: #fbbf24;
+  font-size: 1.2rem;
+}
+
+.low-balance-error {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.low-balance-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 280px;
+}
+
+.btn-watch-ad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: white;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.btn-watch-ad:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+  background: linear-gradient(135deg, #34d399, #10b981);
+}
+
+.btn-watch-ad:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-watch-ad:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-close-modal {
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  color: #9ca3af;
+  background: transparent;
+  border: 1px solid #4b5563;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-close-modal:hover:not(:disabled) {
+  color: white;
+  border-color: #6b7280;
+  background: rgba(75, 85, 99, 0.3);
+}
+
+.btn-close-modal:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Спиннер для загрузки */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }

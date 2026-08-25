@@ -2,11 +2,13 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { SlotMachine } from '../game/SlotMachine';
 import Navbar from './Navbar';
 import Modal from './Modal';
+import LowBalanceModal from './LowBalanceModal';
 import * as API from '../api';
 import { Stats } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
+const LOW_BALANCE_THRESHOLD = 300; // Порог для показа модалки с рекламой
 
 interface PlayerInfo {
   name?: string;
@@ -39,8 +41,10 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
   const [stats, setStats] = useState<Stats | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState<boolean>(false);
   const [showStatsModal, setShowStatsModal] = useState<boolean>(false);
+  const [showLowBalanceModal, setShowLowBalanceModal] = useState<boolean>(false);
   const [isProcessingMultiSpin, setIsProcessingMultiSpin] = useState<boolean>(false);
   const [multiSpinProgress, setMultiSpinProgress] = useState<number>(0);
+  const lowBalanceShownRef = useRef<boolean>(false); // Чтобы не показывать модалку повторно
   
   // Состояния автоспина
   const [isAutoSpin, setIsAutoSpin] = useState<boolean>(false);
@@ -72,6 +76,45 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
   
   useEffect(() => {
     balanceRef.current = balance;
+  }, [balance]);
+
+  // Отслеживаем низкий баланс и показываем модалку с рекламой
+  useEffect(() => {
+    // Показываем модалку только если:
+    // 1. Баланс <= порога (включая 0)
+    // 2. Модалка ещё не была показана в этой сессии (или баланс восстановился)
+    // 3. Не идёт спин и не идёт автоспин
+    if (
+      balance <= LOW_BALANCE_THRESHOLD &&
+      balance >= 0 &&
+      !lowBalanceShownRef.current &&
+      !isSpinning &&
+      !isAutoSpin
+    ) {
+      setShowLowBalanceModal(true);
+      lowBalanceShownRef.current = true;
+    }
+    
+    // Сбрасываем флаг если баланс восстановился выше порога
+    if (balance > LOW_BALANCE_THRESHOLD * 2) {
+      lowBalanceShownRef.current = false;
+    }
+  }, [balance, isSpinning, isAutoSpin]);
+
+  // Обработчик получения награды за рекламу
+  const handleAdReward = useCallback(async (amount: number) => {
+    try {
+      const result = await API.claimAdReward();
+      setBalance(result.balance);
+      balanceRef.current = result.balance;
+      console.log(`[SlotGame] Получена награда за рекламу: ${result.reward} монет, баланс: ${result.balance}`);
+    } catch (error) {
+      console.error('[SlotGame] Ошибка получения награды:', error);
+      // В случае ошибки всё равно добавляем локально (на случай проблем с сетью)
+      const newBalance = balance + amount;
+      setBalance(newBalance);
+      balanceRef.current = newBalance;
+    }
   }, [balance]);
 
   // Инициализация слот-машины
@@ -431,14 +474,14 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
   return (
     <div className="game-container">
       {/* Аудио для звуков */}
-      <audio ref={spinSoundRef} src="/assets/audio/start.mp3" preload="auto" />
-      <audio ref={stopSoundRef} src="/assets/audio/stop.mp3" preload="auto" />
-      <audio ref={musicRef} src="/assets/audio/music.mp3" preload="auto" loop />
-      <audio ref={eSoundRef} src="/assets/audio/e-sound.mp3" preload="auto" />
-      <audio ref={cSoundRef} src="/assets/audio/c-sound.mp3" preload="auto" />
-      <audio ref={bSoundRef} src="/assets/audio/b-sound.mp3" preload="auto" />
-      <audio ref={fSoundRef} src="/assets/audio/f-sound.mp3" preload="auto" />
-      <audio ref={barabanSoundRef} src="/assets/audio/baraban.mp3" preload="auto" />
+      <audio ref={spinSoundRef} src="./assets/audio/start.mp3" preload="auto" />
+      <audio ref={stopSoundRef} src="./assets/audio/stop.mp3" preload="auto" />
+      <audio ref={musicRef} src="./assets/audio/music.mp3" preload="auto" loop />
+      <audio ref={eSoundRef} src="./assets/audio/e-sound.mp3" preload="auto" />
+      <audio ref={cSoundRef} src="./assets/audio/c-sound.mp3" preload="auto" />
+      <audio ref={bSoundRef} src="./assets/audio/b-sound.mp3" preload="auto" />
+      <audio ref={fSoundRef} src="./assets/audio/f-sound.mp3" preload="auto" />
+      <audio ref={barabanSoundRef} src="./assets/audio/baraban.mp3" preload="auto" />
       
       {/* Навбар с кнопками управления */}
       <Navbar
@@ -646,6 +689,14 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
           </>
         )}
       </Modal>
+
+      {/* Модальное окно низкого баланса с предложением рекламы */}
+      <LowBalanceModal
+        isOpen={showLowBalanceModal}
+        onClose={() => setShowLowBalanceModal(false)}
+        onRewardReceived={handleAdReward}
+        currentBalance={balance}
+      />
     </div>
   );
 };
