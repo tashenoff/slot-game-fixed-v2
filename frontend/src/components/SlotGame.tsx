@@ -7,6 +7,7 @@ import * as API from '../api';
 import { Stats } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath } from '../config/themes';
+import { SandEffect } from '../game/SandEffect';
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
 const LOW_BALANCE_THRESHOLD = 300; // Порог для показа модалки с рекламой
@@ -56,6 +57,8 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const [multiSpinProgress, setMultiSpinProgress] = useState<number>(0);
   const [isSlotLoading, setIsSlotLoading] = useState<boolean>(true); // Состояние загрузки слот-машины
   const lowBalanceShownRef = useRef<boolean>(false); // Чтобы не показывать модалку повторно
+  const sandEffectRef = useRef<SandEffect | null>(null);
+  const sandContainerRef = useRef<HTMLDivElement>(null);
   
   // Состояния автоспина
   const [isAutoSpin, setIsAutoSpin] = useState<boolean>(false);
@@ -193,6 +196,37 @@ const SlotGame: React.FC<SlotGameProps> = ({
     // Возвращаем исходный фон при размонтировании или смене темы
     return () => {
       document.body.style.backgroundImage = originalBg;
+    };
+  }, [theme]);
+
+  // Эффект песка для египетской темы
+  useEffect(() => {
+    // Уничтожаем предыдущий эффект
+    if (sandEffectRef.current) {
+      sandEffectRef.current.destroy();
+      sandEffectRef.current = null;
+    }
+    
+    // Создаём эффект песка только для египетской темы
+    if (theme.id === 'egypt' && sandContainerRef.current) {
+      const sandEffect = new SandEffect({
+        particleCount: 120,
+        windDirection: 'right',
+        windSpeed: 1.5,        // Медленный, спокойный ветер
+        intensity: 0.6,        // Менее заметные частицы
+        gustEnabled: true,
+        gustInterval: 6000,    // Порывы реже
+      });
+      sandEffect.init(sandContainerRef.current);
+      sandEffectRef.current = sandEffect;
+      console.log('[SandEffect] Эффект песка инициализирован для египетской темы');
+    }
+    
+    return () => {
+      if (sandEffectRef.current) {
+        sandEffectRef.current.destroy();
+        sandEffectRef.current = null;
+      }
     };
   }, [theme]);
 
@@ -545,6 +579,9 @@ const SlotGame: React.FC<SlotGameProps> = ({
 
   return (
     <div className="game-container">
+      {/* Контейнер для эффекта песка (египетская тема) */}
+      <div ref={sandContainerRef} className="sand-effect-container" />
+      
       {/* Аудио для звуков */}
       <audio ref={spinSoundRef} src="./assets/audio/start.mp3" preload="auto" />
       <audio ref={stopSoundRef} src="./assets/audio/stop.mp3" preload="auto" />

@@ -17,21 +17,10 @@ interface AppProps {
 type AppView = 'lobby' | 'loading' | 'game';
 
 function App({ initialBalance = 10000, player }: AppProps) {
-  const [currentView, setCurrentView] = useState<AppView>('loading'); // Начинаем с загрузки
+  const [currentView, setCurrentView] = useState<AppView>('lobby'); // Начинаем с лобби
   const [selectedTheme, setSelectedTheme] = useState<SlotTheme | null>(null);
   const [pendingTheme, setPendingTheme] = useState<SlotTheme | null>(null); // Тема в процессе загрузки
   const [balance, setBalance] = useState<number>(initialBalance);
-
-  // Автозагрузка египетской темы при старте
-  useEffect(() => {
-    loadTheme('egypt').then(theme => {
-      if (theme) {
-        // Устанавливаем тему как ожидающую загрузки и показываем прелоадер
-        setPendingTheme(theme);
-        setCurrentView('loading');
-      }
-    });
-  }, []);
 
   // Обработчик выбора темы в лобби
   const handleSelectTheme = useCallback((theme: SlotTheme) => {

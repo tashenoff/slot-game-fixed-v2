@@ -10,6 +10,10 @@ export interface SlotDimensions {
   reelsOffsetY: number;
   reelsAreaWidth: number;
   reelsAreaHeight: number;
+  reelsAutoCenter: boolean; // Если true - автоматическое центрирование барабанов
+  reelsCenterYOffset: number; // Дополнительное вертикальное смещение при автоцентрировании
+  reelGap: number; // Зазор между барабанами (колонками) в пикселях
+  rowGap: number; // Зазор между рядами (строками) в пикселях
   cols: number;
   rows: number;
   cellWidth: number;
@@ -83,6 +87,10 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     reelsOffsetY: 285,     // Смещение по Y для центрирования (увеличено пропорционально)
     reelsAreaWidth: 1336,  // Уменьшено на 15% (было 1572)
     reelsAreaHeight: 627,  // Уменьшено на 15% (было 738)
+    reelsAutoCenter: false, // По умолчанию используем ручные смещения
+    reelsCenterYOffset: 0, // По умолчанию без дополнительного смещения
+    reelGap: 0, // По умолчанию без зазоров
+    rowGap: 0, // По умолчанию без зазоров
     cols: 5,
     rows: 3,
     cellWidth: 1336 / 5,   // 267.2 (было 314.4)
@@ -170,9 +178,13 @@ export class SlotConfig {
     };
     
     // Автоматический расчёт размеров ячеек из размера контейнера
-    // cellWidth и cellHeight вычисляются из reelsAreaWidth/Height и cols/rows
-    merged.dimensions.cellWidth = merged.dimensions.reelsAreaWidth / merged.dimensions.cols;
-    merged.dimensions.cellHeight = merged.dimensions.reelsAreaHeight / merged.dimensions.rows;
+    // cellWidth и cellHeight вычисляются из reelsAreaWidth/Height и cols/rows с учётом зазоров
+    // reelsAreaWidth = cols * cellWidth + (cols - 1) * reelGap
+    // => cellWidth = (reelsAreaWidth - (cols - 1) * reelGap) / cols
+    const totalReelGaps = (merged.dimensions.cols - 1) * merged.dimensions.reelGap;
+    const totalRowGaps = (merged.dimensions.rows - 1) * merged.dimensions.rowGap;
+    merged.dimensions.cellWidth = (merged.dimensions.reelsAreaWidth - totalReelGaps) / merged.dimensions.cols;
+    merged.dimensions.cellHeight = (merged.dimensions.reelsAreaHeight - totalRowGaps) / merged.dimensions.rows;
     
     return merged;
   }

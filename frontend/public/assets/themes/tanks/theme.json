@@ -1,17 +1,17 @@
 {
-  "id": "classic",
-  "name": "Классический",
-  "description": "Классические символы A, B, C, D, E, F",
+  "id": "tanks",
+  "name": "Танки",
+  "description": "Боевые машины и военная техника!",
   "symbols": ["A", "B", "C", "D", "E", "F"],
   "fallbackColors": {
-    "A": "#e74c3c",
-    "B": "#2ecc71",
-    "C": "#3498db",
-    "D": "#f1c40f",
-    "E": "#9b59b6",
-    "F": "#ff6600"
+    "A": "#4a5d23",
+    "B": "#8b4513",
+    "C": "#2f4f4f",
+    "D": "#556b2f",
+    "E": "#3c3c3c",
+    "F": "#cd853f"
   },
-  "isHot": true,
+  "isNew": true,
   "borderWidth": 1600,
   "borderHeight": 1073,
   "symbolSizeRatio": 1.0,

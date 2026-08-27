@@ -54,10 +54,11 @@ export class ReelAnimator {
    */
   private calculateOrderedStops(): void {
     const state = this.reelManager.getState();
-    const { cellHeight } = this.config.dimensions;
-    const { cols } = this.config.dimensions;
+    const { cellHeight, rowGap, cols } = this.config.dimensions;
     const { reelStripLength, spinSpeed } = this.config.animation;
-    const stripHeightPx = reelStripLength * cellHeight;
+    // Шаг между символами с учётом зазора
+    const stepHeight = cellHeight + rowGap;
+    const stripHeightPx = reelStripLength * stepHeight;
     
     // Минимальная разница между остановками барабанов (в пикселях)
     // Примерно 2 кадра разницы между остановками
@@ -117,9 +118,11 @@ export class ReelAnimator {
   private animateReel(col: number, s: ReelState): void {
     const { animation, dimensions } = this.config;
     const blurFilters = this.reelManager.getBlurFilters();
-    const { cellHeight } = dimensions;
+    const { cellHeight, rowGap } = dimensions;
     const { reelStripLength } = animation;
-    const stripHeightPx = reelStripLength * cellHeight;
+    // Шаг между символами с учётом зазора
+    const stepHeight = cellHeight + rowGap;
+    const stripHeightPx = reelStripLength * stepHeight;
 
     if (s.phase === 'spinning') {
       s.velocity = animation.spinSpeed;
@@ -175,12 +178,14 @@ export class ReelAnimator {
     const progress = Math.min(elapsed / animation.bounceTime, 1);
     const bounce = Math.sin(progress * Math.PI) * animation.bounceHeight * (1 - progress);
 
-    const { cellHeight, rows } = dimensions;
+    const { cellHeight, rowGap, rows } = dimensions;
+    // Шаг между символами с учётом зазора
+    const stepHeight = cellHeight + rowGap;
 
     // Анимируем только видимые символы (используем getSymbol)
     for (let r = 0; r < rows; r++) {
       const sprite = this.reelManager.getSymbol(col, r);
-      if (sprite) sprite.y = r * cellHeight + cellHeight / 2 + bounce;
+      if (sprite) sprite.y = r * stepHeight + cellHeight / 2 + bounce;
     }
 
     if (barabanSprites[col]) barabanSprites[col].tilePosition.y = bounce;
@@ -191,7 +196,7 @@ export class ReelAnimator {
       // Финальные позиции
       for (let r = 0; r < rows; r++) {
         const sprite = this.reelManager.getSymbol(col, r);
-        if (sprite) sprite.y = r * cellHeight + cellHeight / 2;
+        if (sprite) sprite.y = r * stepHeight + cellHeight / 2;
       }
       if (barabanSprites[col]) barabanSprites[col].tilePosition.y = 0;
     }

@@ -15,6 +15,7 @@ interface IReelAnimator {
   start(): void;
   stop(): void;
   isAnimating(): boolean;
+  setPendingMatrix?(matrix: string[][]): void; // Для drop анимации - установка матрицы новых символов
 }
 
 /**
@@ -73,6 +74,18 @@ export class SlotMachine {
     }
     if (theme.reelsAreaHeight !== undefined) {
       dimensionsOverrides.reelsAreaHeight = theme.reelsAreaHeight;
+    }
+    if (theme.reelsAutoCenter !== undefined) {
+      dimensionsOverrides.reelsAutoCenter = theme.reelsAutoCenter;
+    }
+    if (theme.reelsCenterYOffset !== undefined) {
+      dimensionsOverrides.reelsCenterYOffset = theme.reelsCenterYOffset;
+    }
+    if (theme.reelGap !== undefined) {
+      dimensionsOverrides.reelGap = theme.reelGap;
+    }
+    if (theme.rowGap !== undefined) {
+      dimensionsOverrides.rowGap = theme.rowGap;
     }
     
     // Собираем настройки анимации из темы
@@ -220,7 +233,8 @@ export class SlotMachine {
     
     // Выбираем метод подготовки в зависимости от типа анимации
     if (this.animationType === 'drop') {
-      this.reelManager.prepareDropState(matrix);
+      // Для drop анимации: передаём матрицу в аниматор, он сам обновит текстуры после выхода старых символов
+      this.reelAnimator.setPendingMatrix?.(matrix);
     } else {
       this.reelManager.initSpinState(matrix);
     }

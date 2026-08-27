@@ -47,6 +47,10 @@ export interface ThemeData {
   reelsOffsetY?: number;
   reelsAreaWidth?: number;
   reelsAreaHeight?: number;
+  reelsAutoCenter?: boolean; // Если true - автоматическое центрирование барабанов внутри рамки
+  reelsCenterYOffset?: number; // Дополнительное вертикальное смещение при автоцентрировании (положительное = вниз)
+  reelGap?: number; // Зазор между барабанами (колонками) в пикселях
+  rowGap?: number; // Зазор между рядами (строками) в пикселях
   // Настройки анимации барабанов
   reelAnimation?: ThemeReelAnimation;
 }
@@ -58,7 +62,7 @@ export interface SlotTheme extends ThemeData {
 }
 
 // Список ID тем (порядок отображения в лобби)
-const THEME_IDS = ['classic', 'fruits', 'egypt'];
+const THEME_IDS = ['classic', 'fruits', 'egypt', 'tanks'];
 
 // Базовый путь к папке с темами
 const THEMES_BASE_PATH = './assets/themes';

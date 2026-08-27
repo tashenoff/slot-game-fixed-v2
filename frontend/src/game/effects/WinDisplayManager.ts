@@ -65,7 +65,9 @@ export class WinDisplayManager {
 
   private showWinLine(w: Win, index: number): void {
     const positions = this.config.getPaylinePositions(w.line);
-    const { reelsOffsetX, reelsOffsetY, cellWidth, cellHeight } = this.config.dimensions;
+    const { cellWidth, cellHeight, reelGap, rowGap, 
+            reelsAreaWidth, reelsAreaHeight, borderWidth, borderHeight, reelsAutoCenter,
+            reelsCenterYOffset, reelsOffsetX, reelsOffsetY } = this.config.dimensions;
 
     // Позиции выигрышных символов
     const winSymbolPositions: { col: number; row: number }[] = [];
@@ -73,10 +75,21 @@ export class WinDisplayManager {
       winSymbolPositions.push(positions[i]);
     }
 
-    // Координаты для линии
+    // Вычисляем реальное смещение барабанов (учитывая autoCenter)
+    let actualOffsetX = reelsOffsetX;
+    let actualOffsetY = reelsOffsetY;
+    if (reelsAutoCenter) {
+      // reelsAreaWidth/Height УЖЕ включают зазоры (это полный размер области барабанов)
+      const totalWidth = reelsAreaWidth;
+      const totalHeight = reelsAreaHeight;
+      actualOffsetX = (borderWidth - totalWidth) / 2;
+      actualOffsetY = (borderHeight - totalHeight) / 2 + reelsCenterYOffset;
+    }
+
+    // Координаты для линии с учётом зазоров между барабанами
     const points = positions.map(p => ({
-      x: p.col * cellWidth + cellWidth / 2 + reelsOffsetX,
-      y: p.row * cellHeight + cellHeight / 2 + reelsOffsetY,
+      x: p.col * (cellWidth + reelGap) + cellWidth / 2 + actualOffsetX,
+      y: p.row * (cellHeight + rowGap) + cellHeight / 2 + actualOffsetY,
     }));
 
     const theme = LINE_THEMES[w.line % LINE_THEMES.length];
