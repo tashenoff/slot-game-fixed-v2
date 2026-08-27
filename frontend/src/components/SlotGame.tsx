@@ -54,6 +54,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const [showLowBalanceModal, setShowLowBalanceModal] = useState<boolean>(false);
   const [isProcessingMultiSpin, setIsProcessingMultiSpin] = useState<boolean>(false);
   const [multiSpinProgress, setMultiSpinProgress] = useState<number>(0);
+  const [isSlotLoading, setIsSlotLoading] = useState<boolean>(true); // Состояние загрузки слот-машины
   const lowBalanceShownRef = useRef<boolean>(false); // Чтобы не показывать модалку повторно
   
   // Состояния автоспина
@@ -136,6 +137,9 @@ const SlotGame: React.FC<SlotGameProps> = ({
   useEffect(() => {
     const initSlotMachine = async () => {
       if (slotContainerRef.current) {
+        // Показываем индикатор загрузки
+        setIsSlotLoading(true);
+        
         // Очищаем контейнер перед созданием нового экземпляра слот-машины
         if (slotContainerRef.current.firstChild) {
           while (slotContainerRef.current.firstChild) {
@@ -162,6 +166,8 @@ const SlotGame: React.FC<SlotGameProps> = ({
         });
         
         setSlotMachine(machine);
+        // Скрываем индикатор загрузки после инициализации
+        setIsSlotLoading(false);
         // Баланс уже получен при авторизации и передан через props
       }
     };
@@ -567,8 +573,25 @@ const SlotGame: React.FC<SlotGameProps> = ({
         onBackToLobby={onBackToLobby}
       />
       
-      {/* Контейнер для слот-машины */}
-      <div className="slot-container" ref={slotContainerRef}></div>
+      {/* Обёртка слот-контейнера с оверлеем загрузки */}
+      <div className="slot-container-wrapper">
+        {/* Контейнер для слот-машины (Pixi.js) */}
+        <div className="slot-container" ref={slotContainerRef}></div>
+        
+        {/* Оверлей загрузки слот-машины */}
+        {isSlotLoading && (
+          <div className="slot-loading-overlay">
+            <div className="slot-loading-content">
+              <div className="slot-loading-spinner">
+                <div className="slot-loading-spinner-ring"></div>
+                <div className="slot-loading-spinner-ring"></div>
+                <div className="slot-loading-spinner-ring"></div>
+              </div>
+              <p className="slot-loading-text">Загрузка слота...</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Основная панель управления */}
       <div className="main-controls">

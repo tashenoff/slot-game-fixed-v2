@@ -30,7 +30,8 @@ body {
   box-sizing: border-box;
 }
 
-.slot-container {
+/* Обёртка слот-контейнера (содержит контейнер и оверлей загрузки) */
+.slot-container-wrapper {
   flex: 1 1 0;
   display: flex;
   justify-content: center;
@@ -40,6 +41,16 @@ body {
   overflow: hidden;
   position: relative;
   z-index: 2;
+  box-sizing: border-box;
+}
+
+.slot-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -1542,6 +1553,10 @@ body {
 
 .preloader-current-asset {
   font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
 /* Блок ошибки */
 .preloader-error {
   display: flex;
@@ -1666,8 +1681,77 @@ body {
   .preloader-progress-text { font-size: 1rem; }
 }
 
+/* ===== ОВЕРЛЕЙ ЗАГРУЗКИ СЛОТА (в SlotGame) ===== */
 
-  color: rgba(255, 255, 255, 0.6);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+.slot-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: 1rem;
+}
+
+.slot-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.slot-loading-spinner {
+  width: 60px;
+  height: 60px;
+  position: relative;
+}
+
+.slot-loading-spinner-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 4px solid transparent;
+  border-top-color: #ffd700;
+  border-radius: 50%;
+  animation: slot-loading-spin 1s linear infinite;
+}
+
+.slot-loading-spinner-ring:nth-child(2) {
+  width: 75%;
+  height: 75%;
+  top: 12.5%;
+  left: 12.5%;
+  border-top-color: #ffed4a;
+  animation-duration: 0.75s;
+  animation-direction: reverse;
+}
+
+.slot-loading-spinner-ring:nth-child(3) {
+  width: 50%;
+  height: 50%;
+  top: 25%;
+  left: 25%;
+  border-top-color: #fff;
+  animation-duration: 0.5s;
+}
+
+@keyframes slot-loading-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.slot-loading-text {
+  color: #ffd700;
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin: 0;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.8);
+  animation: slot-loading-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes slot-loading-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
