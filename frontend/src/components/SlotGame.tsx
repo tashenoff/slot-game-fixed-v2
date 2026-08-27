@@ -6,7 +6,7 @@ import LowBalanceModal from './LowBalanceModal';
 import * as API from '../api';
 import { Stats } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
-import { SlotTheme, getBackgroundAssetPath } from '../config/themes';
+import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath } from '../config/themes';
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
 const LOW_BALANCE_THRESHOLD = 300; // Порог для показа модалки с рекламой
@@ -189,6 +189,44 @@ const SlotGame: React.FC<SlotGameProps> = ({
       document.body.style.backgroundImage = originalBg;
     };
   }, [theme]);
+
+  // Смена музыки в зависимости от темы
+  useEffect(() => {
+    const musicEl = musicRef.current;
+    if (!musicEl) return;
+    
+    const themeMusicPath = getMusicAssetPath(theme);
+    const defaultMusicPath = getDefaultMusicPath();
+    
+    // Пробуем загрузить музыку темы, если не получится - используем дефолтную
+    const wasPlaying = !musicEl.paused;
+    
+    console.log(`[Music] Загрузка музыки для темы ${theme.id}, путь: ${themeMusicPath}`);
+    
+    // Проверяем существование файла музыки темы
+    fetch(themeMusicPath, { method: 'HEAD' })
+      .then(response => {
+        if (response.ok) {
+          console.log(`[Music] Найдена музыка темы: ${themeMusicPath}`);
+          musicEl.src = themeMusicPath;
+        } else {
+          console.log(`[Music] Музыка темы не найдена, используем дефолтную: ${defaultMusicPath}`);
+          musicEl.src = defaultMusicPath;
+        }
+        musicEl.load();
+        if (wasPlaying && isMusicOn) {
+          musicEl.play().catch(err => console.log('Music play error:', err));
+        }
+      })
+      .catch(() => {
+        console.log(`[Music] Ошибка загрузки, используем дефолтную: ${defaultMusicPath}`);
+        musicEl.src = defaultMusicPath;
+        musicEl.load();
+        if (wasPlaying && isMusicOn) {
+          musicEl.play().catch(err => console.log('Music play error:', err));
+        }
+      });
+  }, [theme, isMusicOn]);
 
   // Остановка автоспина
   const stopAutoSpin = useCallback(() => {
@@ -504,7 +542,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
       {/* Аудио для звуков */}
       <audio ref={spinSoundRef} src="./assets/audio/start.mp3" preload="auto" />
       <audio ref={stopSoundRef} src="./assets/audio/stop.mp3" preload="auto" />
-      <audio ref={musicRef} src="./assets/audio/music.mp3" preload="auto" loop />
+      <audio ref={musicRef} preload="auto" loop />
       <audio ref={eSoundRef} src="./assets/audio/e-sound.mp3" preload="auto" />
       <audio ref={cSoundRef} src="./assets/audio/c-sound.mp3" preload="auto" />
       <audio ref={bSoundRef} src="./assets/audio/b-sound.mp3" preload="auto" />

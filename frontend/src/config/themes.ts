@@ -131,3 +131,17 @@ export function getBarabanAssetPath(theme: SlotTheme): string {
 export function getBackgroundAssetPath(theme: SlotTheme): string {
   return `${theme.assetsPath}/bg.png`;
 }
+
+/**
+ * Получить путь к музыке темы (если есть) или дефолтную
+ */
+export function getMusicAssetPath(theme: SlotTheme): string {
+  return `${theme.assetsPath}/music.mp3`;
+}
+
+/**
+ * Получить путь к дефолтной музыке
+ */
+export function getDefaultMusicPath(): string {
+  return './assets/audio/music.mp3';
+}
