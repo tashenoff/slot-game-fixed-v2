@@ -1,11 +1,21 @@
 import * as PIXI from 'pixi.js';
 import { SpinResult } from '../types';
-import { SlotConfig } from './config/SlotConfig';
+import { SlotConfig, ReelAnimationType } from './config/SlotConfig';
 import { AssetLoader } from './core/AssetLoader';
 import { ReelManager } from './core/ReelManager';
 import { ReelAnimator } from './animation/ReelAnimator';
+import { DropReelAnimator } from './animation/DropReelAnimator';
 import { SymbolAnimator } from './animation/SymbolAnimator';
 import { WinDisplayManager } from './effects/WinDisplayManager';
+import { SlotTheme } from '../config/themes';
+
+// Общий интерфейс для всех аниматоров барабанов
+interface IReelAnimator {
+  setCallbacks(callbacks: { onReelStop?: (i: number) => void; onAllReelsStopped?: () => void }): void;
+  start(): void;
+  stop(): void;
+  isAnimating(): boolean;
+}
 
 /**
  * SlotMachine - главный фасад слот-машины (рефакторенная версия)
@@ -17,26 +27,110 @@ export class SlotMachine {
   private config: SlotConfig;
   private assetLoader: AssetLoader;
   private reelManager: ReelManager;
-  private reelAnimator: ReelAnimator;
+  private reelAnimator: IReelAnimator;
   private symbolAnimator: SymbolAnimator;
   private winDisplayManager: WinDisplayManager;
   private borderSprite: PIXI.Sprite | null = null;
+  private theme: SlotTheme;
+  private animationType: ReelAnimationType;
 
   private isSpinning = false;
   private currentResult: SpinResult | null = null;
   private spinCallback: ((r: SpinResult) => void) | null = null;
   private reelStopCallback: ((reelIndex: number) => void) | null = null;
 
-  constructor() {
-    this.config = new SlotConfig();
+  constructor(theme: SlotTheme) {
+    this.theme = theme;
+    
+    // Собираем настройки dimensions из темы
+    const dimensionsOverrides: Record<string, unknown> = {};
+    if (theme.borderWidth !== undefined) {
+      dimensionsOverrides.borderWidth = theme.borderWidth;
+    }
+    if (theme.borderHeight !== undefined) {
+      dimensionsOverrides.borderHeight = theme.borderHeight;
+    }
+    if (theme.symbolSizeRatio !== undefined) {
+      dimensionsOverrides.symbolSizeRatio = theme.symbolSizeRatio;
+    }
+    if (theme.symbolFillCell !== undefined) {
+      dimensionsOverrides.symbolFillCell = theme.symbolFillCell;
+    }
+    if (theme.cellWidth !== undefined) {
+      dimensionsOverrides.cellWidth = theme.cellWidth;
+    }
+    if (theme.cellHeight !== undefined) {
+      dimensionsOverrides.cellHeight = theme.cellHeight;
+    }
+    if (theme.reelsOffsetX !== undefined) {
+      dimensionsOverrides.reelsOffsetX = theme.reelsOffsetX;
+    }
+    if (theme.reelsOffsetY !== undefined) {
+      dimensionsOverrides.reelsOffsetY = theme.reelsOffsetY;
+    }
+    if (theme.reelsAreaWidth !== undefined) {
+      dimensionsOverrides.reelsAreaWidth = theme.reelsAreaWidth;
+    }
+    if (theme.reelsAreaHeight !== undefined) {
+      dimensionsOverrides.reelsAreaHeight = theme.reelsAreaHeight;
+    }
+    
+    // Собираем настройки анимации из темы
+    const animationOverrides: Record<string, unknown> = {};
+    if (theme.reelAnimation) {
+      const ra = theme.reelAnimation;
+      if (ra.type) animationOverrides.reelAnimationType = ra.type;
+      if (ra.direction) animationOverrides.reelAnimationDirection = ra.direction;
+      if (ra.speed) animationOverrides.spinSpeed = ra.speed;
+      if (ra.bounceHeight) animationOverrides.bounceHeight = ra.bounceHeight;
+      if (ra.bounceTime) animationOverrides.bounceTime = ra.bounceTime;
+      if (ra.staggerDelay) animationOverrides.stopDelay = ra.staggerDelay;
+      if (ra.spinTime) animationOverrides.spinTime = ra.spinTime;
+    }
+    
+    // Определяем тип анимации
+    this.animationType = (theme.reelAnimation?.type as ReelAnimationType) || 'spin';
+    
+    // Создаём конфиг с символами из темы
+    this.config = new SlotConfig({
+      symbols: {
+        ids: theme.symbols,
+        fallbackColors: theme.fallbackColors,
+      },
+      // Применяем настройки dimensions если они есть
+      ...(Object.keys(dimensionsOverrides).length > 0 && {
+        dimensions: dimensionsOverrides,
+      }),
+      // Применяем настройки анимации если они есть
+      ...(Object.keys(animationOverrides).length > 0 && {
+        animation: animationOverrides,
+      }),
+    });
+    
     const { borderWidth, borderHeight } = this.config.dimensions;
 
     this.app = new PIXI.Application({ width: borderWidth, height: borderHeight, backgroundAlpha: 0 });
-    this.assetLoader = new AssetLoader(this.config);
+    this.assetLoader = new AssetLoader(this.config, theme.assetsPath);
     this.reelManager = new ReelManager(this.config, this.assetLoader);
-    this.reelAnimator = new ReelAnimator(this.config, this.reelManager, this.app.ticker);
+    
+    // Создаём аниматор в зависимости от типа анимации темы
+    this.reelAnimator = this.createReelAnimator();
+    
     this.symbolAnimator = new SymbolAnimator(this.config, this.reelManager);
     this.winDisplayManager = new WinDisplayManager(this.config, this.reelManager, this.symbolAnimator);
+  }
+
+  /**
+   * Создаёт аниматор барабанов в зависимости от типа анимации темы
+   */
+  private createReelAnimator(): IReelAnimator {
+    switch (this.animationType) {
+      case 'drop':
+        return new DropReelAnimator(this.config, this.reelManager, this.app.ticker);
+      case 'spin':
+      default:
+        return new ReelAnimator(this.config, this.reelManager, this.app.ticker);
+    }
   }
 
   async init(el: HTMLElement): Promise<void> {
@@ -123,7 +217,14 @@ export class SlotMachine {
     this.spinCallback = cb;
 
     const matrix = this.currentResult?.matrix || this.reelManager.generateRandomMatrix();
-    this.reelManager.initSpinState(matrix);
+    
+    // Выбираем метод подготовки в зависимости от типа анимации
+    if (this.animationType === 'drop') {
+      this.reelManager.prepareDropState(matrix);
+    } else {
+      this.reelManager.initSpinState(matrix);
+    }
+    
     this.reelAnimator.start();
   }
 

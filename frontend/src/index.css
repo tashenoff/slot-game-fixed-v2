@@ -9,7 +9,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('../assets/symbols/bg.png');
+  background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('./assets/themes/classic/bg.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1054,5 +1054,334 @@ body {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* ===== ЛОББИ ===== */
+
+.lobby-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.lobby-loading,
+.lobby-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: #fff;
+  font-size: 1.2rem;
+}
+
+.lobby-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 215, 0, 0.3);
+  border-radius: 50%;
+  border-top-color: #ffd700;
+  animation: spin 1s linear infinite;
+}
+
+.lobby-error button {
+  padding: 0.75rem 1.5rem;
+  background: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.lobby-error button:hover {
+  background: #c0392b;
+}
+
+/* Заголовок лобби */
+.lobby-header {
+  background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 100%);
+  padding: 1rem 2rem;
+  border-bottom: 2px solid rgba(255, 215, 0, 0.3);
+}
+
+.lobby-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1400px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.lobby-player-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.lobby-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid #ffd700;
+  object-fit: cover;
+}
+
+.lobby-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 215, 0, 0.2);
+  font-size: 1.5rem;
+}
+
+.lobby-player-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.lobby-player-name {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #fff;
+}
+
+.lobby-balance {
+  font-size: 1.1rem;
+  color: #ffd700;
+  font-weight: bold;
+}
+
+.lobby-title {
+  font-size: 2rem;
+  color: #ffd700;
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+  margin: 0;
+}
+
+/* Основной контент */
+.lobby-main {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lobby-section-title {
+  font-size: 1.5rem;
+  color: #fff;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+/* Сетка слотов */
+.slots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  justify-content: center;
+}
+
+/* Карточка слота */
+.slot-card {
+  background: linear-gradient(145deg, #2a2a4a, #1e1e3a);
+  border-radius: 1rem;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.slot-card:hover:not(.slot-card-locked) {
+  transform: translateY(-8px);
+  border-color: #ffd700;
+  box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3);
+}
+
+.slot-card-locked {
+  cursor: not-allowed;
+  filter: grayscale(0.7);
+}
+
+.slot-card-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/10;
+  background: linear-gradient(135deg, #1a1a2e, #0f0f23);
+  overflow: hidden;
+}
+
+.slot-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Бейджи */
+.slot-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.slot-badge-new {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  animation: pulse-badge 2s infinite;
+}
+
+.slot-badge-hot {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+}
+
+@keyframes pulse-badge {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+}
+
+/* Оверлей заблокированного слота */
+.slot-locked-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.slot-locked-icon {
+  font-size: 3rem;
+}
+
+.slot-locked-text {
+  color: #9ca3af;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+/* Информация о слоте */
+.slot-card-info {
+  padding: 1rem;
+}
+
+.slot-card-title {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #fff;
+  margin: 0 0 0.5rem 0;
+}
+
+.slot-card-description {
+  font-size: 0.9rem;
+  color: #9ca3af;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Кнопка "Играть" */
+.slot-card-play-btn {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #ffd700, #f59e0b);
+  color: #1a1a2e;
+  border: none;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.slot-card:hover:not(.slot-card-locked) .slot-card-play-btn {
+  background: linear-gradient(135deg, #ffed4a, #ffd700);
+}
+
+/* Футер лобби */
+.lobby-footer {
+  text-align: center;
+  padding: 1.5rem;
+  color: #6b7280;
+  font-size: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Кнопка "Назад" в навбаре */
+.navbar-btn-back {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  margin-right: 1rem;
+}
+
+.navbar-btn-back:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: #ffd700 !important;
+}
+
+/* Адаптивность лобби */
+@media (max-width: 768px) {
+  .lobby-header {
+    padding: 0.75rem 1rem;
+  }
+  
+  .lobby-header-content {
+    justify-content: center;
+  }
+  
+  .lobby-title {
+    font-size: 1.5rem;
+    text-align: center;
+    width: 100%;
+  }
+  
+  .lobby-player-info {
+    order: -1;
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .lobby-main {
+    padding: 1rem;
+  }
+  
+  .slots-grid {
+    grid-template-columns: 1fr;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .lobby-title {
+    font-size: 1.2rem;
+  }
+  
+  .lobby-avatar {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .slot-card-title {
+    font-size: 1rem;
   }
 }

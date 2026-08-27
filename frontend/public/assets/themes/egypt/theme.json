@@ -1,0 +1,29 @@
+{
+  "id": "egypt",
+  "name": "Сокровища Египта",
+  "description": "Фараоны, пирамиды и древние сокровища",
+  "symbols": ["A", "B", "C", "D", "E", "F"],
+  "fallbackColors": {
+    "A": "#ffd700",
+    "B": "#2ecc71",
+    "C": "#e74c3c",
+    "D": "#3498db",
+    "E": "#f39c12",
+    "F": "#9b59b6"
+  },
+  "isNew": true,
+  "borderWidth": 1600,
+  "borderHeight": 1240,
+  "symbolSizeRatio": 0.96,
+  "symbolFillCell": true,
+  "reelsOffsetX": 210,
+  "reelsOffsetY": 245,
+  "reelsAreaWidth": 1180,
+  "reelsAreaHeight": 760,
+  "reelAnimation": {
+    "type": "drop",
+    "bounceHeight": 18,
+    "bounceTime": 150,
+    "staggerDelay": 100
+  }
+}

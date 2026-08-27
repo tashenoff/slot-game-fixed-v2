@@ -38,9 +38,16 @@ const LowBalanceModal: React.FC<LowBalanceModalProps> = ({
         // Пользователь закрыл рекламу раньше времени
         setError('Просмотрите рекламу полностью, чтобы получить награду');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[LowBalanceModal] Ошибка показа рекламы:', err);
-      setError('Не удалось загрузить рекламу. Попробуйте позже.');
+      
+      // Проверяем на cooldown ошибку (429)
+      if (err?.response?.status === 429) {
+        const errorMsg = err?.response?.data?.error || 'Подождите немного перед следующей наградой';
+        setError(errorMsg);
+      } else {
+        setError('Не удалось загрузить рекламу. Попробуйте позже.');
+      }
     } finally {
       setIsLoading(false);
     }

@@ -18,6 +18,8 @@ interface NavbarProps {
   isMusicOn: boolean;
   onToggleMusic: () => void;
   player?: PlayerInfo;
+  themeName?: string;
+  onBackToLobby?: () => void;
 }
 
 const Navbar: React.FC<NavbarProps> = ({
@@ -33,12 +35,24 @@ const Navbar: React.FC<NavbarProps> = ({
   isMusicOn,
   onToggleMusic,
   player,
+  themeName,
+  onBackToLobby,
 }) => {
   return (
     <nav className="navbar">
       <div className="navbar-brand">
+        {onBackToLobby && (
+          <button 
+            className="navbar-btn navbar-btn-back"
+            onClick={onBackToLobby}
+            disabled={isSpinning || isAutoSpin}
+            title="Вернуться в лобби"
+          >
+            ← Лобби
+          </button>
+        )}
         <span className="navbar-logo">🎰</span>
-        <span className="navbar-title">SLOT GAME</span>
+        <span className="navbar-title">{themeName || 'SLOT GAME'}</span>
       </div>
       
       {/* Информация о игроке */}

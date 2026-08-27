@@ -221,6 +221,16 @@ export class ReelManager {
     return null;
   }
 
+  /**
+   * Получить спрайт символа напрямую по индексу (col, row)
+   * Используется для drop анимации, где позиция символа меняется
+   */
+  getSymbolByIndex(col: number, row: number): PIXI.Sprite | null {
+    const sprites = this.symbols[col];
+    if (!sprites || row < 0 || row >= sprites.length) return null;
+    return sprites[row];
+  }
+
   resetSymbolPositions(): void {
     this.updateAllReelDisplays();
     for (let c = 0; c < this.config.cols; c++) {
@@ -359,6 +369,32 @@ export class ReelManager {
     // Символы уже правильные, замена текстур не нужна
     this.updateReelDisplay(col);
     if (this.barabanSprites[col]) this.barabanSprites[col].tilePosition.y = 0;
+  }
+
+  /**
+   * Подготовить символы для drop анимации
+   * Обновляет текстуры символов на финальные значения из матрицы
+   * @param matrix - матрица финальных символов [row][col]
+   */
+  prepareDropState(matrix: string[][]): void {
+    const { cellHeight, rows, cols } = this.config.dimensions;
+    
+    for (let col = 0; col < cols; col++) {
+      for (let row = 0; row < rows; row++) {
+        const symbolId = matrix[row][col];
+        const sprite = this.symbols[col][row];
+        if (sprite) {
+          this.symbolFactory.updateSymbolTexture(sprite, symbolId);
+          // Устанавливаем начальную Y позицию (будет переопределена DropReelAnimator)
+          sprite.y = row * cellHeight + cellHeight / 2;
+        }
+      }
+      
+      // Сбросим blur фильтр
+      if (this.blurFilters[col]) {
+        this.blurFilters[col].blurY = 0;
+      }
+    }
   }
 
   generateRandomMatrix(): string[][] {

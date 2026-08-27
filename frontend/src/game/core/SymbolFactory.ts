@@ -26,10 +26,19 @@ export class SymbolFactory {
     const sprite = new PIXI.Sprite(texture);
     sprite.anchor.set(0.5);
     
-    // Размер символа - процент от минимального размера ячейки
     const { cellWidth, cellHeight, dimensions } = this.config;
-    const symbolSize = Math.min(cellWidth, cellHeight) * dimensions.symbolSizeRatio;
-    sprite.width = sprite.height = symbolSize;
+    
+    if (dimensions.symbolFillCell) {
+      // Символ заполняет ячейку максимально, но не выходит за границы
+      // Квадратный символ ограничен меньшим измерением, но ratio позволяет подстроить
+      const maxSize = Math.min(cellWidth, cellHeight);
+      const symbolSize = maxSize * dimensions.symbolSizeRatio;
+      sprite.width = sprite.height = symbolSize;
+    } else {
+      // Размер символа - процент от минимального размера ячейки с паддингом
+      const symbolSize = Math.min(cellWidth, cellHeight) * dimensions.symbolSizeRatio;
+      sprite.width = sprite.height = symbolSize;
+    }
     sprite.name = symbolId;
 
     return sprite;

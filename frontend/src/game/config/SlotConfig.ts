@@ -15,8 +15,13 @@ export interface SlotDimensions {
   cellWidth: number;
   cellHeight: number;
   symbolSizeRatio: number; // Размер символа относительно ячейки (0-1)
+  symbolFillCell: boolean; // Если true - символ заполняет всю ячейку (без паддингов по X и Y)
   buffer: number; // Буферные символы сверху/снизу
 }
+
+// Типы анимации барабанов
+export type ReelAnimationType = 'spin' | 'drop' | 'rise' | 'cascade';
+export type ReelAnimationDirection = 'top-to-bottom' | 'bottom-to-top';
 
 export interface AnimationConfig {
   spinSpeed: number;
@@ -31,6 +36,9 @@ export interface AnimationConfig {
   reelStripLength: number; // Количество символов на ленте каждого барабана
   minSpinCycles: number; // Минимальное количество оборотов ленты перед остановкой
   decelerationDistance: number; // Расстояние торможения в символах
+  // Тип анимации барабанов
+  reelAnimationType: ReelAnimationType;
+  reelAnimationDirection: ReelAnimationDirection;
 }
 
 export interface VisualConfig {
@@ -80,6 +88,7 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     cellWidth: 1336 / 5,   // 267.2 (было 314.4)
     cellHeight: 627 / 3,   // 209 (было 246)
     symbolSizeRatio: 0.92,
+    symbolFillCell: false, // По умолчанию символ квадратный с паддингами
     buffer: 1,
   },
   animation: {
@@ -95,6 +104,9 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     reelStripLength: 5,      // Символов на ленте (меньше = короче оборот)
     minSpinCycles: 0,        // Без полных оборотов - сразу к результату
     decelerationDistance: 2, // Не используется при мгновенной остановке
+    // Тип анимации по умолчанию
+    reelAnimationType: 'spin' as const,
+    reelAnimationDirection: 'top-to-bottom' as const,
   },
   visual: {
     nonWinAlpha: 0.5,
@@ -148,7 +160,7 @@ export class SlotConfig {
   }
 
   private mergeConfig(defaults: SlotConfigData, overrides: Partial<SlotConfigData>): SlotConfigData {
-    return {
+    const merged = {
       dimensions: { ...defaults.dimensions, ...overrides.dimensions },
       animation: { ...defaults.animation, ...overrides.animation },
       visual: { ...defaults.visual, ...overrides.visual },
@@ -156,6 +168,13 @@ export class SlotConfig {
       reelStrips: { ...defaults.reelStrips, ...overrides.reelStrips },
       paylines: overrides.paylines || defaults.paylines,
     };
+    
+    // Автоматический расчёт размеров ячеек из размера контейнера
+    // cellWidth и cellHeight вычисляются из reelsAreaWidth/Height и cols/rows
+    merged.dimensions.cellWidth = merged.dimensions.reelsAreaWidth / merged.dimensions.cols;
+    merged.dimensions.cellHeight = merged.dimensions.reelsAreaHeight / merged.dimensions.rows;
+    
+    return merged;
   }
 
   get dimensions(): SlotDimensions { return this.config.dimensions; }

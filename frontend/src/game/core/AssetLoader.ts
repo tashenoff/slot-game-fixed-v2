@@ -7,13 +7,15 @@ import { SlotConfig } from '../config/SlotConfig';
  */
 export class AssetLoader {
   private config: SlotConfig;
+  private assetsPath: string;
   private symbolTextures: Map<string, PIXI.Texture> = new Map();
   private borderTexture: PIXI.Texture | null = null;
   private barabanTexture: PIXI.Texture | null = null;
   private isLoaded: boolean = false;
 
-  constructor(config: SlotConfig) {
+  constructor(config: SlotConfig, assetsPath: string = './assets/symbols') {
     this.config = config;
+    this.assetsPath = assetsPath;
   }
 
   /**
@@ -35,8 +37,11 @@ export class AssetLoader {
    * Загрузка текстуры рамки
    */
   private async loadBorderTexture(): Promise<void> {
+    const url = `${this.assetsPath}/border.png`;
+    console.log(`AssetLoader: Loading border from ${url}`);
     try {
-      this.borderTexture = await PIXI.Texture.fromURL('./assets/symbols/border.png');
+      this.borderTexture = await PIXI.Texture.fromURL(url);
+      console.log('AssetLoader: Border loaded successfully');
     } catch (e) {
       console.warn('AssetLoader: Failed to load border.png:', e);
     }
@@ -46,8 +51,11 @@ export class AssetLoader {
    * Загрузка текстуры барабана
    */
   private async loadBarabanTexture(): Promise<void> {
+    const url = `${this.assetsPath}/baraban.png`;
+    console.log(`AssetLoader: Loading baraban from ${url}`);
     try {
-      this.barabanTexture = await PIXI.Texture.fromURL('./assets/symbols/baraban.png');
+      this.barabanTexture = await PIXI.Texture.fromURL(url);
+      console.log('AssetLoader: Baraban loaded successfully');
     } catch (e) {
       console.warn('AssetLoader: Failed to load baraban.png:', e);
     }
@@ -58,13 +66,26 @@ export class AssetLoader {
    */
   private async loadSymbolTextures(): Promise<void> {
     const { ids, fallbackColors } = this.config.symbols;
+    console.log(`AssetLoader: Loading symbols from ${this.assetsPath}/symbols/`, ids);
 
     for (const sym of ids) {
       try {
-        const texture = await PIXI.Texture.fromURL(`./assets/symbols/${sym.toLowerCase()}.svg`);
+        // Пробуем загрузить SVG, затем PNG
+        let texture: PIXI.Texture;
+        const svgUrl = `${this.assetsPath}/symbols/${sym.toLowerCase()}.svg`;
+        const pngUrl = `${this.assetsPath}/symbols/${sym.toLowerCase()}.png`;
+        
+        try {
+          texture = await PIXI.Texture.fromURL(svgUrl);
+          console.log(`AssetLoader: Loaded ${sym} from SVG`);
+        } catch {
+          texture = await PIXI.Texture.fromURL(pngUrl);
+          console.log(`AssetLoader: Loaded ${sym} from PNG`);
+        }
         this.symbolTextures.set(sym, texture);
-      } catch {
+      } catch (e) {
         // Генерируем fallback текстуру
+        console.warn(`AssetLoader: Using fallback for symbol ${sym}`, e);
         const texture = this.generateFallbackTexture(sym, fallbackColors[sym] || '#888');
         this.symbolTextures.set(sym, texture);
       }

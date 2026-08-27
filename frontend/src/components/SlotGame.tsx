@@ -6,6 +6,7 @@ import LowBalanceModal from './LowBalanceModal';
 import * as API from '../api';
 import { Stats } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
+import { SlotTheme, getBackgroundAssetPath } from '../config/themes';
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
 const LOW_BALANCE_THRESHOLD = 300; // Порог для показа модалки с рекламой
@@ -18,9 +19,18 @@ interface PlayerInfo {
 interface SlotGameProps {
   initialBalance?: number;
   player?: PlayerInfo;
+  theme: SlotTheme;
+  onBackToLobby?: () => void;
+  onBalanceChange?: (balance: number) => void;
 }
 
-const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) => {
+const SlotGame: React.FC<SlotGameProps> = ({ 
+  initialBalance = 10000, 
+  player, 
+  theme,
+  onBackToLobby,
+  onBalanceChange,
+}) => {
   const slotContainerRef = useRef<HTMLDivElement>(null);
   const spinSoundRef = useRef<HTMLAudioElement | null>(null);
   const stopSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -101,21 +111,26 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
     }
   }, [balance, isSpinning, isAutoSpin]);
 
+  // Хелпер для обновления баланса с синхронизацией в лобби
+  const updateBalance = useCallback((newBalance: number) => {
+    setBalance(newBalance);
+    balanceRef.current = newBalance;
+    onBalanceChange?.(newBalance);
+  }, [onBalanceChange]);
+
   // Обработчик получения награды за рекламу
   const handleAdReward = useCallback(async (amount: number) => {
     try {
       const result = await API.claimAdReward();
-      setBalance(result.balance);
-      balanceRef.current = result.balance;
+      updateBalance(result.balance);
       console.log(`[SlotGame] Получена награда за рекламу: ${result.reward} монет, баланс: ${result.balance}`);
     } catch (error) {
       console.error('[SlotGame] Ошибка получения награды:', error);
       // В случае ошибки всё равно добавляем локально (на случай проблем с сетью)
       const newBalance = balance + amount;
-      setBalance(newBalance);
-      balanceRef.current = newBalance;
+      updateBalance(newBalance);
     }
-  }, [balance]);
+  }, [balance, updateBalance]);
 
   // Инициализация слот-машины
   useEffect(() => {
@@ -133,9 +148,9 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
           slotMachine.destroy();
         }
         
-        // Создаем экземпляр слот-машины
-        const machine = new SlotMachine();
-        machine.init(slotContainerRef.current);
+        // Создаем экземпляр слот-машины с темой
+        const machine = new SlotMachine(theme);
+        await machine.init(slotContainerRef.current);
         
         // Устанавливаем колбэк для звука остановки каждого барабана
         machine.setReelStopCallback(() => {
@@ -159,7 +174,21 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
         slotMachine.destroy();
       }
     };
-  }, []); // Пустой массив зависимостей для выполнения только при монтировании
+  }, [theme]); // Пересоздаём при смене темы
+
+  // Смена фона в зависимости от темы
+  useEffect(() => {
+    const bgPath = getBackgroundAssetPath(theme);
+    const originalBg = document.body.style.backgroundImage;
+    
+    // Устанавливаем фон темы
+    document.body.style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('${bgPath}')`;
+    
+    // Возвращаем исходный фон при размонтировании или смене темы
+    return () => {
+      document.body.style.backgroundImage = originalBg;
+    };
+  }, [theme]);
 
   // Остановка автоспина
   const stopAutoSpin = useCallback(() => {
@@ -287,8 +316,7 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
           barabanSoundRef.current.currentTime = 0;
         }
         
-        setBalance(spinResult.balance);
-        balanceRef.current = spinResult.balance; // Обновляем ref сразу
+        updateBalance(spinResult.balance);
         setWinAmount(spinResult.win_amount);
         setIsSpinning(false);
         isSpinningRef.current = false; // Разблокируем
@@ -410,7 +438,7 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
       const result = await API.multiSpin(bet);
       
       // Обновляем баланс и статистику
-      setBalance(result.balance);
+      updateBalance(result.balance);
       setStats(result.stats);
       setShowStatsModal(true);
       
@@ -445,12 +473,12 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
   const handleResetBalance = useCallback(async () => {
     try {
       const newBalance = await API.resetBalance();
-      setBalance(newBalance);
+      updateBalance(newBalance);
       setWinAmount(0); // Сбрасываем выигрыш при сбросе баланса
     } catch (error) {
       console.error('Failed to reset balance:', error);
     }
-  }, []);
+  }, [updateBalance]);
 
   // Переключение фоновой музыки
   const handleToggleMusic = useCallback(() => {
@@ -497,6 +525,8 @@ const SlotGame: React.FC<SlotGameProps> = ({ initialBalance = 10000, player }) =
         isMusicOn={isMusicOn}
         onToggleMusic={handleToggleMusic}
         player={player}
+        themeName={theme.name}
+        onBackToLobby={onBackToLobby}
       />
       
       {/* Контейнер для слот-машины */}
