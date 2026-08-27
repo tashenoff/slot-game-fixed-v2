@@ -7,6 +7,14 @@
 export type ReelAnimationType = 'spin' | 'drop' | 'rise' | 'cascade';
 export type ReelAnimationDirection = 'top-to-bottom' | 'bottom-to-top';
 
+// Интерфейс для отслеживания прогресса загрузки
+export interface PreloadProgress {
+  loaded: number;      // Количество загруженных ассетов
+  total: number;       // Общее количество ассетов
+  percent: number;     // Процент загрузки (0-100)
+  currentAsset: string; // Текущий загружаемый ассет
+}
+
 // Настройки анимации барабанов для темы
 export interface ThemeReelAnimation {
   type: ReelAnimationType;           // Тип анимации
@@ -144,4 +152,125 @@ export function getMusicAssetPath(theme: SlotTheme): string {
  */
 export function getDefaultMusicPath(): string {
   return './assets/audio/music.mp3';
+}
+
+/**
+ * Предзагрузка изображения
+ */
+function preloadImage(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+    img.src = url;
+  });
+}
+
+/**
+ * Предзагрузка аудио
+ */
+function preloadAudio(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const audio = new Audio();
+    audio.oncanplaythrough = () => resolve();
+    audio.onerror = () => {
+      // Аудио не критично - продолжаем без ошибки
+      console.warn(`Audio not available: ${url}`);
+      resolve();
+    };
+    audio.src = url;
+    audio.load();
+  });
+}
+
+/**
+ * Получить название ассета для отображения
+ */
+function getAssetDisplayName(url: string): string {
+  const parts = url.split('/');
+  const filename = parts[parts.length - 1];
+  
+  // Убираем расширение и форматируем имя
+  const name = filename.replace(/\.(png|jpg|jpeg|svg|mp3|wav)$/i, '');
+  
+  const displayNames: Record<string, string> = {
+    'bg': 'Фон',
+    'border': 'Рамка',
+    'baraban': 'Барабаны',
+    'music': 'Музыка',
+    'preview': 'Превью',
+  };
+  
+  // Если это символ (a, b, c, d, e, f)
+  if (/^[a-f]$/i.test(name)) {
+    return `Символ ${name.toUpperCase()}`;
+  }
+  
+  return displayNames[name] || filename;
+}
+
+/**
+ * Предзагрузка всех ассетов темы с отслеживанием прогресса
+ */
+export async function preloadThemeAssets(
+  theme: SlotTheme,
+  onProgress?: (progress: PreloadProgress) => void
+): Promise<void> {
+  // Собираем список всех ассетов для загрузки
+  const assetsToLoad: { url: string; type: 'image' | 'audio' }[] = [];
+  
+  // Основные изображения
+  assetsToLoad.push({ url: getBackgroundAssetPath(theme), type: 'image' });
+  assetsToLoad.push({ url: getBorderAssetPath(theme), type: 'image' });
+  assetsToLoad.push({ url: getBarabanAssetPath(theme), type: 'image' });
+  
+  // Символы (пробуем SVG и PNG)
+  for (const symbolId of theme.symbols) {
+    assetsToLoad.push({ 
+      url: `${theme.assetsPath}/symbols/${symbolId.toLowerCase()}.svg`, 
+      type: 'image' 
+    });
+  }
+  
+  // Музыка темы
+  assetsToLoad.push({ url: getMusicAssetPath(theme), type: 'audio' });
+  
+  const total = assetsToLoad.length;
+  let loaded = 0;
+  
+  // Функция обновления прогресса
+  const updateProgress = (currentAsset: string) => {
+    loaded++;
+    const percent = Math.round((loaded / total) * 100);
+    onProgress?.({
+      loaded,
+      total,
+      percent,
+      currentAsset: getAssetDisplayName(currentAsset),
+    });
+  };
+  
+  // Загружаем ассеты последовательно для корректного отображения прогресса
+  for (const asset of assetsToLoad) {
+    try {
+      if (asset.type === 'image') {
+        await preloadImage(asset.url);
+      } else {
+        await preloadAudio(asset.url);
+      }
+    } catch (error) {
+      // Если SVG не загрузился, пробуем PNG для символов
+      if (asset.url.endsWith('.svg')) {
+        const pngUrl = asset.url.replace('.svg', '.png');
+        try {
+          await preloadImage(pngUrl);
+        } catch {
+          console.warn(`Failed to load symbol: ${asset.url}`);
+        }
+      } else {
+        console.warn(`Failed to load asset: ${asset.url}`, error);
+      }
+    }
+    updateProgress(asset.url);
+  }
 }
