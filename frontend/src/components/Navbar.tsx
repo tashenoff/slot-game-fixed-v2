@@ -65,10 +65,17 @@ const Navbar: React.FC<NavbarProps> = ({
         )}
         <span className="navbar-logo">🎰</span>
         <span className="navbar-title">{themeName || 'SLOT GAME'}</span>
-        {/* Баланс в навбаре для мобильной версии */}
-        <div className="navbar-balance-mobile">
-          <span className="navbar-balance-label">БАЛАНС:</span>
-          <span className="navbar-balance-value">◎{balance.toLocaleString()}</span>
+        {/* Баланс и ставка в навбаре для мобильной версии */}
+        <div className="navbar-info-mobile">
+          <span className="navbar-info-item">
+            <span className="navbar-info-label">БАЛАНС:</span>
+            <span className="navbar-info-value">◎{balance.toLocaleString()}</span>
+          </span>
+          <span className="navbar-info-divider">|</span>
+          <span className="navbar-info-item">
+            <span className="navbar-info-label">СТАВКА:</span>
+            <span className="navbar-info-value">◎{bet}</span>
+          </span>
         </div>
         {fps !== undefined && (
           <span 

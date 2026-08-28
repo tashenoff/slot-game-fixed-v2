@@ -766,8 +766,16 @@ const SlotGame: React.FC<SlotGameProps> = ({
           onClick={() => setBet(Math.min(500, balance))}
           disabled={isSpinning || isAutoSpin}
         >
-          <span className="btn-text-small">МАКС.</span>
-          <span className="btn-text-small">СТАВКА</span>
+          <span className="btn-text-single">МАКС. СТАВКА</span>
+        </button>
+
+        {/* Главная кнопка СПИН */}
+        <button
+          className="spin-btn"
+          onClick={() => handleSpin(false)}
+          disabled={isSpinning || balance < bet || isAutoSpin}
+        >
+          {isSpinning && !isProcessingMultiSpin && !isAutoSpin ? '...' : 'СПИН'}
         </button>
 
         {/* Автоспин */}
@@ -777,8 +785,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
               className="control-btn autospin-active-btn"
               onClick={toggleAutoSpinMenu}
             >
-              <span className="btn-text-small">СТОП</span>
-              <span className="btn-text-small">({autoSpinCount})</span>
+              <span className="btn-text-single">СТОП ({autoSpinCount})</span>
             </button>
           ) : (
             <button
@@ -786,8 +793,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
               onClick={toggleAutoSpinMenu}
               disabled={isSpinning || balance < bet}
             >
-              <span className="btn-text-small">АВТО</span>
-              <span className="btn-text-small">СПИН</span>
+              <span className="btn-text-single">АВТО СПИН</span>
             </button>
           )}
           {showAutoSpinMenu && !isAutoSpin && (
@@ -805,15 +811,6 @@ const SlotGame: React.FC<SlotGameProps> = ({
             </div>
           )}
         </div>
-
-        {/* Главная кнопка СПИН */}
-        <button
-          className="spin-btn"
-          onClick={() => handleSpin(false)}
-          disabled={isSpinning || balance < bet || isAutoSpin}
-        >
-          {isSpinning && !isProcessingMultiSpin && !isAutoSpin ? '...' : 'СПИН'}
-        </button>
       </div>
       
       {/* Модальное окно истории спинов */}
