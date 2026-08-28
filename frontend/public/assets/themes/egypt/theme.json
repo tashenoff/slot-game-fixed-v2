@@ -35,6 +35,8 @@
     "reelsAreaWidth": 1016,
     "reelsAreaHeight": 1718,
     "reelGap": 4,
-    "rowGap": 5
+    "rowGap": 5,
+    "disableBlur": true,
+    "disableDust": true
   }
 }

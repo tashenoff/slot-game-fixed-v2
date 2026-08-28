@@ -40,6 +40,9 @@ export interface ThemeMobileConfig {
   rowGap?: number;
   cellWidth?: number;
   cellHeight?: number;
+  // Оптимизация производительности для мобильных
+  disableBlur?: boolean;  // Отключить blur фильтры (motion blur)
+  disableDust?: boolean;  // Отключить эффект пыли при падении
 }
 
 // Данные темы из theme.json

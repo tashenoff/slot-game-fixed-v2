@@ -23,6 +23,8 @@ export interface SlotDimensions {
   buffer: number; // Буферные символы сверху/снизу
   // Мобильный режим (транспонирование 5x3 -> 3x5)
   isMobileLayout: boolean; // Если true - транспонируем отображение (логика остаётся 5x3)
+  // Оптимизация производительности
+  disableBlur: boolean; // Если true - отключить blur фильтры (для мобильных)
 }
 
 // Типы анимации барабанов
@@ -100,6 +102,7 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     symbolSizeRatio: 0.92,
     symbolFillCell: false, // По умолчанию символ квадратный с паддингами
     isMobileLayout: false, // По умолчанию десктопный режим
+    disableBlur: false, // По умолчанию blur включен
     buffer: 1,
   },
   animation: {

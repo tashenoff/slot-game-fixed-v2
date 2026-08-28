@@ -14,11 +14,14 @@ export class AssetLoader {
   private borderTexture: PIXI.Texture | null = null;
   private barabanTexture: PIXI.Texture | null = null;
   private isLoaded: boolean = false;
+  private resolution: number;
 
   constructor(config: SlotConfig, assetsPath: string = './assets/symbols', theme?: SlotTheme) {
     this.config = config;
     this.assetsPath = assetsPath;
     this.theme = theme || null;
+    // Используем devicePixelRatio для загрузки текстур в правильном разрешении
+    this.resolution = Math.min(window.devicePixelRatio || 1, 2);
   }
 
   /**
@@ -46,9 +49,12 @@ export class AssetLoader {
       ? getBorderAssetPath(this.theme)
       : `${this.assetsPath}/border.png`;
     
-    console.log(`AssetLoader: Loading border from ${url} (mobile: ${isMobileDevice()})`);
+    console.log(`AssetLoader: Loading border from ${url} (mobile: ${isMobileDevice()}, resolution: ${this.resolution})`);
     try {
       this.borderTexture = await PIXI.Texture.fromURL(url);
+      // Устанавливаем resolution для чёткого отображения на Retina
+      this.borderTexture.baseTexture.resolution = this.resolution;
+      this.borderTexture.baseTexture.update();
       console.log('AssetLoader: Border loaded successfully');
     } catch (e) {
       console.warn('AssetLoader: Failed to load border:', e);
@@ -56,6 +62,8 @@ export class AssetLoader {
       if (url !== `${this.assetsPath}/border.png`) {
         try {
           this.borderTexture = await PIXI.Texture.fromURL(`${this.assetsPath}/border.png`);
+          this.borderTexture.baseTexture.resolution = this.resolution;
+          this.borderTexture.baseTexture.update();
           console.log('AssetLoader: Border loaded from fallback');
         } catch (e2) {
           console.warn('AssetLoader: Failed to load fallback border.png:', e2);
@@ -72,6 +80,8 @@ export class AssetLoader {
     console.log(`AssetLoader: Loading baraban from ${url}`);
     try {
       this.barabanTexture = await PIXI.Texture.fromURL(url);
+      this.barabanTexture.baseTexture.resolution = this.resolution;
+      this.barabanTexture.baseTexture.update();
       console.log('AssetLoader: Baraban loaded successfully');
     } catch (e) {
       console.warn('AssetLoader: Failed to load baraban.png:', e);
@@ -83,7 +93,7 @@ export class AssetLoader {
    */
   private async loadSymbolTextures(): Promise<void> {
     const { ids, fallbackColors } = this.config.symbols;
-    console.log(`AssetLoader: Loading symbols from ${this.assetsPath}/symbols/`, ids);
+    console.log(`AssetLoader: Loading symbols from ${this.assetsPath}/symbols/ (resolution: ${this.resolution})`, ids);
 
     for (const sym of ids) {
       try {
@@ -99,6 +109,9 @@ export class AssetLoader {
           texture = await PIXI.Texture.fromURL(pngUrl);
           console.log(`AssetLoader: Loaded ${sym} from PNG`);
         }
+        // Устанавливаем resolution для чёткого отображения на Retina
+        texture.baseTexture.resolution = this.resolution;
+        texture.baseTexture.update();
         this.symbolTextures.set(sym, texture);
       } catch (e) {
         // Генерируем fallback текстуру

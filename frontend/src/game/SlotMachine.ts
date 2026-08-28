@@ -39,6 +39,7 @@ export class SlotMachine {
   private currentResult: SpinResult | null = null;
   private spinCallback: ((r: SpinResult) => void) | null = null;
   private reelStopCallback: ((reelIndex: number) => void) | null = null;
+  private mobileConfig: SlotTheme['mobile'] | null = null;
 
   constructor(theme: SlotTheme, forceMobile?: boolean) {
     this.theme = theme;
@@ -48,6 +49,7 @@ export class SlotMachine {
     
     // Получаем мобильные настройки если они есть и мы на мобильном
     const mobileConfig = (isMobile && theme.mobile) ? theme.mobile : null;
+    this.mobileConfig = mobileConfig;
     
     // Собираем настройки dimensions из темы (с учётом мобильных переопределений)
     const dimensionsOverrides: Record<string, unknown> = {};
@@ -115,6 +117,10 @@ export class SlotMachine {
     // Устанавливаем флаг мобильного режима (транспонирование сетки)
     if (isMobile && mobileConfig) {
       dimensionsOverrides.isMobileLayout = true;
+      // Передаём флаг отключения blur для оптимизации производительности
+      if (mobileConfig.disableBlur) {
+        dimensionsOverrides.disableBlur = true;
+      }
     }
     
     // Собираем настройки анимации из темы
@@ -179,9 +185,9 @@ export class SlotMachine {
   private createReelAnimator(): IReelAnimator {
     switch (this.animationType) {
       case 'drop':
-        // Для drop анимации включаем эффект пыли
+        // Для drop анимации включаем эффект пыли (отключаем на мобильных для производительности)
         return new DropReelAnimator(this.config, this.reelManager, this.app.ticker, {
-          dustEffect: true,
+          dustEffect: !this.mobileConfig?.disableDust,
         });
       case 'spin':
       default:

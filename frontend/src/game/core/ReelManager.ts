@@ -83,7 +83,7 @@ export class ReelManager {
    */
   private buildMobileReels(): void {
     const { dimensions } = this.config;
-    const { cellWidth, cellHeight, cols, rows, reelGap, rowGap } = dimensions;
+    const { cellWidth, cellHeight, cols, rows, reelGap, rowGap, disableBlur } = dimensions;
     
     // В мобильном режиме: визуальные колонки = логические ряды (3)
     // визуальные ряды = логические колонки (5)
@@ -110,11 +110,12 @@ export class ReelManager {
       reel.mask = mask as any;
       this.masks.push(mask);
       
-      // Blur фильтр
+      // Blur фильтр (отключаем на мобильных для производительности)
       const blur = new PIXI.filters.BlurFilter();
       blur.blurX = 0;
       blur.blurY = 0;
-      blur.quality = 4;
+      blur.quality = disableBlur ? 1 : 4;
+      blur.enabled = !disableBlur;
       this.blurFilters.push(blur);
       
       // Инициализируем массив символов для этой визуальной колонки
@@ -128,7 +129,10 @@ export class ReelManager {
         const symbolId = this.reelStrips[logicalCol][logicalRow % this.reelStrips[logicalCol].length];
         const sp = this.symbolFactory.createSymbol(symbolId);
         sp.y = visualRow * (cellHeight + rowGap) + cellHeight / 2;
-        sp.filters = [blur];
+        // На мобильных без blur фильтров для лучшей производительности
+        if (!disableBlur) {
+          sp.filters = [blur];
+        }
         reel.addChild(sp);
         this.symbols[visualCol].push(sp);
       }
@@ -159,7 +163,7 @@ export class ReelManager {
 
   private buildReel(col: number, reelsHeight: number): void {
     const { dimensions } = this.config;
-    const { cellWidth, cellHeight, rows, buffer, reelGap, rowGap } = dimensions;
+    const { cellWidth, cellHeight, rows, buffer, reelGap, rowGap, disableBlur } = dimensions;
     const { reelStripLength } = this.config.animation;
     
     // Учитываем зазоры между барабанами (горизонтальные)
@@ -180,11 +184,12 @@ export class ReelManager {
     reel.mask = mask as any;
     this.masks.push(mask);
 
-    // Blur фильтр для motion blur эффекта при вращении
+    // Blur фильтр для motion blur эффекта при вращении (отключаем если disableBlur)
     const blur = new PIXI.filters.BlurFilter(); 
     blur.blurX = 0; 
     blur.blurY = 0; 
-    blur.quality = 4; // Повышенное качество для плавного размытия
+    blur.quality = disableBlur ? 1 : 4;
+    blur.enabled = !disableBlur;
     this.blurFilters.push(blur);
 
     // Создаём спрайт для КАЖДОГО символа на ленте
@@ -195,7 +200,10 @@ export class ReelManager {
       const sp = this.symbolFactory.createSymbol(strip[i]);
       // Начальная позиция на ленте (с учётом rowGap в updateReelDisplay)
       sp.y = i * (cellHeight + rowGap) + cellHeight / 2;
-      sp.filters = [blur];
+      // На мобильных без blur фильтров для лучшей производительности
+      if (!disableBlur) {
+        sp.filters = [blur];
+      }
       reel.addChild(sp);
       this.symbols[col].push(sp);
     }
