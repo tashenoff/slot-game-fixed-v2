@@ -37,6 +37,15 @@
     "reelGap": 4,
     "rowGap": 5,
     "disableBlur": true,
-    "disableDust": true
+    "disableDust": true,
+    "disableWinLines": true,
+    "disableShine": true,
+    "reelAnimation": {
+      "type": "drop",
+      "bounceHeight": 15,
+      "bounceTime": 120,
+      "staggerDelay": 80,
+      "speed": 2.5
+    }
   }
 }

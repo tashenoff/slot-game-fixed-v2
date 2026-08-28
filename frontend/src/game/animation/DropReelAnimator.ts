@@ -65,6 +65,18 @@ export class DropReelAnimator {
     if (anim.bounceTime) this.bounceTime = anim.bounceTime;
     if (anim.stopDelay) this.columnDelay = anim.stopDelay;
     
+    // Применяем множитель скорости из spinSpeed (используется как множитель для drop анимации)
+    // spinSpeed > 1 = быстрее, spinSpeed < 1 = медленнее
+    if (anim.spinSpeed && anim.spinSpeed !== 45) { // 45 - дефолтное значение
+      const speedMultiplier = anim.spinSpeed;
+      this.gravity *= speedMultiplier;
+      this.maxVelocity *= speedMultiplier;
+      this.exitVelocity *= speedMultiplier;
+      // Уменьшаем задержки пропорционально скорости
+      this.columnDelay = Math.round(this.columnDelay / speedMultiplier);
+      this.initialDelay = Math.round(this.initialDelay / speedMultiplier);
+    }
+    
     // Настройки пыли
     if (options?.dustEffect) {
       this.dustEnabled = true;

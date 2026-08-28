@@ -125,6 +125,7 @@ export class SlotMachine {
     
     // Собираем настройки анимации из темы
     const animationOverrides: Record<string, unknown> = {};
+    // Базовые настройки из темы
     if (theme.reelAnimation) {
       const ra = theme.reelAnimation;
       if (ra.type) animationOverrides.reelAnimationType = ra.type;
@@ -135,9 +136,22 @@ export class SlotMachine {
       if (ra.staggerDelay) animationOverrides.stopDelay = ra.staggerDelay;
       if (ra.spinTime) animationOverrides.spinTime = ra.spinTime;
     }
+    // Переопределяем мобильными настройками анимации если они есть
+    if (mobileConfig?.reelAnimation) {
+      const ra = mobileConfig.reelAnimation;
+      if (ra.type) animationOverrides.reelAnimationType = ra.type;
+      if (ra.direction) animationOverrides.reelAnimationDirection = ra.direction;
+      if (ra.speed) animationOverrides.spinSpeed = ra.speed;
+      if (ra.bounceHeight) animationOverrides.bounceHeight = ra.bounceHeight;
+      if (ra.bounceTime) animationOverrides.bounceTime = ra.bounceTime;
+      if (ra.staggerDelay) animationOverrides.stopDelay = ra.staggerDelay;
+      if (ra.spinTime) animationOverrides.spinTime = ra.spinTime;
+    }
     
-    // Определяем тип анимации
-    this.animationType = (theme.reelAnimation?.type as ReelAnimationType) || 'spin';
+    // Определяем тип анимации (мобильный конфиг имеет приоритет)
+    this.animationType = (mobileConfig?.reelAnimation?.type as ReelAnimationType) 
+      || (theme.reelAnimation?.type as ReelAnimationType) 
+      || 'spin';
     
     // Создаём конфиг с символами из темы
     this.config = new SlotConfig({
@@ -176,7 +190,11 @@ export class SlotMachine {
     this.reelAnimator = this.createReelAnimator();
     
     this.symbolAnimator = new SymbolAnimator(this.config, this.reelManager);
-    this.winDisplayManager = new WinDisplayManager(this.config, this.reelManager, this.symbolAnimator);
+    // Создаём менеджер отображения выигрышей с учётом мобильных оптимизаций
+    this.winDisplayManager = new WinDisplayManager(this.config, this.reelManager, this.symbolAnimator, {
+      disableWinLines: this.mobileConfig?.disableWinLines,
+      disableShine: this.mobileConfig?.disableShine,
+    });
   }
 
   /**

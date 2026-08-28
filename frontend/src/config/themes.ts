@@ -43,6 +43,10 @@ export interface ThemeMobileConfig {
   // Оптимизация производительности для мобильных
   disableBlur?: boolean;  // Отключить blur фильтры (motion blur)
   disableDust?: boolean;  // Отключить эффект пыли при падении
+  disableWinLines?: boolean;  // Отключить анимацию линий выигрыша
+  disableShine?: boolean;     // Отключить эффект блика на символах
+  // Настройки анимации для мобильных (переопределяют основные)
+  reelAnimation?: ThemeReelAnimation;
 }
 
 // Данные темы из theme.json

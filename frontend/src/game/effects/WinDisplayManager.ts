@@ -8,6 +8,11 @@ import { Win } from '../../types';
 
 const LINE_THEMES: ('gold' | 'red' | 'green' | 'blue' | 'purple')[] = ['gold', 'red', 'green', 'blue', 'purple'];
 
+export interface WinDisplayOptions {
+  disableWinLines?: boolean;  // Отключить анимацию линий
+  disableShine?: boolean;     // Отключить эффект блика
+}
+
 /**
  * WinDisplayManager - управление отображением выигрышей
  */
@@ -17,16 +22,23 @@ export class WinDisplayManager {
   private symbolAnimator: SymbolAnimator;
   private winLineManager: WinLineManager | null = null;
   private shineManager: ShineEffectManager | null = null;
+  private options: WinDisplayOptions = {};
 
-  constructor(config: SlotConfig, reelManager: ReelManager, symbolAnimator: SymbolAnimator) {
+  constructor(config: SlotConfig, reelManager: ReelManager, symbolAnimator: SymbolAnimator, options?: WinDisplayOptions) {
     this.config = config;
     this.reelManager = reelManager;
     this.symbolAnimator = symbolAnimator;
+    if (options) this.options = options;
   }
 
   init(stage: PIXI.Container, ticker: PIXI.Ticker): void {
-    this.winLineManager = new WinLineManager(stage, ticker, 5);
-    this.shineManager = new ShineEffectManager(ticker, 15);
+    // Создаём менеджеры только если эффекты не отключены
+    if (!this.options.disableWinLines) {
+      this.winLineManager = new WinLineManager(stage, ticker, 5);
+    }
+    if (!this.options.disableShine) {
+      this.shineManager = new ShineEffectManager(ticker, 15);
+    }
   }
 
   showWins(wins: Win[]): void {
