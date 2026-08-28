@@ -765,8 +765,12 @@ const SlotGame: React.FC<SlotGameProps> = ({
           className="control-btn max-bet-btn"
           onClick={() => setBet(Math.min(500, balance))}
           disabled={isSpinning || isAutoSpin}
+          title="Максимальная ставка"
         >
-          <span className="btn-text-single">МАКС. СТАВКА</span>
+          <svg className="max-bet-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 11l5-5 5 5" />
+            <path d="M7 17l5-5 5 5" />
+          </svg>
         </button>
 
         {/* Главная кнопка СПИН */}
@@ -784,16 +788,24 @@ const SlotGame: React.FC<SlotGameProps> = ({
             <button
               className="control-btn autospin-active-btn"
               onClick={toggleAutoSpinMenu}
+              title="Остановить автоспин"
             >
-              <span className="btn-text-single">СТОП ({autoSpinCount})</span>
+              <span className="autospin-count">{autoSpinCount}</span>
+              <svg className="autospin-icon autospin-icon-stop" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
             </button>
           ) : (
             <button
               className="control-btn auto-btn"
               onClick={toggleAutoSpinMenu}
               disabled={isSpinning || balance < bet}
+              title="Автоспин"
             >
-              <span className="btn-text-single">АВТО СПИН</span>
+              <svg className="autospin-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+              </svg>
             </button>
           )}
           {showAutoSpinMenu && !isAutoSpin && (
