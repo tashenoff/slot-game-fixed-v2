@@ -54,8 +54,10 @@ export class ReelAnimator {
    */
   private calculateOrderedStops(): void {
     const state = this.reelManager.getState();
-    const { cellHeight, rowGap, cols } = this.config.dimensions;
+    const { cellHeight, rowGap, cols, rows, isMobileLayout } = this.config.dimensions;
     const { reelStripLength, spinSpeed } = this.config.animation;
+    // В мобильном режиме визуальные колонки = логические ряды
+    const visualCols = isMobileLayout ? rows : cols;
     // Шаг между символами с учётом зазора
     const stepHeight = cellHeight + rowGap;
     const stripHeightPx = reelStripLength * stepHeight;
@@ -66,13 +68,13 @@ export class ReelAnimator {
     
     // Сначала рассчитываем базовые дистанции для всех барабанов
     const distances: number[] = [];
-    for (let c = 0; c < cols; c++) {
+    for (let c = 0; c < visualCols; c++) {
       const baseTarget = this.reelManager.recalculateTargetPosition(c, state[c].position, cellHeight);
       distances[c] = baseTarget - state[c].position;
     }
     
     // Корректируем дистанции чтобы каждый следующий барабан останавливался позже
-    for (let c = 1; c < cols; c++) {
+    for (let c = 1; c < visualCols; c++) {
       const minRequired = distances[c - 1] + minGap;
       if (distances[c] < minRequired) {
         // Добавляем ПОЛНЫЕ обороты чтобы сохранить выравнивание на финальные символы
@@ -83,7 +85,7 @@ export class ReelAnimator {
     }
     
     // Устанавливаем скорректированные целевые позиции и переводим в режим остановки
-    for (let c = 0; c < cols; c++) {
+    for (let c = 0; c < visualCols; c++) {
       state[c].targetPosition = state[c].position + distances[c];
       state[c].targetRecalculated = true;
       state[c].stop = true;
@@ -98,7 +100,9 @@ export class ReelAnimator {
 
   private tick(): void {
     const state = this.reelManager.getState();
-    const { cols } = this.config.dimensions;
+    const { cols, rows, isMobileLayout } = this.config.dimensions;
+    // В мобильном режиме визуальные колонки = логические ряды
+    const visualCols = isMobileLayout ? rows : cols;
     let allDone = true;
 
     for (let c = 0; c < cols; c++) {

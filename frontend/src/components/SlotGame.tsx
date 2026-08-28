@@ -726,17 +726,13 @@ const SlotGame: React.FC<SlotGameProps> = ({
           </div>
         </div>
 
-        {/* Объединённая панель для мобильных - переключается между балансом и выигрышем */}
+        {/* Объединённая панель для мобильных - переключается между ставкой и выигрышем */}
         <div className={`info-display-panel-mobile ${showWinDisplay && winAmount > 0 ? 'has-win' : ''}`}>
           <div className="info-display-inner">
-            {/* Контент баланса и ставки */}
+            {/* Контент ставки */}
             <div className={`balance-bet-content ${showWinDisplay ? 'hidden' : ''}`}>
               <div className="panel-row">
-                <span className="panel-label">БАЛАНС:</span>
-                <span className="panel-value">◎{balance.toLocaleString()}</span>
-              </div>
-              <div className="panel-row">
-                <span className="panel-label">ОБЩАЯ СТАВКА:</span>
+                <span className="panel-label">СТАВКА:</span>
                 <span className="panel-value bet-value">◎{bet}</span>
               </div>
             </div>

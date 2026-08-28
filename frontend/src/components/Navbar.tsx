@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface PlayerInfo {
   name?: string;
@@ -40,6 +40,16 @@ const Navbar: React.FC<NavbarProps> = ({
   onBackToLobby,
   fps,
 }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  const closeMenu = () => {
+    setIsMenuOpen(false);
+  };
+
   return (
     <nav className="navbar">
       <div className="navbar-brand">
@@ -50,11 +60,16 @@ const Navbar: React.FC<NavbarProps> = ({
             disabled={isSpinning || isAutoSpin}
             title="Вернуться в лобби"
           >
-            ← Лобби
+            ←
           </button>
         )}
         <span className="navbar-logo">🎰</span>
         <span className="navbar-title">{themeName || 'SLOT GAME'}</span>
+        {/* Баланс в навбаре для мобильной версии */}
+        <div className="navbar-balance-mobile">
+          <span className="navbar-balance-label">БАЛАНС:</span>
+          <span className="navbar-balance-value">◎{balance.toLocaleString()}</span>
+        </div>
         {fps !== undefined && (
           <span 
             className="navbar-fps" 
@@ -91,7 +106,9 @@ const Navbar: React.FC<NavbarProps> = ({
           <span className="navbar-player-name">{player.name || 'Игрок'}</span>
         </div>
       )}
-      <div className="navbar-actions">
+
+      {/* Десктопные кнопки */}
+      <div className="navbar-actions navbar-actions-desktop">
         <button
           className={`navbar-btn navbar-btn-music ${isMusicOn ? 'music-on' : 'music-off'}`}
           onClick={onToggleMusic}
@@ -119,6 +136,48 @@ const Navbar: React.FC<NavbarProps> = ({
         >
           {isProcessingMultiSpin ? `${multiSpinProgress}%` : '1000 спинов'}
         </button>
+      </div>
+
+      {/* Гамбургер меню для мобильных */}
+      <div className="navbar-mobile-menu">
+        <button 
+          className="navbar-hamburger"
+          onClick={toggleMenu}
+          aria-label="Меню"
+        >
+          <span className={`hamburger-line ${isMenuOpen ? 'open' : ''}`}></span>
+          <span className={`hamburger-line ${isMenuOpen ? 'open' : ''}`}></span>
+          <span className={`hamburger-line ${isMenuOpen ? 'open' : ''}`}></span>
+        </button>
+
+        {/* Выпадающее меню */}
+        {isMenuOpen && (
+          <>
+            <div className="navbar-menu-overlay" onClick={closeMenu}></div>
+            <div className="navbar-dropdown">
+              <button
+                className={`navbar-dropdown-item ${isMusicOn ? '' : 'active'}`}
+                onClick={() => { onToggleMusic(); closeMenu(); }}
+              >
+                {isMusicOn ? '🔊 Выключить звук' : '🔇 Включить звук'}
+              </button>
+              <button
+                className="navbar-dropdown-item"
+                onClick={() => { onResetBalance(); closeMenu(); }}
+                disabled={isSpinning || isAutoSpin}
+              >
+                💰 Сбросить баланс
+              </button>
+              <button
+                className="navbar-dropdown-item"
+                onClick={() => { onMultiSpin(); closeMenu(); }}
+                disabled={isSpinning || balance < bet || isAutoSpin}
+              >
+                🎲 {isProcessingMultiSpin ? `${multiSpinProgress}%` : '1000 спинов'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </nav>
   );
