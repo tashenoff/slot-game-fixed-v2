@@ -246,13 +246,25 @@ body.in-lobby {
 /* ===== НАВБАР ===== */
 
 .navbar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
   flex-shrink: 0;
   z-index: 100;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1.5rem;
-  background: transparent;
+  /* Добавляем отступы для safe-area (устройства с вырезом) */
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-left: max(1.5rem, env(safe-area-inset-left));
+  padding-right: max(1.5rem, env(safe-area-inset-right));
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  min-height: 44px; /* Минимальная высота для тач-устройств */
+  box-sizing: border-box;
 }
 
 .navbar-brand {
@@ -797,6 +809,8 @@ body.in-lobby {
 @media (max-width: 900px) {
   .navbar {
     padding: 0.5rem 0.75rem;
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    min-height: 40px;
   }
   
   .navbar-title {
@@ -873,7 +887,9 @@ body.in-lobby {
   
   .navbar {
     padding: 0.3rem 0.5rem;
+    padding-top: max(0.3rem, env(safe-area-inset-top));
     flex-shrink: 0;
+    min-height: 36px;
   }
   
   .navbar-title {
@@ -1102,7 +1118,10 @@ body.in-lobby {
   .navbar {
     flex-shrink: 0;
     padding: 0.1rem 0.4rem;
-    min-height: auto;
+    padding-top: max(0.1rem, env(safe-area-inset-top));
+    padding-left: max(0.4rem, env(safe-area-inset-left));
+    padding-right: max(0.4rem, env(safe-area-inset-right));
+    min-height: 28px;
   }
   
   .navbar-title {
@@ -1266,9 +1285,11 @@ body.in-lobby {
     overflow: hidden;
   }
   
-  /* Скрываем navbar или делаем его супер-компактным */
+  /* Navbar супер-компактный но всегда видимый */
   .navbar {
     padding: 0.1rem 0.3rem;
+    padding-top: max(0.1rem, env(safe-area-inset-top));
+    min-height: 24px;
   }
   
   .navbar-title {
