@@ -15,6 +15,7 @@ interface NavbarProps {
   multiSpinProgress: number;
   balance: number;
   bet: number;
+  winAmount?: number;
   isMusicOn: boolean;
   onToggleMusic: () => void;
   player?: PlayerInfo;
@@ -33,6 +34,7 @@ const Navbar: React.FC<NavbarProps> = ({
   multiSpinProgress,
   balance,
   bet,
+  winAmount = 0,
   isMusicOn,
   onToggleMusic,
   player,
@@ -65,16 +67,16 @@ const Navbar: React.FC<NavbarProps> = ({
         )}
         <span className="navbar-logo">🎰</span>
         <span className="navbar-title">{themeName || 'SLOT GAME'}</span>
-        {/* Баланс и ставка в навбаре для мобильной версии */}
+        {/* Баланс и выигрыш в навбаре для мобильной версии (ставка показывается отдельно внизу) */}
         <div className="navbar-info-mobile">
           <span className="navbar-info-item">
             <span className="navbar-info-label">БАЛАНС:</span>
             <span className="navbar-info-value">◎{balance.toLocaleString()}</span>
           </span>
           <span className="navbar-info-divider">|</span>
-          <span className="navbar-info-item">
-            <span className="navbar-info-label">СТАВКА:</span>
-            <span className="navbar-info-value">◎{bet}</span>
+          <span className={`navbar-info-item navbar-win-item ${winAmount > 0 ? 'has-win' : ''}`}>
+            <span className="navbar-info-label">ВЫИГРЫШ:</span>
+            <span className={`navbar-info-value navbar-win-value ${winAmount > 0 ? 'has-win' : ''}`}>◎{winAmount.toLocaleString()}</span>
           </span>
         </div>
         {fps !== undefined && (

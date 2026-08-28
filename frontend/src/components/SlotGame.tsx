@@ -670,6 +670,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         multiSpinProgress={multiSpinProgress}
         balance={balance}
         bet={bet}
+        winAmount={animatedWinAmount}
         isMusicOn={isMusicOn}
         onToggleMusic={handleToggleMusic}
         player={player}
@@ -696,6 +697,12 @@ const SlotGame: React.FC<SlotGameProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Панель ставки для мобильных (между слотом и кнопками) */}
+      <div className="mobile-bet-panel">
+        <span className="mobile-bet-label">ТЕКУЩАЯ СТАВКА:</span>
+        <span className="mobile-bet-value">◎{bet}</span>
       </div>
 
       {/* Обёртка для панели управления с отступами */}

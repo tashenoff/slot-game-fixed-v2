@@ -81,6 +81,31 @@ body.in-lobby {
   display: block;
 }
 
+/* Панель ставки для мобильных (между слотом и кнопками) - скрыта по умолчанию */
+.mobile-bet-panel {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.8rem;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 0.375rem;
+  margin: 0.3rem auto;
+  width: fit-content;
+}
+
+.mobile-bet-label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: bold;
+}
+
+.mobile-bet-value {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #fbbf24;
+}
+
 .controls {
   display: flex;
   justify-content: center;
@@ -357,6 +382,25 @@ body.in-lobby {
   color: rgba(255, 255, 255, 0.3);
   font-size: 0.85rem;
   margin: 0 0.1rem;
+}
+
+/* Стили для выигрыша в навбаре */
+.navbar-win-item.has-win {
+  animation: navbar-win-pulse 1.5s ease-in-out infinite;
+}
+
+.navbar-win-value.has-win {
+  color: #22c55e;
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+}
+
+@keyframes navbar-win-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 /* Гамбургер меню - скрыто по умолчанию на десктопе */
@@ -979,9 +1023,14 @@ body.in-lobby {
     display: flex;
   }
   
-  /* Скрываем нижнюю панель info-display на мобильных (баланс и ставка теперь в навбаре) */
+  /* Скрываем нижнюю панель info-display на мобильных */
   .info-display-panel-mobile {
     display: none !important;
+  }
+  
+  /* Показываем панель ставки между слотом и кнопками на мобильных */
+  .mobile-bet-panel {
+    display: flex;
   }
   
   /* Скрываем десктопные кнопки на мобильных */
