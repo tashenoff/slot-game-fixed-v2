@@ -28,10 +28,10 @@
   },
   "mobile": {
     "borderWidth": 1696,
-    "borderHeight": 2528,
+    "borderHeight": 2399,
     "reelsAutoCenter": false,
     "reelsOffsetX": 340,
-    "reelsOffsetY": 480,
+    "reelsOffsetY": 425,
     "reelsAreaWidth": 1016,
     "reelsAreaHeight": 1718,
     "reelGap": 4,
