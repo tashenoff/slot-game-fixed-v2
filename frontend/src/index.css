@@ -899,7 +899,7 @@ body.in-lobby {
   }
   
   .spin-btn {
-    width: 80px;
+    width: 120px;
     height: 45px;
   }
   
@@ -1132,24 +1132,40 @@ body.in-lobby {
   }
   
   .control-btn {
-    width: 36px;
-    height: 44px;
+    width: 44px;
+    height: 52px;
     font-size: 1rem;
   }
   
   .spin-btn {
-    width: 60px;
-    height: 44px;
-    font-size: 1rem;
+    width: 140px;
+    height: 52px;
+    font-size: 1.1rem;
   }
   
   /* Все кнопки и панели на одной высоте */
   .max-bet-btn,
   .auto-btn,
   .autospin-active-btn {
-    height: 44px;
-    width: auto;
+    height: 52px;
+    width: 44px;
     padding: 0.3rem 0.5rem;
+  }
+  
+  /* Иконки на мобильных */
+  .max-bet-icon,
+  .autospin-icon {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .autospin-icon-stop {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .autospin-count {
+    font-size: 0.8rem;
   }
   
   .panel-label {
@@ -1292,26 +1308,26 @@ body.in-lobby {
   }
   
   .control-btn {
-    width: 26px;
-    height: 26px;
-    font-size: 0.65rem;
+    width: 32px;
+    height: 32px;
+    font-size: 0.75rem;
   }
   
   .spin-btn {
-    width: 46px;
-    height: 26px;
-    font-size: 0.7rem;
+    width: 80px;
+    height: 32px;
+    font-size: 0.8rem;
   }
   
   .balance-bet-panel {
     min-width: 72px;
     padding: 0.05rem 0.25rem;
-    height: 26px;
+    height: 32px;
   }
   
   .win-panel {
     min-width: 72px;
-    height: 26px;
+    height: 32px;
     padding: 0.05rem 0.25rem;
   }
   
@@ -1334,8 +1350,27 @@ body.in-lobby {
   .max-bet-btn,
   .auto-btn,
   .autospin-active-btn {
-    width: auto;
-    padding: 0.2rem 0.4rem;
+    width: 32px;
+    height: 32px;
+    padding: 0.2rem;
+  }
+  
+  /* Иконки в ландшафте */
+  .max-bet-icon,
+  .autospin-icon {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .autospin-icon-stop {
+    width: 12px;
+    height: 12px;
+  }
+  
+  .autospin-count {
+    font-size: 0.55rem;
+    min-width: 12px;
+    margin-right: 2px;
   }
   
   .btn-text-small {
@@ -1462,26 +1497,26 @@ body.in-lobby {
   }
   
   .control-btn {
-    width: 24px;
-    height: 24px;
-    font-size: 0.6rem;
+    width: 28px;
+    height: 28px;
+    font-size: 0.65rem;
   }
   
   .spin-btn {
-    width: 45px;
-    height: 24px;
-    font-size: 0.65rem;
+    width: 72px;
+    height: 28px;
+    font-size: 0.7rem;
   }
   
   .balance-bet-panel {
     min-width: 70px;
     padding: 0.05rem 0.2rem;
-    height: 24px;
+    height: 28px;
   }
   
   .win-panel {
     min-width: 70px;
-    height: 24px;
+    height: 28px;
     padding: 0.05rem 0.2rem;
   }
   
@@ -1512,8 +1547,27 @@ body.in-lobby {
   .max-bet-btn,
   .auto-btn,
   .autospin-active-btn {
-    width: auto;
-    padding: 0.15rem 0.3rem;
+    width: 28px;
+    height: 28px;
+    padding: 0.15rem;
+  }
+  
+  /* Иконки супер-компактные */
+  .max-bet-icon,
+  .autospin-icon {
+    width: 14px;
+    height: 14px;
+  }
+  
+  .autospin-icon-stop {
+    width: 10px;
+    height: 10px;
+  }
+  
+  .autospin-count {
+    font-size: 0.5rem;
+    min-width: 10px;
+    margin-right: 1px;
   }
   
   .btn-text-small {
