@@ -698,8 +698,10 @@ const SlotGame: React.FC<SlotGameProps> = ({
         )}
       </div>
 
-      {/* Основная панель управления */}
-      <div className="main-controls">
+      {/* Обёртка для панели управления с отступами */}
+      <div className="controls-wrapper">
+        {/* Основная панель управления */}
+        <div className="main-controls">
         {/* Кнопка информации */}
         <button className="control-btn info-btn" title="Информация">
           <span>i</span>
@@ -822,6 +824,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
               ))}
             </div>
           )}
+        </div>
         </div>
       </div>
       

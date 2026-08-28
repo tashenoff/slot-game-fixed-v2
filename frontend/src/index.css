@@ -597,6 +597,17 @@ body.in-lobby {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Обёртка для панели управления с отступами */
+.controls-wrapper {
+  flex-shrink: 0;
+  padding: 0 1rem 0.75rem 1rem;
+  /* Добавляем отступы для safe-area (устройства с вырезом) */
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
 /* Основная панель управления */
 .main-controls {
   flex-shrink: 0;
@@ -607,11 +618,6 @@ body.in-lobby {
   gap: 0.5rem;
   padding: 0.75rem;
   background: transparent;
-  border: 3px solid #2563eb;
-  border-top: 3px solid #2563eb;
-  border-bottom: none;
-  border-radius: 0.5rem 0.5rem 0 0;
-  box-shadow: 0 0 20px rgba(37, 99, 235, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.1);
 }
 
 /* Общий стиль для кнопок управления */
@@ -993,6 +999,12 @@ body.in-lobby {
     font-size: 0.7rem;
   }
   
+  /* Обёртка на мобильных */
+  .controls-wrapper {
+    padding: 0 0.5rem 0.5rem 0.5rem;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+  
   .main-controls {
     flex-shrink: 0;
     padding: 0.3rem;
@@ -1266,6 +1278,12 @@ body.in-lobby {
     overflow: hidden;
   }
   
+  /* Обёртка компактная в ландшафте */
+  .controls-wrapper {
+    padding: 0 0.3rem 0.2rem 0.3rem;
+    padding-bottom: max(0.2rem, env(safe-area-inset-bottom));
+  }
+  
   /* Controls максимально компактные */
   .main-controls {
     flex-shrink: 0;
@@ -1429,6 +1447,12 @@ body.in-lobby {
     min-height: 0;
     padding: 0;
     overflow: hidden;
+  }
+  
+  /* Обёртка супер-компактная */
+  .controls-wrapper {
+    padding: 0 0.2rem 0.15rem 0.2rem;
+    padding-bottom: max(0.15rem, env(safe-area-inset-bottom));
   }
   
   /* Супер-компактные контролы */
