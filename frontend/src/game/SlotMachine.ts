@@ -151,7 +151,17 @@ export class SlotMachine {
     
     const { borderWidth, borderHeight } = this.config.dimensions;
 
-    this.app = new PIXI.Application({ width: borderWidth, height: borderHeight, backgroundAlpha: 0 });
+    // Используем devicePixelRatio для чёткой картинки на Retina экранах
+    // Ограничиваем до 2 на мобильных чтобы не грузить GPU
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    
+    this.app = new PIXI.Application({ 
+      width: borderWidth, 
+      height: borderHeight, 
+      backgroundAlpha: 0,
+      resolution: dpr,
+      autoDensity: true,
+    });
     // Передаём тему в AssetLoader для загрузки правильной рамки (мобильной/десктопной)
     this.assetLoader = new AssetLoader(this.config, theme.assetsPath, theme);
     this.reelManager = new ReelManager(this.config, this.assetLoader);
