@@ -87,7 +87,8 @@ export interface SlotTheme extends ThemeData {
 }
 
 // Список ID тем (порядок отображения в лобби)
-const THEME_IDS = ['classic', 'fruits', 'egypt', 'tanks'];
+// Временно отключены: 'fruits', 'tanks'
+const THEME_IDS = ['classic', 'egypt'];
 
 // Базовый путь к папке с темами
 const THEMES_BASE_PATH = './assets/themes';
