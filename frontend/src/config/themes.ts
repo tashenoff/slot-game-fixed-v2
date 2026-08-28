@@ -26,6 +26,22 @@ export interface ThemeReelAnimation {
   spinTime?: number;                 // Время до начала остановки (мс)
 }
 
+// Мобильные настройки темы (переопределяют основные на мобильных устройствах)
+export interface ThemeMobileConfig {
+  borderWidth?: number;
+  borderHeight?: number;
+  reelsOffsetX?: number;
+  reelsOffsetY?: number;
+  reelsAreaWidth?: number;
+  reelsAreaHeight?: number;
+  reelsAutoCenter?: boolean;
+  reelsCenterYOffset?: number;
+  reelGap?: number;
+  rowGap?: number;
+  cellWidth?: number;
+  cellHeight?: number;
+}
+
 // Данные темы из theme.json
 export interface ThemeData {
   id: string;
@@ -53,6 +69,8 @@ export interface ThemeData {
   rowGap?: number; // Зазор между рядами (строками) в пикселях
   // Настройки анимации барабанов
   reelAnimation?: ThemeReelAnimation;
+  // Мобильные настройки (используются при isMobileLayout = true)
+  mobile?: ThemeMobileConfig;
 }
 
 // Полная информация о теме (включая пути)
@@ -124,13 +142,6 @@ export function getSymbolAssetPath(theme: SlotTheme, symbolId: string): string {
 }
 
 /**
- * Получить путь к бордеру
- */
-export function getBorderAssetPath(theme: SlotTheme): string {
-  return `${theme.assetsPath}/border.png`;
-}
-
-/**
  * Получить путь к барабану
  */
 export function getBarabanAssetPath(theme: SlotTheme): string {
@@ -138,10 +149,45 @@ export function getBarabanAssetPath(theme: SlotTheme): string {
 }
 
 /**
- * Получить путь к фону
+ * Определить, является ли устройство мобильным
+ */
+export function isMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  // Проверка по User Agent
+  const userAgent = navigator.userAgent || navigator.vendor || (window as unknown as { opera?: string }).opera || '';
+  const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+  
+  // Проверка по размеру экрана (ширина меньше 768px считается мобильным)
+  const isSmallScreen = window.innerWidth < 768;
+  
+  // Проверка по touch capabilities
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  
+  return mobileRegex.test(userAgent) || (isSmallScreen && isTouchDevice);
+}
+
+/**
+ * Получить путь к фону страницы
+ * Фон страницы - это bg.png (всегда одинаковый для desktop и mobile)
  */
 export function getBackgroundAssetPath(theme: SlotTheme): string {
   return `${theme.assetsPath}/bg.png`;
+}
+
+/**
+ * Получить путь к рамке слота (с поддержкой мобильной версии)
+ * Для мобильных устройств использует bg_mini.png (вертикальная рамка) если тема имеет mobile конфиг
+ */
+export function getBorderAssetPath(theme: SlotTheme, forceMobile?: boolean): string {
+  const useMobile = forceMobile ?? isMobileDevice();
+  
+  // На мобильных используем bg_mini.png как рамку если тема имеет мобильную конфигурацию
+  if (useMobile && theme.mobile) {
+    return `${theme.assetsPath}/bg_mini.png`;
+  }
+  
+  return `${theme.assetsPath}/border.png`;
 }
 
 /**

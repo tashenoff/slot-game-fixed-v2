@@ -20,6 +20,7 @@ interface NavbarProps {
   player?: PlayerInfo;
   themeName?: string;
   onBackToLobby?: () => void;
+  fps?: number;
 }
 
 const Navbar: React.FC<NavbarProps> = ({
@@ -37,6 +38,7 @@ const Navbar: React.FC<NavbarProps> = ({
   player,
   themeName,
   onBackToLobby,
+  fps,
 }) => {
   return (
     <nav className="navbar">
@@ -53,6 +55,23 @@ const Navbar: React.FC<NavbarProps> = ({
         )}
         <span className="navbar-logo">🎰</span>
         <span className="navbar-title">{themeName || 'SLOT GAME'}</span>
+        {fps !== undefined && (
+          <span 
+            className="navbar-fps" 
+            style={{ 
+              marginLeft: '12px',
+              padding: '2px 8px',
+              backgroundColor: fps >= 50 ? 'rgba(34, 197, 94, 0.3)' : fps >= 30 ? 'rgba(234, 179, 8, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+              borderRadius: '4px',
+              fontSize: '0.75rem',
+              fontFamily: 'monospace',
+              color: fps >= 50 ? '#22c55e' : fps >= 30 ? '#eab308' : '#ef4444',
+            }}
+            title="Frames Per Second"
+          >
+            {Math.round(fps)} FPS
+          </span>
+        )}
       </div>
       
       {/* Информация о игроке */}

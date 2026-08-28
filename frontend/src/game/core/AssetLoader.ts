@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { SlotConfig } from '../config/SlotConfig';
+import { SlotTheme, getBorderAssetPath, isMobileDevice } from '../../config/themes';
 
 /**
  * AssetLoader - загрузка и управление игровыми ресурсами
@@ -8,14 +9,16 @@ import { SlotConfig } from '../config/SlotConfig';
 export class AssetLoader {
   private config: SlotConfig;
   private assetsPath: string;
+  private theme: SlotTheme | null = null;
   private symbolTextures: Map<string, PIXI.Texture> = new Map();
   private borderTexture: PIXI.Texture | null = null;
   private barabanTexture: PIXI.Texture | null = null;
   private isLoaded: boolean = false;
 
-  constructor(config: SlotConfig, assetsPath: string = './assets/symbols') {
+  constructor(config: SlotConfig, assetsPath: string = './assets/symbols', theme?: SlotTheme) {
     this.config = config;
     this.assetsPath = assetsPath;
+    this.theme = theme || null;
   }
 
   /**
@@ -34,16 +37,30 @@ export class AssetLoader {
   }
 
   /**
-   * Загрузка текстуры рамки
+   * Загрузка текстуры рамки (с поддержкой мобильной версии)
+   * На мобильных используется bg_mini.png если тема имеет mobile конфиг
    */
   private async loadBorderTexture(): Promise<void> {
-    const url = `${this.assetsPath}/border.png`;
-    console.log(`AssetLoader: Loading border from ${url}`);
+    // Используем getBorderAssetPath если есть тема, иначе fallback на обычный путь
+    const url = this.theme 
+      ? getBorderAssetPath(this.theme)
+      : `${this.assetsPath}/border.png`;
+    
+    console.log(`AssetLoader: Loading border from ${url} (mobile: ${isMobileDevice()})`);
     try {
       this.borderTexture = await PIXI.Texture.fromURL(url);
       console.log('AssetLoader: Border loaded successfully');
     } catch (e) {
-      console.warn('AssetLoader: Failed to load border.png:', e);
+      console.warn('AssetLoader: Failed to load border:', e);
+      // Fallback на обычный border.png
+      if (url !== `${this.assetsPath}/border.png`) {
+        try {
+          this.borderTexture = await PIXI.Texture.fromURL(`${this.assetsPath}/border.png`);
+          console.log('AssetLoader: Border loaded from fallback');
+        } catch (e2) {
+          console.warn('AssetLoader: Failed to load fallback border.png:', e2);
+        }
+      }
     }
   }
 

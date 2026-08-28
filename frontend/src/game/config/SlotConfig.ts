@@ -21,6 +21,8 @@ export interface SlotDimensions {
   symbolSizeRatio: number; // Размер символа относительно ячейки (0-1)
   symbolFillCell: boolean; // Если true - символ заполняет всю ячейку (без паддингов по X и Y)
   buffer: number; // Буферные символы сверху/снизу
+  // Мобильный режим (транспонирование 5x3 -> 3x5)
+  isMobileLayout: boolean; // Если true - транспонируем отображение (логика остаётся 5x3)
 }
 
 // Типы анимации барабанов
@@ -97,6 +99,7 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     cellHeight: 627 / 3,   // 209 (было 246)
     symbolSizeRatio: 0.92,
     symbolFillCell: false, // По умолчанию символ квадратный с паддингами
+    isMobileLayout: false, // По умолчанию десктопный режим
     buffer: 1,
   },
   animation: {
@@ -181,10 +184,16 @@ export class SlotConfig {
     // cellWidth и cellHeight вычисляются из reelsAreaWidth/Height и cols/rows с учётом зазоров
     // reelsAreaWidth = cols * cellWidth + (cols - 1) * reelGap
     // => cellWidth = (reelsAreaWidth - (cols - 1) * reelGap) / cols
-    const totalReelGaps = (merged.dimensions.cols - 1) * merged.dimensions.reelGap;
-    const totalRowGaps = (merged.dimensions.rows - 1) * merged.dimensions.rowGap;
-    merged.dimensions.cellWidth = (merged.dimensions.reelsAreaWidth - totalReelGaps) / merged.dimensions.cols;
-    merged.dimensions.cellHeight = (merged.dimensions.reelsAreaHeight - totalRowGaps) / merged.dimensions.rows;
+    // 
+    // ВАЖНО: В мобильном режиме визуальная сетка транспонирована (cols↔rows)
+    // Логическая сетка остаётся 5×3, но визуально отображается 3×5
+    // Поэтому cellWidth/Height рассчитываем по ВИЗУАЛЬНЫМ размерам
+    const visualCols = merged.dimensions.isMobileLayout ? merged.dimensions.rows : merged.dimensions.cols;
+    const visualRows = merged.dimensions.isMobileLayout ? merged.dimensions.cols : merged.dimensions.rows;
+    const totalReelGaps = (visualCols - 1) * merged.dimensions.reelGap;
+    const totalRowGaps = (visualRows - 1) * merged.dimensions.rowGap;
+    merged.dimensions.cellWidth = (merged.dimensions.reelsAreaWidth - totalReelGaps) / visualCols;
+    merged.dimensions.cellHeight = (merged.dimensions.reelsAreaHeight - totalRowGaps) / visualRows;
     
     return merged;
   }
@@ -202,6 +211,45 @@ export class SlotConfig {
   get cols(): number { return this.config.dimensions.cols; }
   get rows(): number { return this.config.dimensions.rows; }
   get buffer(): number { return this.config.dimensions.buffer; }
+  get isMobileLayout(): boolean { return this.config.dimensions.isMobileLayout; }
+
+  /**
+   * Получить визуальное количество колонок (для мобильного - транспонировано)
+   * На мобильном: логические колонки становятся визуальными рядами
+   */
+  get visualCols(): number {
+    return this.isMobileLayout ? this.config.dimensions.rows : this.config.dimensions.cols;
+  }
+
+  /**
+   * Получить визуальное количество рядов (для мобильного - транспонировано)
+   * На мобильном: логические ряды становятся визуальными колонками
+   */
+  get visualRows(): number {
+    return this.isMobileLayout ? this.config.dimensions.cols : this.config.dimensions.rows;
+  }
+
+  /**
+   * Преобразовать логические координаты (col, row) в визуальные
+   * Desktop: (col, row) -> (col, row)
+   * Mobile:  (col, row) -> (row, col) - транспонирование
+   */
+  toVisualPosition(col: number, row: number): { visualCol: number; visualRow: number } {
+    if (this.isMobileLayout) {
+      return { visualCol: row, visualRow: col };
+    }
+    return { visualCol: col, visualRow: row };
+  }
+
+  /**
+   * Преобразовать визуальные координаты обратно в логические
+   */
+  toLogicalPosition(visualCol: number, visualRow: number): { col: number; row: number } {
+    if (this.isMobileLayout) {
+      return { col: visualRow, row: visualCol };
+    }
+    return { col: visualCol, row: visualRow };
+  }
 
   /**
    * Получить позиции для линии выплат

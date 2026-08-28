@@ -65,11 +65,77 @@ export class ReelManager {
     
     this.generateReelStrips();
     
-    const reelsHeight = dimensions.rows * dimensions.cellHeight;
-    for (let col = 0; col < dimensions.cols; col++) this.buildReel(col, reelsHeight);
+    // В мобильном режиме строим визуальную сетку с транспонированием
+    if (dimensions.isMobileLayout) {
+      this.buildMobileReels();
+    } else {
+      const reelsHeight = dimensions.rows * dimensions.cellHeight;
+      for (let col = 0; col < dimensions.cols; col++) this.buildReel(col, reelsHeight);
+    }
     this.buildSeparators();
     this.updateAllReelDisplays();
     return this.reelsContainer;
+  }
+
+  /**
+   * Построить барабаны для мобильного режима (транспонированная сетка)
+   * Логическая матрица 5cols×3rows отображается как визуальная 3cols×5rows
+   */
+  private buildMobileReels(): void {
+    const { dimensions } = this.config;
+    const { cellWidth, cellHeight, cols, rows, reelGap, rowGap } = dimensions;
+    
+    // В мобильном режиме: визуальные колонки = логические ряды (3)
+    // визуальные ряды = логические колонки (5)
+    const visualCols = rows; // 3
+    const visualRows = cols; // 5
+    
+    // Высота визуальной колонки
+    const totalHeight = visualRows * cellHeight + (visualRows - 1) * rowGap;
+    
+    // Для каждого логического ряда создаём визуальную колонку
+    for (let logicalRow = 0; logicalRow < rows; logicalRow++) {
+      const visualCol = logicalRow;
+      const reelOffset = visualCol * (cellWidth + reelGap);
+      
+      const reel = new PIXI.Container();
+      reel.x = reelOffset + cellWidth / 2;
+      this.reelsContainer!.addChild(reel);
+      this.reels.push(reel);
+      
+      // Маска для визуальной колонки
+      const mask = new PIXI.Graphics();
+      mask.beginFill(0xffffff).drawRect(reelOffset, 0, cellWidth, totalHeight).endFill();
+      this.reelsContainer!.addChild(mask);
+      reel.mask = mask as any;
+      this.masks.push(mask);
+      
+      // Blur фильтр
+      const blur = new PIXI.filters.BlurFilter();
+      blur.blurX = 0;
+      blur.blurY = 0;
+      blur.quality = 4;
+      this.blurFilters.push(blur);
+      
+      // Инициализируем массив символов для этой визуальной колонки
+      // Индексируем по визуальным координатам [visualCol][visualRow]
+      this.symbols[visualCol] = [];
+      
+      // Создаём спрайты для каждой логической колонки (теперь визуальный ряд)
+      for (let logicalCol = 0; logicalCol < cols; logicalCol++) {
+        const visualRow = logicalCol;
+        // Получаем символ из ленты для данной логической позиции
+        const symbolId = this.reelStrips[logicalCol][logicalRow % this.reelStrips[logicalCol].length];
+        const sp = this.symbolFactory.createSymbol(symbolId);
+        sp.y = visualRow * (cellHeight + rowGap) + cellHeight / 2;
+        sp.filters = [blur];
+        reel.addChild(sp);
+        this.symbols[visualCol].push(sp);
+      }
+      
+      // Состояние для визуальной колонки
+      this.state[visualCol] = this.createInitialState();
+    }
   }
 
   private generateReelStrips(): void {
@@ -145,12 +211,17 @@ export class ReelManager {
 
   private buildSeparators(): void {
     const { dimensions, visual } = this.config;
-    const { cellWidth, cellHeight, cols, rows, reelGap, rowGap } = dimensions;
+    const { cellWidth, cellHeight, cols, rows, reelGap, rowGap, isMobileLayout } = dimensions;
+    
+    // В мобильном режиме визуальные размеры транспонированы
+    const visualCols = isMobileLayout ? rows : cols;
+    const visualRows = isMobileLayout ? cols : rows;
+    
     // Общая высота с учётом вертикальных зазоров
-    const totalHeight = rows * cellHeight + (rows - 1) * rowGap;
+    const totalHeight = visualRows * cellHeight + (visualRows - 1) * rowGap;
     const g = new PIXI.Graphics();
     g.lineStyle(visual.separatorWidth, visual.separatorColor, visual.separatorAlpha);
-    for (let c = 1; c < cols; c++) {
+    for (let c = 1; c < visualCols; c++) {
       const x = c * (cellWidth + reelGap) - reelGap / 2;
       g.moveTo(x, 0).lineTo(x, totalHeight);
     }
@@ -158,8 +229,11 @@ export class ReelManager {
   }
 
   private updateAllReelDisplays(): void {
-    for (let col = 0; col < this.config.cols; col++) {
-      this.updateReelDisplay(col);
+    const { cols, rows, isMobileLayout } = this.config.dimensions;
+    // В мобильном режиме визуальные колонки = логические ряды
+    const visualCols = isMobileLayout ? rows : cols;
+    for (let vCol = 0; vCol < visualCols; vCol++) {
+      this.updateReelDisplay(vCol);
     }
   }
 
@@ -169,7 +243,7 @@ export class ReelManager {
    * Направление: символы движутся ВНИЗ (новые входят сверху, старые выходят снизу)
    */
   updateReelDisplay(col: number): void {
-    const { cellHeight, rows, rowGap } = this.config.dimensions;
+    const { cellHeight, rows, cols, rowGap, isMobileLayout } = this.config.dimensions;
     const { reelStripLength } = this.config.animation;
     const state = this.state[col];
     const sprites = this.symbols[col];
@@ -181,7 +255,8 @@ export class ReelManager {
     const offset = state.position % stripHeightPx;
     
     // Высота видимой области с зазорами
-    const totalVisibleHeight = rows * cellHeight + (rows - 1) * rowGap;
+    const visualRows = isMobileLayout ? cols : rows;
+    const totalVisibleHeight = visualRows * cellHeight + (visualRows - 1) * rowGap;
     
     // Двигаем каждый спрайт ленты
     for (let i = 0; i < reelStripLength; i++) {
@@ -218,18 +293,26 @@ export class ReelManager {
   getReelStrips() { return this.reelStrips; }
   
   /**
-   * Получить спрайт символа в видимой области (row: 0, 1, 2 для 3-рядного слота)
-   * Находим спрайт, который сейчас находится в нужной позиции экрана
+   * Получить спрайт символа по ЛОГИЧЕСКИМ координатам (col, row)
+   * В мобильном режиме автоматически транспонирует координаты
+   * @param col - логическая колонка (0-4 для 5 колонок)
+   * @param row - логический ряд (0-2 для 3 рядов)
    */
   getSymbol(col: number, row: number): PIXI.Sprite | null {
-    const { cellHeight, rowGap } = this.config.dimensions;
-    const sprites = this.symbols[col];
+    const { cellHeight, rowGap, isMobileLayout } = this.config.dimensions;
     
+    // В мобильном режиме транспонируем: логический (col, row) -> визуальный (row, col)
+    // визуальная колонка = логический row
+    // визуальный ряд = логический col
+    const visualCol = isMobileLayout ? row : col;
+    const visualRow = isMobileLayout ? col : row;
+    
+    const sprites = this.symbols[visualCol];
     if (!sprites) return null;
     
-    // Целевая Y позиция для данного ряда с учётом зазоров
+    // Целевая Y позиция для данного визуального ряда с учётом зазоров
     const stepHeight = cellHeight + rowGap;
-    const targetY = row * stepHeight + cellHeight / 2;
+    const targetY = visualRow * stepHeight + cellHeight / 2;
     const tolerance = cellHeight / 2;
     
     // Ищем спрайт, который находится ближе всего к этой позиции
@@ -243,19 +326,35 @@ export class ReelManager {
   }
 
   /**
-   * Получить спрайт символа напрямую по индексу (col, row)
+   * Получить спрайт символа напрямую по ВИЗУАЛЬНОМУ индексу (visualCol, visualRow)
    * Используется для drop анимации, где позиция символа меняется
+   * НЕ транспонирует координаты - работает с визуальными индексами напрямую
    */
-  getSymbolByIndex(col: number, row: number): PIXI.Sprite | null {
-    const sprites = this.symbols[col];
-    if (!sprites || row < 0 || row >= sprites.length) return null;
-    return sprites[row];
+  getSymbolByIndex(visualCol: number, visualRow: number): PIXI.Sprite | null {
+    const sprites = this.symbols[visualCol];
+    if (!sprites || visualRow < 0 || visualRow >= sprites.length) return null;
+    return sprites[visualRow];
+  }
+
+  /**
+   * Получить спрайт символа по ЛОГИЧЕСКИМ координатам для drop анимации
+   * В мобильном режиме транспонирует координаты
+   */
+  getSymbolByLogicalIndex(col: number, row: number): PIXI.Sprite | null {
+    const { isMobileLayout } = this.config.dimensions;
+    const visualCol = isMobileLayout ? row : col;
+    const visualRow = isMobileLayout ? col : row;
+    return this.getSymbolByIndex(visualCol, visualRow);
   }
 
   resetSymbolPositions(): void {
     this.updateAllReelDisplays();
-    for (let c = 0; c < this.config.cols; c++) {
-      this.blurFilters[c].blurY = 0;
+    const { cols, rows, isMobileLayout } = this.config.dimensions;
+    const visualCols = isMobileLayout ? rows : cols;
+    for (let vCol = 0; vCol < visualCols; vCol++) {
+      if (this.blurFilters[vCol]) {
+        this.blurFilters[vCol].blurY = 0;
+      }
     }
   }
 
@@ -401,39 +500,57 @@ export class ReelManager {
   /**
    * Подготовить символы для drop анимации
    * Обновляет текстуры символов на финальные значения из матрицы
-   * @param matrix - матрица финальных символов [row][col]
+   * @param matrix - матрица финальных символов [row][col] (логические координаты)
    */
   prepareDropState(matrix: string[][]): void {
-    const { cellHeight, rows, cols, rowGap } = this.config.dimensions;
+    const { cellHeight, rows, cols, rowGap, isMobileLayout } = this.config.dimensions;
     const stepHeight = cellHeight + rowGap;
     
-    for (let col = 0; col < cols; col++) {
-      for (let row = 0; row < rows; row++) {
-        const symbolId = matrix[row][col];
-        const sprite = this.symbols[col][row];
+    // В мобильном режиме: визуальная колонка = логический row, визуальный ряд = логический col
+    const visualCols = isMobileLayout ? rows : cols;
+    const visualRows = isMobileLayout ? cols : rows;
+    
+    for (let vCol = 0; vCol < visualCols; vCol++) {
+      for (let vRow = 0; vRow < visualRows; vRow++) {
+        // Получаем символ из матрицы по логическим координатам
+        const logicalCol = isMobileLayout ? vRow : vCol;
+        const logicalRow = isMobileLayout ? vCol : vRow;
+        const symbolId = matrix[logicalRow][logicalCol];
+        const sprite = this.symbols[vCol]?.[vRow];
         if (sprite) {
           this.symbolFactory.updateSymbolTexture(sprite, symbolId);
           // Устанавливаем начальную Y позицию с учётом зазоров (будет переопределена DropReelAnimator)
-          sprite.y = row * stepHeight + cellHeight / 2;
+          sprite.y = vRow * stepHeight + cellHeight / 2;
         }
       }
       
       // Сбросим blur фильтр
-      if (this.blurFilters[col]) {
-        this.blurFilters[col].blurY = 0;
+      if (this.blurFilters[vCol]) {
+        this.blurFilters[vCol].blurY = 0;
       }
     }
   }
 
   /**
-   * Обновить текстуру конкретного символа
+   * Обновить текстуру конкретного символа по ВИЗУАЛЬНЫМ координатам
    * Используется DropReelAnimator для смены символов во время анимации
    */
-  updateSymbolTexture(col: number, row: number, symbolId: string): void {
-    const sprite = this.symbols[col]?.[row];
+  updateSymbolTexture(visualCol: number, visualRow: number, symbolId: string): void {
+    const sprite = this.symbols[visualCol]?.[visualRow];
     if (sprite) {
       this.symbolFactory.updateSymbolTexture(sprite, symbolId);
     }
+  }
+
+  /**
+   * Обновить текстуру конкретного символа по ЛОГИЧЕСКИМ координатам
+   * В мобильном режиме транспонирует координаты
+   */
+  updateSymbolTextureLogical(col: number, row: number, symbolId: string): void {
+    const { isMobileLayout } = this.config.dimensions;
+    const visualCol = isMobileLayout ? row : col;
+    const visualRow = isMobileLayout ? col : row;
+    this.updateSymbolTexture(visualCol, visualRow, symbolId);
   }
 
   generateRandomMatrix(): string[][] {

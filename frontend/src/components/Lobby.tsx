@@ -1,6 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { SlotTheme, loadAllThemes } from '../config/themes';
 
+// Добавляем класс для body при монтировании лобби
+const useLobbyBodyClass = () => {
+  useEffect(() => {
+    document.body.classList.add('in-lobby');
+    document.body.classList.remove('in-game');
+    return () => {
+      document.body.classList.remove('in-lobby');
+    };
+  }, []);
+};
+
 interface PlayerInfo {
   name?: string;
   avatar?: string;
@@ -16,6 +27,9 @@ const Lobby: React.FC<LobbyProps> = ({ player, balance, onSelectTheme }) => {
   const [themes, setThemes] = useState<SlotTheme[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Добавляем класс для body (разрешаем скролл)
+  useLobbyBodyClass();
 
   // Загрузка тем при монтировании
   useEffect(() => {

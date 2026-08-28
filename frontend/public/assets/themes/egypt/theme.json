@@ -25,5 +25,16 @@
     "bounceHeight": 18,
     "bounceTime": 150,
     "staggerDelay": 100
+  },
+  "mobile": {
+    "borderWidth": 1696,
+    "borderHeight": 2528,
+    "reelsAutoCenter": false,
+    "reelsOffsetX": 340,
+    "reelsOffsetY": 480,
+    "reelsAreaWidth": 1016,
+    "reelsAreaHeight": 1718,
+    "reelGap": 4,
+    "rowGap": 5
   }
 }

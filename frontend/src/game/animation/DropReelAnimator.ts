@@ -1,10 +1,16 @@
 import * as PIXI from 'pixi.js';
 import { SlotConfig } from '../config/SlotConfig';
 import { ReelManager } from '../core/ReelManager';
+import { LandingDustEffect, LandingDustOptions } from '../effects/LandingDustEffect';
 
 export interface DropReelAnimatorCallbacks {
   onReelStop?: (reelIndex: number) => void;
   onAllReelsStopped?: () => void;
+}
+
+export interface DropReelAnimatorOptions {
+  dustEffect?: boolean;              // Включить эффект пыли
+  dustOptions?: LandingDustOptions;  // Настройки пыли
 }
 
 /**
@@ -35,18 +41,21 @@ export class DropReelAnimator {
   private isRunning = false;
   private startTime = 0;
   private columnStates: ColumnDropState[] = [];
-  private pendingMatrix: string[][] | null = null; // Матрица новых символов для подстановки
+  private pendingMatrix: string[][] | null = null;
+  private dustEffect: LandingDustEffect | null = null;
+  private dustEnabled = false;
+  private reelsContainer: PIXI.Container | null = null;
   
   // Параметры анимации
-  private gravity = 1.8;           // Ускорение падения
-  private maxVelocity = 45;        // Максимальная скорость
-  private bounceHeight = 12;       // Высота отскока
-  private bounceTime = 150;        // Время отскока (мс)
-  private columnDelay = 60;        // Задержка между колонками (мс)
-  private initialDelay = 50;       // Начальная задержка
-  private exitVelocity = 25;       // Начальная скорость выхода символов вниз
+  private gravity = 1.8;
+  private maxVelocity = 45;
+  private bounceHeight = 12;
+  private bounceTime = 150;
+  private columnDelay = 60;
+  private initialDelay = 50;
+  private exitVelocity = 25;
 
-  constructor(config: SlotConfig, reelManager: ReelManager, ticker: PIXI.Ticker) {
+  constructor(config: SlotConfig, reelManager: ReelManager, ticker: PIXI.Ticker, options?: DropReelAnimatorOptions) {
     this.config = config;
     this.reelManager = reelManager;
     this.ticker = ticker;
@@ -55,6 +64,21 @@ export class DropReelAnimator {
     if (anim.bounceHeight) this.bounceHeight = anim.bounceHeight;
     if (anim.bounceTime) this.bounceTime = anim.bounceTime;
     if (anim.stopDelay) this.columnDelay = anim.stopDelay;
+    
+    // Настройки пыли
+    if (options?.dustEffect) {
+      this.dustEnabled = true;
+    }
+  }
+
+  /**
+   * Инициализировать эффект пыли (вызывается после создания reelsContainer)
+   */
+  initDustEffect(reelsContainer: PIXI.Container, options?: LandingDustOptions): void {
+    this.reelsContainer = reelsContainer;
+    if (this.dustEnabled && reelsContainer) {
+      this.dustEffect = new LandingDustEffect(reelsContainer, this.ticker, options);
+    }
   }
 
   setCallbacks(callbacks: DropReelAnimatorCallbacks): void {
@@ -78,27 +102,30 @@ export class DropReelAnimator {
   }
 
   private initColumnStates(): void {
-    const { rows, cols, cellHeight, rowGap } = this.config.dimensions;
+    const { rows, cols, cellHeight, rowGap, isMobileLayout } = this.config.dimensions;
+    // В мобильном режиме визуальные колонки = логические ряды
+    const visualCols = isMobileLayout ? rows : cols;
+    const visualRows = isMobileLayout ? cols : rows;
     // Шаг между символами с учётом зазора
     const stepHeight = cellHeight + rowGap;
     this.columnStates = [];
     
-    for (let col = 0; col < cols; col++) {
-      this.columnStates[col] = {
-        col,
+    for (let vCol = 0; vCol < visualCols; vCol++) {
+      this.columnStates[vCol] = {
+        col: vCol,
         offset: 0, // Начинаем с текущей позиции (символы на месте)
         velocity: 0,
         // Всегда начинаем с фазы waiting → exiting (символы уходят вниз)
         phase: 'waiting',
         bounceStart: 0,
-        delay: this.initialDelay + col * this.columnDelay,
+        delay: this.initialDelay + vCol * this.columnDelay,
       };
       
       // Символы должны быть на своих местах (offset = 0) перед началом выхода
-      for (let row = 0; row < rows; row++) {
-        const sprite = this.reelManager.getSymbolByIndex(col, row);
+      for (let vRow = 0; vRow < visualRows; vRow++) {
+        const sprite = this.reelManager.getSymbolByIndex(vCol, vRow);
         if (sprite) {
-          sprite.y = row * stepHeight + cellHeight / 2;
+          sprite.y = vRow * stepHeight + cellHeight / 2;
         }
       }
     }
@@ -106,11 +133,13 @@ export class DropReelAnimator {
 
   private tick(): void {
     const elapsed = Date.now() - this.startTime;
-    const { cols } = this.config.dimensions;
+    const { cols, rows, isMobileLayout } = this.config.dimensions;
+    // В мобильном режиме визуальные колонки = логические ряды
+    const visualCols = isMobileLayout ? rows : cols;
     let allDone = true;
 
-    for (let col = 0; col < cols; col++) {
-      const state = this.columnStates[col];
+    for (let vCol = 0; vCol < visualCols; vCol++) {
+      const state = this.columnStates[vCol];
       if (state.phase === 'done') continue;
       
       allDone = false;
@@ -121,9 +150,11 @@ export class DropReelAnimator {
   }
 
   private animateColumn(state: ColumnDropState, elapsed: number): void {
-    const { rows, cellHeight, rowGap } = this.config.dimensions;
+    const { rows, cols, cellHeight, rowGap, isMobileLayout } = this.config.dimensions;
+    // В мобильном режиме используем логические колонки как визуальные ряды
+    const visualRows = isMobileLayout ? cols : rows;
     const stepHeight = cellHeight + rowGap;
-    const exitThreshold = (rows + 1) * stepHeight; // Порог выхода за экран вниз
+    const exitThreshold = (visualRows + 1) * stepHeight; // Порог выхода за экран вниз
     
     // Ждём задержку перед началом анимации выхода
     if (state.phase === 'waiting') {
@@ -150,7 +181,7 @@ export class DropReelAnimator {
         // Обновляем текстуры на новые символы
         this.updateColumnTextures(state.col);
         // Позиционируем символы сверху (выше видимой области)
-        const startOffset = -(rows + 1) * stepHeight;
+        const startOffset = -(visualRows + 1) * stepHeight;
         state.offset = startOffset;
         this.updateColumnPositions(state.col, state.offset);
       }
@@ -175,6 +206,8 @@ export class DropReelAnimator {
         state.offset = 0;
         state.phase = 'bouncing';
         state.bounceStart = Date.now();
+        // Запускаем эффект пыли при приземлении
+        this.triggerDustEffect(state.col);
         this.callbacks.onReelStop?.(state.col);
       }
       
@@ -198,29 +231,57 @@ export class DropReelAnimator {
   }
   
   /**
-   * Обновить текстуры символов в колонке на новые (из pendingMatrix)
+   * Обновить текстуры символов в визуальной колонке на новые (из pendingMatrix)
+   * @param visualCol - визуальная колонка (в мобильном режиме = логический row)
    */
-  private updateColumnTextures(col: number): void {
+  private updateColumnTextures(visualCol: number): void {
     if (!this.pendingMatrix) return;
     
-    const { rows } = this.config.dimensions;
-    for (let row = 0; row < rows; row++) {
-      const symbolId = this.pendingMatrix[row][col];
-      this.reelManager.updateSymbolTexture(col, row, symbolId);
+    const { rows, cols, isMobileLayout } = this.config.dimensions;
+    const visualRows = isMobileLayout ? cols : rows;
+    
+    for (let visualRow = 0; visualRow < visualRows; visualRow++) {
+      // Получаем символ из матрицы по логическим координатам
+      // В мобильном режиме: visualCol = logicalRow, visualRow = logicalCol
+      const logicalCol = isMobileLayout ? visualRow : visualCol;
+      const logicalRow = isMobileLayout ? visualCol : visualRow;
+      const symbolId = this.pendingMatrix[logicalRow][logicalCol];
+      // updateSymbolTexture работает с визуальными координатами
+      this.reelManager.updateSymbolTexture(visualCol, visualRow, symbolId);
     }
   }
 
-  private updateColumnPositions(col: number, offset: number): void {
-    const { rows, cellHeight, rowGap } = this.config.dimensions;
+  private updateColumnPositions(visualCol: number, offset: number): void {
+    const { rows, cols, cellHeight, rowGap, isMobileLayout } = this.config.dimensions;
+    const visualRows = isMobileLayout ? cols : rows;
     // Шаг между символами с учётом зазора
     const stepHeight = cellHeight + rowGap;
     
-    for (let row = 0; row < rows; row++) {
-      const sprite = this.reelManager.getSymbolByIndex(col, row);
+    for (let visualRow = 0; visualRow < visualRows; visualRow++) {
+      const sprite = this.reelManager.getSymbolByIndex(visualCol, visualRow);
       if (sprite) {
-        sprite.y = row * stepHeight + cellHeight / 2 + offset;
+        sprite.y = visualRow * stepHeight + cellHeight / 2 + offset;
       }
     }
+  }
+
+  /**
+   * Запустить эффект пыли при приземлении колонки
+   */
+  private triggerDustEffect(visualCol: number): void {
+    if (!this.dustEffect) return;
+    
+    const { rows, cols, cellHeight, rowGap, cellWidth, reelGap, isMobileLayout } = this.config.dimensions;
+    const visualRows = isMobileLayout ? cols : rows;
+    const stepHeight = cellHeight + rowGap;
+    const colWidth = cellWidth + reelGap;
+    
+    // Позиция X - центр визуальной колонки
+    const x = visualCol * colWidth + cellWidth / 2;
+    // Позиция Y - нижний край последнего визуального символа
+    const y = (visualRows - 1) * stepHeight + cellHeight;
+    
+    this.dustEffect.burst(x, y, cellWidth);
   }
 
   private finish(): void {
@@ -236,14 +297,16 @@ export class DropReelAnimator {
     this.isRunning = false;
     
     // Установить все символы в финальные позиции
-    const { rows, cols, cellHeight, rowGap } = this.config.dimensions;
+    const { rows, cols, cellHeight, rowGap, isMobileLayout } = this.config.dimensions;
+    const visualCols = isMobileLayout ? rows : cols;
+    const visualRows = isMobileLayout ? cols : rows;
     // Шаг между символами с учётом зазора
     const stepHeight = cellHeight + rowGap;
-    for (let col = 0; col < cols; col++) {
-      for (let row = 0; row < rows; row++) {
-        const sprite = this.reelManager.getSymbolByIndex(col, row);
+    for (let vCol = 0; vCol < visualCols; vCol++) {
+      for (let vRow = 0; vRow < visualRows; vRow++) {
+        const sprite = this.reelManager.getSymbolByIndex(vCol, vRow);
         if (sprite) {
-          sprite.y = row * stepHeight + cellHeight / 2;
+          sprite.y = vRow * stepHeight + cellHeight / 2;
         }
       }
     }
@@ -252,5 +315,15 @@ export class DropReelAnimator {
   isAnimating(): boolean {
     return this.isRunning;
   }
+
+  /**
+   * Уничтожить аниматор и все связанные эффекты
+   */
+  destroy(): void {
+    this.stop();
+    this.dustEffect?.destroy();
+    this.dustEffect = null;
+  }
 }
+
 

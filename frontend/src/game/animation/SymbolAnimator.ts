@@ -67,15 +67,19 @@ export class SymbolAnimator {
 
   /**
    * Затемнить невыигрышные символы
+   * winPositions содержит логические координаты в формате "col_row"
    */
   dimNonWinSymbols(winPositions: Set<string>): void {
     const { cols, rows } = this.config.dimensions;
 
+    // Итерируем по ЛОГИЧЕСКИМ координатам (как на сервере)
     for (let col = 0; col < cols; col++) {
       for (let row = 0; row < rows; row++) {
+        // getSymbol автоматически транспонирует координаты в мобильном режиме
         const sprite = this.reelManager.getSymbol(col, row);
         if (!sprite) continue;
 
+        // Ключ в логических координатах
         const key = `${col}_${row}`;
         if (winPositions.has(key)) {
           sprite.alpha = 1.0;

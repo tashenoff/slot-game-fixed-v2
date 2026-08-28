@@ -67,9 +67,9 @@ export class WinDisplayManager {
     const positions = this.config.getPaylinePositions(w.line);
     const { cellWidth, cellHeight, reelGap, rowGap, 
             reelsAreaWidth, reelsAreaHeight, borderWidth, borderHeight, reelsAutoCenter,
-            reelsCenterYOffset, reelsOffsetX, reelsOffsetY } = this.config.dimensions;
+            reelsCenterYOffset, reelsOffsetX, reelsOffsetY, isMobileLayout } = this.config.dimensions;
 
-    // Позиции выигрышных символов
+    // Позиции выигрышных символов (логические координаты)
     const winSymbolPositions: { col: number; row: number }[] = [];
     for (let i = 0; i < w.count && i < positions.length; i++) {
       winSymbolPositions.push(positions[i]);
@@ -87,10 +87,20 @@ export class WinDisplayManager {
     }
 
     // Координаты для линии с учётом зазоров между барабанами
-    const points = positions.map(p => ({
-      x: p.col * (cellWidth + reelGap) + cellWidth / 2 + actualOffsetX,
-      y: p.row * (cellHeight + rowGap) + cellHeight / 2 + actualOffsetY,
-    }));
+    // В мобильном режиме транспонируем: логический col -> визуальный row, логический row -> визуальный col
+    const points = positions.map(p => {
+      if (isMobileLayout) {
+        // Транспонированные координаты: визуальная позиция (row, col) вместо (col, row)
+        return {
+          x: p.row * (cellWidth + reelGap) + cellWidth / 2 + actualOffsetX,
+          y: p.col * (cellHeight + rowGap) + cellHeight / 2 + actualOffsetY,
+        };
+      }
+      return {
+        x: p.col * (cellWidth + reelGap) + cellWidth / 2 + actualOffsetX,
+        y: p.row * (cellHeight + rowGap) + cellHeight / 2 + actualOffsetY,
+      };
+    });
 
     const theme = LINE_THEMES[w.line % LINE_THEMES.length];
     const animatedSymbols = new Set<number>();

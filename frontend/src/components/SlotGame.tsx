@@ -79,9 +79,43 @@ const SlotGame: React.FC<SlotGameProps> = ({
   }
   const [spinHistory, setSpinHistory] = useState<SpinHistoryItem[]>([]);
   const spinCounterRef = useRef<number>(0);
+  
+  // FPS для отображения в навбаре
+  const [fps, setFps] = useState<number>(60);
+  const fpsTickerRef = useRef<(() => void) | null>(null);
 
   // Анимированное значение выигрыша (от 0 до суммы)
   const animatedWinAmount = useAnimatedNumber(winAmount, 800);
+  
+  // Состояние для показа выигрыша в мобильной панели (переключение баланс/выигрыш)
+  const [showWinDisplay, setShowWinDisplay] = useState<boolean>(false);
+  const winDisplayTimerRef = useRef<number | null>(null);
+  
+  // Эффект для автоматического переключения на баланс после показа выигрыша
+  useEffect(() => {
+    if (winAmount > 0) {
+      // Показываем выигрыш
+      setShowWinDisplay(true);
+      
+      // Очищаем предыдущий таймер
+      if (winDisplayTimerRef.current) {
+        clearTimeout(winDisplayTimerRef.current);
+      }
+      
+      // Возвращаемся к балансу через 3 секунды
+      winDisplayTimerRef.current = window.setTimeout(() => {
+        setShowWinDisplay(false);
+      }, 3000);
+    } else {
+      setShowWinDisplay(false);
+    }
+    
+    return () => {
+      if (winDisplayTimerRef.current) {
+        clearTimeout(winDisplayTimerRef.current);
+      }
+    };
+  }, [winAmount]);
   
   // Обновляем refs при изменении значений
   useEffect(() => {
@@ -169,6 +203,22 @@ const SlotGame: React.FC<SlotGameProps> = ({
         });
         
         setSlotMachine(machine);
+        
+        // Подписываемся на обновление FPS (раз в 500мс для снижения нагрузки)
+        const ticker = machine.getTicker();
+        if (ticker) {
+          let lastFpsUpdate = 0;
+          const fpsCallback = () => {
+            const now = Date.now();
+            if (now - lastFpsUpdate > 500) {
+              setFps(machine.getFPS());
+              lastFpsUpdate = now;
+            }
+          };
+          ticker.add(fpsCallback);
+          fpsTickerRef.current = fpsCallback;
+        }
+        
         // Скрываем индикатор загрузки после инициализации
         setIsSlotLoading(false);
         // Баланс уже получен при авторизации и передан через props
@@ -179,11 +229,28 @@ const SlotGame: React.FC<SlotGameProps> = ({
 
     // Очистка при размонтировании
     return () => {
+      // Отписываемся от FPS ticker
+      if (slotMachine && fpsTickerRef.current) {
+        const ticker = slotMachine.getTicker();
+        if (ticker) {
+          ticker.remove(fpsTickerRef.current);
+        }
+        fpsTickerRef.current = null;
+      }
       if (slotMachine) {
         slotMachine.destroy();
       }
     };
   }, [theme]); // Пересоздаём при смене темы
+
+  // Устанавливаем класс in-game для body (блокируем скролл)
+  useEffect(() => {
+    document.body.classList.add('in-game');
+    document.body.classList.remove('in-lobby');
+    return () => {
+      document.body.classList.remove('in-game');
+    };
+  }, []);
 
   // Смена фона в зависимости от темы
   useEffect(() => {
@@ -608,6 +675,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         player={player}
         themeName={theme.name}
         onBackToLobby={onBackToLobby}
+        fps={fps}
       />
       
       {/* Обёртка слот-контейнера с оверлеем загрузки */}
@@ -646,7 +714,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
           −
         </button>
 
-        {/* Панель баланса и ставки */}
+        {/* Панель баланса и ставки (десктоп) */}
         <div className="balance-bet-panel">
           <div className="panel-row">
             <span className="panel-label">БАЛАНС:</span>
@@ -655,6 +723,29 @@ const SlotGame: React.FC<SlotGameProps> = ({
           <div className="panel-row">
             <span className="panel-label">ОБЩАЯ СТАВКА:</span>
             <span className="panel-value bet-value">◎{bet}</span>
+          </div>
+        </div>
+
+        {/* Объединённая панель для мобильных - переключается между балансом и выигрышем */}
+        <div className={`info-display-panel-mobile ${showWinDisplay && winAmount > 0 ? 'has-win' : ''}`}>
+          <div className="info-display-inner">
+            {/* Контент баланса и ставки */}
+            <div className={`balance-bet-content ${showWinDisplay ? 'hidden' : ''}`}>
+              <div className="panel-row">
+                <span className="panel-label">БАЛАНС:</span>
+                <span className="panel-value">◎{balance.toLocaleString()}</span>
+              </div>
+              <div className="panel-row">
+                <span className="panel-label">ОБЩАЯ СТАВКА:</span>
+                <span className="panel-value bet-value">◎{bet}</span>
+              </div>
+            </div>
+            
+            {/* Контент выигрыша */}
+            <div className={`win-content ${showWinDisplay ? 'visible' : ''} ${winAmount > 0 ? 'has-win' : ''}`}>
+              <span className="win-label-mobile">ВЫИГРЫШ:</span>
+              <span className={`win-value-mobile ${winAmount > 0 ? 'has-win' : ''}`}>◎{animatedWinAmount}</span>
+            </div>
           </div>
         </div>
 
@@ -667,7 +758,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
           +
         </button>
 
-        {/* Панель выигрыша */}
+        {/* Панель выигрыша (десктоп) */}
         <div className="win-panel">
           <span className="win-label">ВЫИГРЫШ:</span>
           <span className="win-value">◎{animatedWinAmount}</span>
@@ -684,7 +775,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         </button>
 
         {/* Автоспин */}
-        <div className="relative">
+        <div className="autospin-wrapper">
           {isAutoSpin ? (
             <button
               className="control-btn autospin-active-btn"
@@ -694,30 +785,28 @@ const SlotGame: React.FC<SlotGameProps> = ({
               <span className="btn-text-small">({autoSpinCount})</span>
             </button>
           ) : (
-            <>
-              <button
-                className="control-btn auto-btn"
-                onClick={toggleAutoSpinMenu}
-                disabled={isSpinning || balance < bet}
-              >
-                <span className="btn-text-small">АВТО</span>
-                <span className="btn-text-small">СПИН</span>
-              </button>
-              {showAutoSpinMenu && (
-                <div className="autospin-menu">
-                  {AUTO_SPIN_OPTIONS.map((count) => (
-                    <button
-                      key={count}
-                      className="autospin-option"
-                      onClick={() => startAutoSpin(count)}
-                      disabled={balance < bet}
-                    >
-                      {count} спинов
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
+            <button
+              className="control-btn auto-btn"
+              onClick={toggleAutoSpinMenu}
+              disabled={isSpinning || balance < bet}
+            >
+              <span className="btn-text-small">АВТО</span>
+              <span className="btn-text-small">СПИН</span>
+            </button>
+          )}
+          {showAutoSpinMenu && !isAutoSpin && (
+            <div className="autospin-menu">
+              {AUTO_SPIN_OPTIONS.map((count) => (
+                <button
+                  key={count}
+                  className="autospin-option"
+                  onClick={() => startAutoSpin(count)}
+                  disabled={balance < bet}
+                >
+                  {count} спинов
+                </button>
+              ))}
+            </div>
           )}
         </div>
 

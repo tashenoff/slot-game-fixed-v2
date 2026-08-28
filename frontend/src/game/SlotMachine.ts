@@ -7,7 +7,7 @@ import { ReelAnimator } from './animation/ReelAnimator';
 import { DropReelAnimator } from './animation/DropReelAnimator';
 import { SymbolAnimator } from './animation/SymbolAnimator';
 import { WinDisplayManager } from './effects/WinDisplayManager';
-import { SlotTheme } from '../config/themes';
+import { SlotTheme, isMobileDevice } from '../config/themes';
 
 // Общий интерфейс для всех аниматоров барабанов
 interface IReelAnimator {
@@ -40,11 +40,19 @@ export class SlotMachine {
   private spinCallback: ((r: SpinResult) => void) | null = null;
   private reelStopCallback: ((reelIndex: number) => void) | null = null;
 
-  constructor(theme: SlotTheme) {
+  constructor(theme: SlotTheme, forceMobile?: boolean) {
     this.theme = theme;
     
-    // Собираем настройки dimensions из темы
+    // Определяем мобильный режим
+    const isMobile = forceMobile ?? isMobileDevice();
+    
+    // Получаем мобильные настройки если они есть и мы на мобильном
+    const mobileConfig = (isMobile && theme.mobile) ? theme.mobile : null;
+    
+    // Собираем настройки dimensions из темы (с учётом мобильных переопределений)
     const dimensionsOverrides: Record<string, unknown> = {};
+    
+    // Базовые настройки из темы
     if (theme.borderWidth !== undefined) {
       dimensionsOverrides.borderWidth = theme.borderWidth;
     }
@@ -88,6 +96,27 @@ export class SlotMachine {
       dimensionsOverrides.rowGap = theme.rowGap;
     }
     
+    // Переопределяем мобильными настройками если они есть
+    if (mobileConfig) {
+      if (mobileConfig.borderWidth !== undefined) dimensionsOverrides.borderWidth = mobileConfig.borderWidth;
+      if (mobileConfig.borderHeight !== undefined) dimensionsOverrides.borderHeight = mobileConfig.borderHeight;
+      if (mobileConfig.reelsOffsetX !== undefined) dimensionsOverrides.reelsOffsetX = mobileConfig.reelsOffsetX;
+      if (mobileConfig.reelsOffsetY !== undefined) dimensionsOverrides.reelsOffsetY = mobileConfig.reelsOffsetY;
+      if (mobileConfig.reelsAreaWidth !== undefined) dimensionsOverrides.reelsAreaWidth = mobileConfig.reelsAreaWidth;
+      if (mobileConfig.reelsAreaHeight !== undefined) dimensionsOverrides.reelsAreaHeight = mobileConfig.reelsAreaHeight;
+      if (mobileConfig.reelsAutoCenter !== undefined) dimensionsOverrides.reelsAutoCenter = mobileConfig.reelsAutoCenter;
+      if (mobileConfig.reelsCenterYOffset !== undefined) dimensionsOverrides.reelsCenterYOffset = mobileConfig.reelsCenterYOffset;
+      if (mobileConfig.reelGap !== undefined) dimensionsOverrides.reelGap = mobileConfig.reelGap;
+      if (mobileConfig.rowGap !== undefined) dimensionsOverrides.rowGap = mobileConfig.rowGap;
+      if (mobileConfig.cellWidth !== undefined) dimensionsOverrides.cellWidth = mobileConfig.cellWidth;
+      if (mobileConfig.cellHeight !== undefined) dimensionsOverrides.cellHeight = mobileConfig.cellHeight;
+    }
+    
+    // Устанавливаем флаг мобильного режима (транспонирование сетки)
+    if (isMobile && mobileConfig) {
+      dimensionsOverrides.isMobileLayout = true;
+    }
+    
     // Собираем настройки анимации из темы
     const animationOverrides: Record<string, unknown> = {};
     if (theme.reelAnimation) {
@@ -123,7 +152,8 @@ export class SlotMachine {
     const { borderWidth, borderHeight } = this.config.dimensions;
 
     this.app = new PIXI.Application({ width: borderWidth, height: borderHeight, backgroundAlpha: 0 });
-    this.assetLoader = new AssetLoader(this.config, theme.assetsPath);
+    // Передаём тему в AssetLoader для загрузки правильной рамки (мобильной/десктопной)
+    this.assetLoader = new AssetLoader(this.config, theme.assetsPath, theme);
     this.reelManager = new ReelManager(this.config, this.assetLoader);
     
     // Создаём аниматор в зависимости от типа анимации темы
@@ -139,7 +169,10 @@ export class SlotMachine {
   private createReelAnimator(): IReelAnimator {
     switch (this.animationType) {
       case 'drop':
-        return new DropReelAnimator(this.config, this.reelManager, this.app.ticker);
+        // Для drop анимации включаем эффект пыли
+        return new DropReelAnimator(this.config, this.reelManager, this.app.ticker, {
+          dustEffect: true,
+        });
       case 'spin':
       default:
         return new ReelAnimator(this.config, this.reelManager, this.app.ticker);
@@ -175,12 +208,29 @@ export class SlotMachine {
     const reelsContainer = this.reelManager.build(this.app.stage);
     if (reelsContainer) {
       reelsContainer.zIndex = 0;
+      reelsContainer.sortableChildren = true;
+      
+      // Инициализируем эффект пыли для drop анимации
+      if (this.animationType === 'drop' && this.reelAnimator instanceof DropReelAnimator) {
+        (this.reelAnimator as DropReelAnimator).initDustEffect(reelsContainer, {
+          // Песочные цвета для египетской темы - много мелкой пыли
+          colors: [0xD4A574, 0xC4956A, 0xE8C99B, 0xDEB887, 0xC9B896, 0xBFAE8C],
+          particleCount: 120,    // Много мелких частиц
+          spreadX: 55,           // Разброс
+          spreadY: 18,           // Высота
+          minSize: 0.5,          // Очень мелкие
+          maxSize: 1.8,          // Мелкие
+          baseAlpha: 0.55,       // Видимая пыль
+        });
+      }
     }
 
     // Рамка поверх барабанов (zIndex 10)
     const borderTexture = this.assetLoader.getBorderTexture();
     if (borderTexture) {
       this.borderSprite = new PIXI.Sprite(borderTexture);
+      // Устанавливаем размеры рамки из конфига
+      // ВАЖНО: borderWidth/borderHeight в theme.json должны соответствовать реальным размерам изображения!
       this.borderSprite.width = this.config.dimensions.borderWidth;
       this.borderSprite.height = this.config.dimensions.borderHeight;
       this.borderSprite.zIndex = 10;
@@ -261,5 +311,19 @@ export class SlotMachine {
     this.assetLoader.destroy();
     this.winDisplayManager.destroy();
     this.app?.destroy(true, { children: true, texture: true, baseTexture: true });
+  }
+
+  /**
+   * Получить текущий FPS
+   */
+  getFPS(): number {
+    return this.app?.ticker?.FPS ?? 0;
+  }
+
+  /**
+   * Получить ticker для подписки на обновления
+   */
+  getTicker(): PIXI.Ticker | null {
+    return this.app?.ticker ?? null;
   }
 }

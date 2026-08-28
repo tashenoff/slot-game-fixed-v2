@@ -1,0 +1,569 @@
+﻿import * as PIXI from 'pixi.js';
+import { SlotConfig } from '../config/SlotConfig';
+import { AssetLoader } from './AssetLoader';
+import { SymbolFactory } from './SymbolFactory';
+
+/**
+ * РЎРѕСЃС‚РѕСЏРЅРёРµ Р±Р°СЂР°Р±Р°РЅР° РґР»СЏ Р°РЅРёРјР°С†РёРё СЃ Р»РµРЅС‚РѕР№
+ */
+export interface ReelState {
+  on: boolean;           // Р‘Р°СЂР°Р±Р°РЅ РІСЂР°С‰Р°РµС‚СЃСЏ
+  phase: 'idle' | 'spinning' | 'stopping' | 'bouncing';
+  position: number;      // РўРµРєСѓС‰Р°СЏ РїРѕР·РёС†РёСЏ РЅР° Р»РµРЅС‚Рµ (РІ РїРёРєСЃРµР»СЏС…)
+  velocity: number;      // РўРµРєСѓС‰Р°СЏ СЃРєРѕСЂРѕСЃС‚СЊ
+  targetPosition: number; // Р¦РµР»РµРІР°СЏ РїРѕР·РёС†РёСЏ РґР»СЏ РѕСЃС‚Р°РЅРѕРІРєРё
+  final: string[];       // Р¤РёРЅР°Р»СЊРЅС‹Рµ СЃРёРјРІРѕР»С‹
+  bounceStart: number;
+  targetRecalculated: boolean; // Р¤Р»Р°Рі РїРµСЂРµСЃС‡С‘С‚Р° РїРѕР·РёС†РёРё РїСЂРё РѕСЃС‚Р°РЅРѕРІРєРµ
+  // Legacy РїРѕР»СЏ РґР»СЏ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё
+  stop: boolean;
+  pos: number;
+  bouncing: boolean;
+}
+
+/**
+ * ReelManager - СѓРїСЂР°РІР»РµРЅРёРµ Р±Р°СЂР°Р±Р°РЅР°РјРё СЃ РЅР°СЃС‚РѕСЏС‰РµР№ Р»РµРЅС‚РѕР№ СЃРёРјРІРѕР»РѕРІ
+ */
+export class ReelManager {
+  private config: SlotConfig;
+  private assetLoader: AssetLoader;
+  private symbolFactory: SymbolFactory;
+  private reelsContainer: PIXI.Container | null = null;
+  private reels: PIXI.Container[] = [];
+  private reelStrips: string[][] = []; // Р›РµРЅС‚С‹ СЃРёРјРІРѕР»РѕРІ
+  private symbols: PIXI.Sprite[][] = [];
+  private barabanSprites: PIXI.TilingSprite[] = [];
+  private blurFilters: PIXI.filters.BlurFilter[] = [];
+  private masks: PIXI.Graphics[] = [];
+  private state: ReelState[] = [];
+
+  constructor(config: SlotConfig, assetLoader: AssetLoader) {
+    this.config = config;
+    this.assetLoader = assetLoader;
+    this.symbolFactory = new SymbolFactory(config, assetLoader);
+  }
+
+  build(stage: PIXI.Container): PIXI.Container {
+    const { dimensions } = this.config;
+    this.reelsContainer = new PIXI.Container();
+    
+    // РђРІС‚РѕС†РµРЅС‚СЂРёСЂРѕРІР°РЅРёРµ РёР»Рё СЂСѓС‡РЅС‹Рµ СЃРјРµС‰РµРЅРёСЏ
+    if (dimensions.reelsAutoCenter) {
+      // reelsAreaWidth/Height РЈР–Р• РІРєР»СЋС‡Р°СЋС‚ Р·Р°Р·РѕСЂС‹ (СЌС‚Рѕ РїРѕР»РЅС‹Р№ СЂР°Р·РјРµСЂ РѕР±Р»Р°СЃС‚Рё Р±Р°СЂР°Р±Р°РЅРѕРІ)
+      // cellWidth/Height РІС‹С‡РёСЃР»СЏСЋС‚СЃСЏ СЃ СѓС‡С‘С‚РѕРј РІС‹С‡РµС‚Р° Р·Р°Р·РѕСЂРѕРІ
+      // РџРѕСЌС‚РѕРјСѓ РґР»СЏ С†РµРЅС‚СЂРёСЂРѕРІР°РЅРёСЏ РёСЃРїРѕР»СЊР·СѓРµРј reelsAreaWidth/Height РЅР°РїСЂСЏРјСѓСЋ
+      const totalWidth = dimensions.reelsAreaWidth;
+      const totalHeight = dimensions.reelsAreaHeight;
+      // Р¦РµРЅС‚СЂРёСЂСѓРµРј Р±Р°СЂР°Р±Р°РЅС‹ РІРЅСѓС‚СЂРё СЂР°РјРєРё СЃ РѕРїС†РёРѕРЅР°Р»СЊРЅС‹Рј РІРµСЂС‚РёРєР°Р»СЊРЅС‹Рј СЃРјРµС‰РµРЅРёРµРј
+      this.reelsContainer.x = (dimensions.borderWidth - totalWidth) / 2;
+      this.reelsContainer.y = (dimensions.borderHeight - totalHeight) / 2 + dimensions.reelsCenterYOffset;
+    } else {
+      this.reelsContainer.x = dimensions.reelsOffsetX;
+      this.reelsContainer.y = dimensions.reelsOffsetY;
+    }
+    stage.addChild(this.reelsContainer);
+    
+    this.generateReelStrips();
+    
+    // Р’ РјРѕР±РёР»СЊРЅРѕРј СЂРµР¶РёРјРµ СЃС‚СЂРѕРёРј РІРёР·СѓР°Р»СЊРЅСѓСЋ СЃРµС‚РєСѓ СЃ С‚СЂР°РЅСЃРїРѕРЅРёСЂРѕРІР°РЅРёРµРј
+    if (dimensions.isMobileLayout) {
+      this.buildMobileReels();
+    } else {
+      const reelsHeight = dimensions.rows * dimensions.cellHeight;
+      for (let col = 0; col < dimensions.cols; col++) this.buildReel(col, reelsHeight);
+    }
+    this.buildSeparators();
+    this.updateAllReelDisplays();
+    return this.reelsContainer;
+  }
+
+  /**
+   * РџРѕСЃС‚СЂРѕРёС‚СЊ Р±Р°СЂР°Р±Р°РЅС‹ РґР»СЏ РјРѕР±РёР»СЊРЅРѕРіРѕ СЂРµР¶РёРјР° (С‚СЂР°РЅСЃРїРѕРЅРёСЂРѕРІР°РЅРЅР°СЏ СЃРµС‚РєР°)
+   * Р›РѕРіРёС‡РµСЃРєР°СЏ РјР°С‚СЂРёС†Р° 5colsГ—3rows РѕС‚РѕР±СЂР°Р¶Р°РµС‚СЃСЏ РєР°Рє РІРёР·СѓР°Р»СЊРЅР°СЏ 3colsГ—5rows
+   */
+  private buildMobileReels(): void {
+    const { dimensions } = this.config;
+    const { cellWidth, cellHeight, cols, rows, reelGap, rowGap } = dimensions;
+    
+    // Р’ РјРѕР±РёР»СЊРЅРѕРј СЂРµР¶РёРјРµ: РІРёР·СѓР°Р»СЊРЅС‹Рµ РєРѕР»РѕРЅРєРё = Р»РѕРіРёС‡РµСЃРєРёРµ СЂСЏРґС‹ (3)
+    // РІРёР·СѓР°Р»СЊРЅС‹Рµ СЂСЏРґС‹ = Р»РѕРіРёС‡РµСЃРєРёРµ РєРѕР»РѕРЅРєРё (5)
+    const visualCols = rows; // 3
+    const visualRows = cols; // 5
+    
+    // Р’С‹СЃРѕС‚Р° РІРёР·СѓР°Р»СЊРЅРѕР№ РєРѕР»РѕРЅРєРё
+    const totalHeight = visualRows * cellHeight + (visualRows - 1) * rowGap;
+    
+    // Р”Р»СЏ РєР°Р¶РґРѕРіРѕ Р»РѕРіРёС‡РµСЃРєРѕРіРѕ СЂСЏРґР° СЃРѕР·РґР°С‘Рј РІРёР·СѓР°Р»СЊРЅСѓСЋ РєРѕР»РѕРЅРєСѓ
+    for (let logicalRow = 0; logicalRow < rows; logicalRow++) {
+      const visualCol = logicalRow;
+      const reelOffset = visualCol * (cellWidth + reelGap);
+      
+      const reel = new PIXI.Container();
+      reel.x = reelOffset + cellWidth / 2;
+      this.reelsContainer!.addChild(reel);
+      this.reels.push(reel);
+      
+      // РњР°СЃРєР° РґР»СЏ РІРёР·СѓР°Р»СЊРЅРѕР№ РєРѕР»РѕРЅРєРё
+      const mask = new PIXI.Graphics();
+      mask.beginFill(0xffffff).drawRect(reelOffset, 0, cellWidth, totalHeight).endFill();
+      this.reelsContainer!.addChild(mask);
+      reel.mask = mask as any;
+      this.masks.push(mask);
+      
+      // Blur С„РёР»СЊС‚СЂ
+      const blur = new PIXI.filters.BlurFilter();
+      blur.blurX = 0;
+      blur.blurY = 0;
+      blur.quality = 4;
+      this.blurFilters.push(blur);
+      
+      // РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј РјР°СЃСЃРёРІ СЃРёРјРІРѕР»РѕРІ РґР»СЏ СЌС‚РѕР№ РІРёР·СѓР°Р»СЊРЅРѕР№ РєРѕР»РѕРЅРєРё
+      // РРЅРґРµРєСЃРёСЂСѓРµРј РїРѕ РІРёР·СѓР°Р»СЊРЅС‹Рј РєРѕРѕСЂРґРёРЅР°С‚Р°Рј [visualCol][visualRow]
+      this.symbols[visualCol] = [];
+      
+      // РЎРѕР·РґР°С‘Рј СЃРїСЂР°Р№С‚С‹ РґР»СЏ РєР°Р¶РґРѕР№ Р»РѕРіРёС‡РµСЃРєРѕР№ РєРѕР»РѕРЅРєРё (С‚РµРїРµСЂСЊ РІРёР·СѓР°Р»СЊРЅС‹Р№ СЂСЏРґ)
+      for (let logicalCol = 0; logicalCol < cols; logicalCol++) {
+        const visualRow = logicalCol;
+        // РџРѕР»СѓС‡Р°РµРј СЃРёРјРІРѕР» РёР· Р»РµРЅС‚С‹ РґР»СЏ РґР°РЅРЅРѕР№ Р»РѕРіРёС‡РµСЃРєРѕР№ РїРѕР·РёС†РёРё
+        const symbolId = this.reelStrips[logicalCol][logicalRow % this.reelStrips[logicalCol].length];
+        const sp = this.symbolFactory.createSymbol(symbolId);
+        sp.y = visualRow * (cellHeight + rowGap) + cellHeight / 2;
+        sp.filters = [blur];
+        reel.addChild(sp);
+        this.symbols[visualCol].push(sp);
+      }
+      
+      // РЎРѕСЃС‚РѕСЏРЅРёРµ РґР»СЏ РІРёР·СѓР°Р»СЊРЅРѕР№ РєРѕР»РѕРЅРєРё
+      this.state[visualCol] = this.createInitialState();
+    }
+  }
+
+  private generateReelStrips(): void {
+    const { cols } = this.config.dimensions;
+    const { reelStripLength } = this.config.animation;
+    const { ids } = this.config.symbols;
+    const configStrips = this.config.reelStrips.strips;
+    
+    this.reelStrips = [];
+    for (let col = 0; col < cols; col++) {
+      if (configStrips && configStrips[col]) {
+        this.reelStrips[col] = [...configStrips[col]];
+      } else {
+        this.reelStrips[col] = [];
+        for (let i = 0; i < reelStripLength; i++) {
+          this.reelStrips[col].push(ids[Math.floor(Math.random() * ids.length)]);
+        }
+      }
+    }
+  }
+
+  private buildReel(col: number, reelsHeight: number): void {
+    const { dimensions } = this.config;
+    const { cellWidth, cellHeight, rows, buffer, reelGap, rowGap } = dimensions;
+    const { reelStripLength } = this.config.animation;
+    
+    // РЈС‡РёС‚С‹РІР°РµРј Р·Р°Р·РѕСЂС‹ РјРµР¶РґСѓ Р±Р°СЂР°Р±Р°РЅР°РјРё (РіРѕСЂРёР·РѕРЅС‚Р°Р»СЊРЅС‹Рµ)
+    const reelOffset = col * (cellWidth + reelGap);
+    
+    const reel = new PIXI.Container();
+    reel.x = reelOffset + cellWidth / 2;
+    // РќР• РјР°СЃС€С‚Р°Р±РёСЂСѓРµРј - РІРµСЂС‚РёРєР°Р»СЊРЅС‹Рµ Р·Р°Р·РѕСЂС‹ Р±СѓРґСѓС‚ СѓС‡С‚РµРЅС‹ РІ updateReelDisplay
+    this.reelsContainer!.addChild(reel);
+    this.reels.push(reel);
+
+    // Р’С‹СЃРѕС‚Р° СЃ СѓС‡С‘С‚РѕРј РІРµСЂС‚РёРєР°Р»СЊРЅС‹С… Р·Р°Р·РѕСЂРѕРІ РјРµР¶РґСѓ СЂСЏРґР°РјРё
+    const totalHeight = rows * cellHeight + (rows - 1) * rowGap;
+    
+    const mask = new PIXI.Graphics();
+    mask.beginFill(0xffffff).drawRect(reelOffset, 0, cellWidth, totalHeight).endFill();
+    this.reelsContainer!.addChild(mask);
+    reel.mask = mask as any;
+    this.masks.push(mask);
+
+    // Blur С„РёР»СЊС‚СЂ РґР»СЏ motion blur СЌС„С„РµРєС‚Р° РїСЂРё РІСЂР°С‰РµРЅРёРё
+    const blur = new PIXI.filters.BlurFilter(); 
+    blur.blurX = 0; 
+    blur.blurY = 0; 
+    blur.quality = 4; // РџРѕРІС‹С€РµРЅРЅРѕРµ РєР°С‡РµСЃС‚РІРѕ РґР»СЏ РїР»Р°РІРЅРѕРіРѕ СЂР°Р·РјС‹С‚РёСЏ
+    this.blurFilters.push(blur);
+
+    // РЎРѕР·РґР°С‘Рј СЃРїСЂР°Р№С‚ РґР»СЏ РљРђР–Р”РћР“Рћ СЃРёРјРІРѕР»Р° РЅР° Р»РµРЅС‚Рµ
+    // Р­С‚Рѕ РїРѕР·РІРѕР»СЏРµС‚ РґРІРёРіР°С‚СЊ СЃРїСЂР°Р№С‚С‹ Р±РµР· СЃРјРµРЅС‹ С‚РµРєСЃС‚СѓСЂ
+    this.symbols[col] = [];
+    const strip = this.reelStrips[col];
+    for (let i = 0; i < reelStripLength; i++) {
+      const sp = this.symbolFactory.createSymbol(strip[i]);
+      // РќР°С‡Р°Р»СЊРЅР°СЏ РїРѕР·РёС†РёСЏ РЅР° Р»РµРЅС‚Рµ (СЃ СѓС‡С‘С‚РѕРј rowGap РІ updateReelDisplay)
+      sp.y = i * (cellHeight + rowGap) + cellHeight / 2;
+      sp.filters = [blur];
+      reel.addChild(sp);
+      this.symbols[col].push(sp);
+    }
+    this.state[col] = this.createInitialState();
+  }
+
+  private createInitialState(): ReelState {
+    return {
+      on: false, phase: 'idle', position: 0, velocity: 0, targetPosition: 0,
+      final: [], bounceStart: 0, targetRecalculated: false, stop: false, pos: 0, bouncing: false,
+    };
+  }
+
+  private buildSeparators(): void {
+    const { dimensions, visual } = this.config;
+    const { cellWidth, cellHeight, cols, rows, reelGap, rowGap, isMobileLayout } = dimensions;
+    
+    // Р’ РјРѕР±РёР»СЊРЅРѕРј СЂРµР¶РёРјРµ РІРёР·СѓР°Р»СЊРЅС‹Рµ СЂР°Р·РјРµСЂС‹ С‚СЂР°РЅСЃРїРѕРЅРёСЂРѕРІР°РЅС‹
+    const visualCols = isMobileLayout ? rows : cols;
+    const visualRows = isMobileLayout ? cols : rows;
+    
+    // РћР±С‰Р°СЏ РІС‹СЃРѕС‚Р° СЃ СѓС‡С‘С‚РѕРј РІРµСЂС‚РёРєР°Р»СЊРЅС‹С… Р·Р°Р·РѕСЂРѕРІ
+    const totalHeight = visualRows * cellHeight + (visualRows - 1) * rowGap;
+    const g = new PIXI.Graphics();
+    g.lineStyle(visual.separatorWidth, visual.separatorColor, visual.separatorAlpha);
+    for (let c = 1; c < visualCols; c++) {
+      const x = c * (cellWidth + reelGap) - reelGap / 2;
+      g.moveTo(x, 0).lineTo(x, totalHeight);
+    }
+    this.reelsContainer!.addChild(g);
+  }
+
+  private updateAllReelDisplays(): void {
+    const { cols, rows, isMobileLayout } = this.config.dimensions;
+    // Р’ РјРѕР±РёР»СЊРЅРѕРј СЂРµР¶РёРјРµ РІРёР·СѓР°Р»СЊРЅС‹Рµ РєРѕР»РѕРЅРєРё = Р»РѕРіРёС‡РµСЃРєРёРµ СЂСЏРґС‹
+    const visualCols = isMobileLayout ? rows : cols;
+    for (let vCol = 0; vCol < visualCols; vCol++) {
+      this.updateReelDisplay(vCol);
+    }
+  }
+
+  /**
+   * РћР±РЅРѕРІРёС‚СЊ РѕС‚РѕР±СЂР°Р¶РµРЅРёРµ Р±Р°СЂР°Р±Р°РЅР° - РїСЂРѕСЃС‚Рѕ РґРІРёРіР°РµРј Р’РЎР• СЃРїСЂР°Р№С‚С‹ Р»РµРЅС‚С‹
+   * РўРµРєСЃС‚СѓСЂС‹ РќР• РјРµРЅСЏСЋС‚СЃСЏ - РєР°Р¶РґС‹Р№ СЃРїСЂР°Р№С‚ РїСЂРёРІСЏР·Р°РЅ Рє СЃРІРѕРµРјСѓ СЃРёРјРІРѕР»Сѓ РЅР° Р»РµРЅС‚Рµ
+   * РќР°РїСЂР°РІР»РµРЅРёРµ: СЃРёРјРІРѕР»С‹ РґРІРёР¶СѓС‚СЃСЏ Р’РќРР— (РЅРѕРІС‹Рµ РІС…РѕРґСЏС‚ СЃРІРµСЂС…Сѓ, СЃС‚Р°СЂС‹Рµ РІС‹С…РѕРґСЏС‚ СЃРЅРёР·Сѓ)
+   */
+  updateReelDisplay(col: number): void {
+    const { cellHeight, rows, rowGap } = this.config.dimensions;
+    const { reelStripLength } = this.config.animation;
+    const state = this.state[col];
+    const sprites = this.symbols[col];
+    
+    // РЁР°Рі РјРµР¶РґСѓ СЃРёРјРІРѕР»Р°РјРё СЃ СѓС‡С‘С‚РѕРј РІРµСЂС‚РёРєР°Р»СЊРЅРѕРіРѕ Р·Р°Р·РѕСЂР°
+    const stepHeight = cellHeight + rowGap;
+    const stripHeightPx = reelStripLength * stepHeight;
+    // РЎРјРµС‰РµРЅРёРµ РІ РїРёРєСЃРµР»СЏС… (РїРѕР·РёС†РёСЏ РЅР° Р»РµРЅС‚Рµ)
+    const offset = state.position % stripHeightPx;
+    
+    // Р’С‹СЃРѕС‚Р° РІРёРґРёРјРѕР№ РѕР±Р»Р°СЃС‚Рё СЃ Р·Р°Р·РѕСЂР°РјРё
+    const totalVisibleHeight = rows * cellHeight + (rows - 1) * rowGap;
+    
+    // Р”РІРёРіР°РµРј РєР°Р¶РґС‹Р№ СЃРїСЂР°Р№С‚ Р»РµРЅС‚С‹
+    for (let i = 0; i < reelStripLength; i++) {
+      const sp = sprites[i];
+      // Р‘Р°Р·РѕРІР°СЏ РїРѕР·РёС†РёСЏ СЃРёРјРІРѕР»Р° РЅР° Р»РµРЅС‚Рµ + СЃРјРµС‰РµРЅРёРµ РѕС‚ РІСЂР°С‰РµРЅРёСЏ
+      // РљРѕРіРґР° offset СЂР°СЃС‚С‘С‚, СЃРёРјРІРѕР»С‹ РґРІРёРіР°СЋС‚СЃСЏ Р’РќРР—
+      let y = i * stepHeight + cellHeight / 2 + offset;
+      
+      // Р¦РёРєР»РёС‡РЅРѕСЃС‚СЊ: РµСЃР»Рё СЃРёРјРІРѕР» СѓС€С‘Р» СЃР»РёС€РєРѕРј РЅРёР·РєРѕ - РїРµСЂРµРјРµС‰Р°РµРј РІРІРµСЂС…
+      while (y > totalVisibleHeight + stepHeight) {
+        y -= stripHeightPx;
+      }
+      // Р•СЃР»Рё СЃРёРјРІРѕР» СЃР»РёС€РєРѕРј РІС‹СЃРѕРєРѕ - РїРµСЂРµРјРµС‰Р°РµРј РІРЅРёР·
+      while (y < -stepHeight) {
+        y += stripHeightPx;
+      }
+      
+      sp.y = y;
+    }
+    
+    if (this.barabanSprites[col]) {
+      this.barabanSprites[col].tilePosition.y = offset;
+    }
+  }
+
+  getContainer() { return this.reelsContainer; }
+  getReels() { return this.reels; }
+  getSymbols() { return this.symbols; }
+  getState() { return this.state; }
+  getReelState(c: number) { return this.state[c]; }
+  getBlurFilters() { return this.blurFilters; }
+  getBarabanSprites() { return this.barabanSprites; }
+  getSymbolFactory() { return this.symbolFactory; }
+  getReelStrips() { return this.reelStrips; }
+  
+  /**
+   * РџРѕР»СѓС‡РёС‚СЊ СЃРїСЂР°Р№С‚ СЃРёРјРІРѕР»Р° РїРѕ Р›РћР“РР§Р•РЎРљРРњ РєРѕРѕСЂРґРёРЅР°С‚Р°Рј (col, row)
+   * Р’ РјРѕР±РёР»СЊРЅРѕРј СЂРµР¶РёРјРµ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё С‚СЂР°РЅСЃРїРѕРЅРёСЂСѓРµС‚ РєРѕРѕСЂРґРёРЅР°С‚С‹
+   * @param col - Р»РѕРіРёС‡РµСЃРєР°СЏ РєРѕР»РѕРЅРєР° (0-4 РґР»СЏ 5 РєРѕР»РѕРЅРѕРє)
+   * @param row - Р»РѕРіРёС‡РµСЃРєРёР№ СЂСЏРґ (0-2 РґР»СЏ 3 СЂСЏРґРѕРІ)
+   */
+  getSymbol(col: number, row: number): PIXI.Sprite | null {
+    const { cellHeight, rowGap, isMobileLayout } = this.config.dimensions;
+    
+    // Р’ РјРѕР±РёР»СЊРЅРѕРј СЂРµР¶РёРјРµ С‚СЂР°РЅСЃРїРѕРЅРёСЂСѓРµРј: Р»РѕРіРёС‡РµСЃРєРёР№ (col, row) -> РІРёР·СѓР°Р»СЊРЅС‹Р№ (row, col)
+    // РІРёР·СѓР°Р»СЊРЅР°СЏ РєРѕР»РѕРЅРєР° = Р»РѕРіРёС‡РµСЃРєРёР№ row
+    // РІРёР·СѓР°Р»СЊРЅС‹Р№ СЂСЏРґ = Р»РѕРіРёС‡РµСЃРєРёР№ col
+    const visualCol = isMobileLayout ? row : col;
+    const visualRow = isMobileLayout ? col : row;
+    
+    const sprites = this.symbols[visualCol];
+    if (!sprites) return null;
+    
+    // Р¦РµР»РµРІР°СЏ Y РїРѕР·РёС†РёСЏ РґР»СЏ РґР°РЅРЅРѕРіРѕ РІРёР·СѓР°Р»СЊРЅРѕРіРѕ СЂСЏРґР° СЃ СѓС‡С‘С‚РѕРј Р·Р°Р·РѕСЂРѕРІ
+    const stepHeight = cellHeight + rowGap;
+    const targetY = visualRow * stepHeight + cellHeight / 2;
+    const tolerance = cellHeight / 2;
+    
+    // РС‰РµРј СЃРїСЂР°Р№С‚, РєРѕС‚РѕСЂС‹Р№ РЅР°С…РѕРґРёС‚СЃСЏ Р±Р»РёР¶Рµ РІСЃРµРіРѕ Рє СЌС‚РѕР№ РїРѕР·РёС†РёРё
+    for (const sp of sprites) {
+      if (Math.abs(sp.y - targetY) < tolerance) {
+        return sp;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * РџРѕР»СѓС‡РёС‚СЊ СЃРїСЂР°Р№С‚ СЃРёРјРІРѕР»Р° РЅР°РїСЂСЏРјСѓСЋ РїРѕ Р’РР—РЈРђР›Р¬РќРћРњРЈ РёРЅРґРµРєСЃСѓ (visualCol, visualRow)
+   * РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РґР»СЏ drop Р°РЅРёРјР°С†РёРё, РіРґРµ РїРѕР·РёС†РёСЏ СЃРёРјРІРѕР»Р° РјРµРЅСЏРµС‚СЃСЏ
+   * РќР• С‚СЂР°РЅСЃРїРѕРЅРёСЂСѓРµС‚ РєРѕРѕСЂРґРёРЅР°С‚С‹ - СЂР°Р±РѕС‚Р°РµС‚ СЃ РІРёР·СѓР°Р»СЊРЅС‹РјРё РёРЅРґРµРєСЃР°РјРё РЅР°РїСЂСЏРјСѓСЋ
+   */
+  getSymbolByIndex(visualCol: number, visualRow: number): PIXI.Sprite | null {
+    const sprites = this.symbols[visualCol];
+    if (!sprites || visualRow < 0 || visualRow >= sprites.length) return null;
+    return sprites[visualRow];
+  }
+
+  /**
+   * РџРѕР»СѓС‡РёС‚СЊ СЃРїСЂР°Р№С‚ СЃРёРјРІРѕР»Р° РїРѕ Р›РћР“РР§Р•РЎРљРРњ РєРѕРѕСЂРґРёРЅР°С‚Р°Рј РґР»СЏ drop Р°РЅРёРјР°С†РёРё
+   * Р’ РјРѕР±РёР»СЊРЅРѕРј СЂРµР¶РёРјРµ С‚СЂР°РЅСЃРїРѕРЅРёСЂСѓРµС‚ РєРѕРѕСЂРґРёРЅР°С‚С‹
+   */
+  getSymbolByLogicalIndex(col: number, row: number): PIXI.Sprite | null {
+    const { isMobileLayout } = this.config.dimensions;
+    const visualCol = isMobileLayout ? row : col;
+    const visualRow = isMobileLayout ? col : row;
+    return this.getSymbolByIndex(visualCol, visualRow);
+  }
+
+  resetSymbolPositions(): void {
+    this.updateAllReelDisplays();
+    const { cols, rows, isMobileLayout } = this.config.dimensions;
+    const visualCols = isMobileLayout ? rows : cols;
+    for (let vCol = 0; vCol < visualCols; vCol++) {
+      if (this.blurFilters[vCol]) {
+        this.blurFilters[vCol].blurY = 0;
+      }
+    }
+  }
+
+  initSpinState(matrix: string[][]): void {
+    const { cellHeight, rows, cols, rowGap } = this.config.dimensions;
+    const { reelStripLength, minSpinCycles, spinSpeed, stopDelay } = this.config.animation;
+    // РЁР°Рі РјРµР¶РґСѓ СЃРёРјРІРѕР»Р°РјРё СЃ СѓС‡С‘С‚РѕРј Р·Р°Р·РѕСЂР°
+    const stepHeight = cellHeight + rowGap;
+    const stripHeightPx = reelStripLength * stepHeight;
+    
+    // РЎРЅР°С‡Р°Р»Р° СЂР°СЃСЃС‡РёС‚Р°РµРј РІСЃРµ С†РµР»РµРІС‹Рµ РґРёСЃС‚Р°РЅС†РёРё
+    const targetDistances: number[] = [];
+    const finalSymbolsAll: string[][] = [];
+    
+    for (let c = 0; c < cols; c++) {
+      const finalSymbols = matrix.map(row => row[c]);
+      finalSymbolsAll[c] = finalSymbols;
+      const targetStripIndex = this.findOrInsertFinalSymbols(c, finalSymbols);
+      
+      // РџСЂРё РґРІРёР¶РµРЅРёРё СЃРёРјРІРѕР»РѕРІ Р’РќРР— (y = base + offset):
+      // - offset СЂР°СЃС‚С‘С‚, СЃРёРјРІРѕР»С‹ РѕРїСѓСЃРєР°СЋС‚СЃСЏ
+      // - СЃРёРјРІРѕР» СЃ РёРЅРґРµРєСЃРѕРј i РІ row 0 РєРѕРіРґР°: i*stepHeight + offset в‰Ў 0 (mod stripHeightPx)
+      // - offset = stripHeightPx - i*stepHeight (РґР»СЏ i > 0)
+      // Р§С‚РѕР±С‹ СЃРёРјРІРѕР» targetStripIndex Р±С‹Р» РІ row 0:
+      
+      const targetOffset = targetStripIndex === 0 
+        ? 0 
+        : (stripHeightPx - targetStripIndex * stepHeight) % stripHeightPx;
+      const currentOffset = this.state[c].position % stripHeightPx;
+      
+      // РЎРєРѕР»СЊРєРѕ РЅСѓР¶РЅРѕ РїСЂРѕРєСЂСѓС‚РёС‚СЊ С‡С‚РѕР±С‹ РґРѕСЃС‚РёС‡СЊ targetOffset
+      let distanceToTarget = targetOffset - currentOffset;
+      if (distanceToTarget < 0) distanceToTarget += stripHeightPx;
+      
+      // Р”РѕР±Р°РІР»СЏРµРј РјРёРЅРёРјСѓРј minSpinCycles РїРѕР»РЅС‹С… РѕР±РѕСЂРѕС‚РѕРІ
+      const minDistance = minSpinCycles * stripHeightPx;
+      targetDistances[c] = this.state[c].position + minDistance + distanceToTarget;
+    }
+    
+    // Р•СЃР»Рё stopDelay = 0, СЃРёРЅС…СЂРѕРЅРёР·РёСЂСѓРµРј РѕСЃС‚Р°РЅРѕРІРєРё - РІСЃРµ Р±Р°СЂР°Р±Р°РЅС‹ РґРѕР»Р¶РЅС‹ РїСЂРѕРєСЂСѓС‚РёС‚СЊ РѕРґРёРЅР°РєРѕРІРѕРµ СЂР°СЃСЃС‚РѕСЏРЅРёРµ
+    let maxTargetDistance = Math.max(...targetDistances);
+    
+    for (let c = 0; c < cols; c++) {
+      let totalDistance = targetDistances[c];
+      
+      // Р•СЃР»Рё РЅСѓР¶РЅР° СЃРёРЅС…СЂРѕРЅРЅР°СЏ РѕСЃС‚Р°РЅРѕРІРєР°, РІС‹СЂР°РІРЅРёРІР°РµРј РґРѕ РјР°РєСЃРёРјР°Р»СЊРЅРѕР№ РґРёСЃС‚Р°РЅС†РёРё
+      if (stopDelay === 0) {
+        // Р”РѕР±Р°РІР»СЏРµРј РїРѕР»РЅС‹Рµ РѕР±РѕСЂРѕС‚С‹, С‡С‚РѕР±С‹ РґРѕСЃС‚РёС‡СЊ РјР°РєСЃРёРјР°Р»СЊРЅРѕР№ РґРёСЃС‚Р°РЅС†РёРё
+        while (totalDistance < maxTargetDistance) {
+          totalDistance += stripHeightPx;
+        }
+      }
+      
+      this.state[c] = {
+        on: true, phase: 'spinning', position: this.state[c].position,
+        velocity: spinSpeed, targetPosition: totalDistance, final: finalSymbolsAll[c],
+        bounceStart: 0, targetRecalculated: false, stop: false, pos: this.state[c].position, bouncing: false,
+      };
+    }
+  }
+
+  /**
+   * РџРµСЂРµСЃС‡РёС‚Р°С‚СЊ С†РµР»РµРІСѓСЋ РїРѕР·РёС†РёСЋ РґР»СЏ Р±Р°СЂР°Р±Р°РЅР° РЅР° Р±Р»РёР¶Р°Р№С€СѓСЋ РїРѕР·РёС†РёСЋ СЃ С„РёРЅР°Р»СЊРЅС‹РјРё СЃРёРјРІРѕР»Р°РјРё
+   * Р’С‹Р·С‹РІР°РµС‚СЃСЏ РїСЂРё РїРѕР»СѓС‡РµРЅРёРё РєРѕРјР°РЅРґС‹ РЅР° РѕСЃС‚Р°РЅРѕРІРєСѓ РґР»СЏ СЃРёРЅС…СЂРѕРЅРЅРѕР№ РѕСЃС‚Р°РЅРѕРІРєРё СЃР»РµРІР° РЅР°РїСЂР°РІРѕ
+   */
+  recalculateTargetPosition(col: number, currentPosition: number, cellHeight: number): number {
+    const { reelStripLength } = this.config.animation;
+    const { rowGap } = this.config.dimensions;
+    // РЁР°Рі РјРµР¶РґСѓ СЃРёРјРІРѕР»Р°РјРё СЃ СѓС‡С‘С‚РѕРј Р·Р°Р·РѕСЂР°
+    const stepHeight = cellHeight + rowGap;
+    const stripHeightPx = reelStripLength * stepHeight;
+    const finalSymbols = this.state[col].final;
+    
+    // РќР°С…РѕРґРёРј РёРЅРґРµРєСЃ С„РёРЅР°Р»СЊРЅС‹С… СЃРёРјРІРѕР»РѕРІ РЅР° Р»РµРЅС‚Рµ
+    const targetStripIndex = this.findOrInsertFinalSymbols(col, finalSymbols);
+    
+    // Р¦РµР»РµРІРѕР№ offset РґР»СЏ СЌС‚РѕРіРѕ РёРЅРґРµРєСЃР°
+    const targetOffset = targetStripIndex === 0 
+      ? 0 
+      : (stripHeightPx - targetStripIndex * stepHeight) % stripHeightPx;
+    
+    // РўРµРєСѓС‰РёР№ offset
+    const currentOffset = ((currentPosition % stripHeightPx) + stripHeightPx) % stripHeightPx;
+    
+    // РЎРєРѕР»СЊРєРѕ РЅСѓР¶РЅРѕ РїСЂРѕРєСЂСѓС‚РёС‚СЊ РґРѕ Р±Р»РёР¶Р°Р№С€РµР№ С†РµР»РµРІРѕР№ РїРѕР·РёС†РёРё
+    let distanceToTarget = targetOffset - currentOffset;
+    if (distanceToTarget <= 0) {
+      distanceToTarget += stripHeightPx;
+    }
+    
+    // Р”РѕР±Р°РІР»СЏРµРј РЅРµРјРЅРѕРіРѕ "СЂР°Р·Р±РµРіР°" - РјРёРЅРёРјСѓРј РїРѕР»-СЃРёРјРІРѕР»Р°, С‡С‚РѕР±С‹ Р±С‹Р»Рѕ РІРёРґРЅРѕ С‚РѕСЂРјРѕР¶РµРЅРёРµ
+    const minDistance = stepHeight * 0.5;
+    if (distanceToTarget < minDistance) {
+      distanceToTarget += stripHeightPx;
+    }
+    
+    return currentPosition + distanceToTarget;
+  }
+
+  private findOrInsertFinalSymbols(col: number, finalSymbols: string[]): number {
+    const strip = this.reelStrips[col];
+    const sprites = this.symbols[col];
+    const { reelStripLength } = this.config.animation;
+    const { rows, cellHeight, rowGap } = this.config.dimensions;
+    
+    // РС‰РµРј РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕСЃС‚СЊ РЅР° Р»РµРЅС‚Рµ
+    for (let startIdx = 0; startIdx < reelStripLength; startIdx++) {
+      let match = true;
+      for (let r = 0; r < rows; r++) {
+        if (strip[(startIdx + r) % reelStripLength] !== finalSymbols[r]) {
+          match = false; break;
+        }
+      }
+      if (match) return startIdx;
+    }
+    
+    // РќРµ РЅР°С€Р»Рё вЂ” РІСЃС‚Р°РІР»СЏРµРј С„РёРЅР°Р»СЊРЅС‹Рµ СЃРёРјРІРѕР»С‹ РІ Р»РµРЅС‚Сѓ
+    // Р’С‹Р±РёСЂР°РµРј РїРѕР·РёС†РёСЋ РїРѕРґР°Р»СЊС€Рµ РѕС‚ С‚РµРєСѓС‰РµР№ РІРёРґРёРјРѕР№ РѕР±Р»Р°СЃС‚Рё
+    const stepHeight = cellHeight + rowGap;
+    const stripHeightPx = reelStripLength * stepHeight;
+    const currentPos = this.state[col].position;
+    const normalizedPos = ((currentPos % stripHeightPx) + stripHeightPx) % stripHeightPx;
+    const currentIndex = Math.floor(normalizedPos / stepHeight);
+    let insertIndex = (currentIndex + Math.floor(reelStripLength / 2)) % reelStripLength;
+    
+    // РћР±РЅРѕРІР»СЏРµРј Рё Р»РµРЅС‚Сѓ, Рё С‚РµРєСЃС‚СѓСЂС‹ СЃРїСЂР°Р№С‚РѕРІ
+    for (let r = 0; r < rows; r++) {
+      const idx = (insertIndex + r) % reelStripLength;
+      strip[idx] = finalSymbols[r];
+      // РћР±РЅРѕРІР»СЏРµРј С‚РµРєСЃС‚СѓСЂСѓ СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РµРіРѕ СЃРїСЂР°Р№С‚Р°
+      this.symbolFactory.updateSymbolTexture(sprites[idx], finalSymbols[r]);
+    }
+    return insertIndex;
+  }
+
+  finishReel(col: number): void {
+    // РџСЂРё РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРё РЅР°СЃС‚РѕСЏС‰РµР№ Р»РµРЅС‚С‹ - РїСЂРѕСЃС‚Рѕ РѕР±РЅРѕРІР»СЏРµРј РѕС‚РѕР±СЂР°Р¶РµРЅРёРµ
+    // РЎРёРјРІРѕР»С‹ СѓР¶Рµ РїСЂР°РІРёР»СЊРЅС‹Рµ, Р·Р°РјРµРЅР° С‚РµРєСЃС‚СѓСЂ РЅРµ РЅСѓР¶РЅР°
+    this.updateReelDisplay(col);
+    if (this.barabanSprites[col]) this.barabanSprites[col].tilePosition.y = 0;
+  }
+
+  /**
+   * РџРѕРґРіРѕС‚РѕРІРёС‚СЊ СЃРёРјРІРѕР»С‹ РґР»СЏ drop Р°РЅРёРјР°С†РёРё
+   * РћР±РЅРѕРІР»СЏРµС‚ С‚РµРєСЃС‚СѓСЂС‹ СЃРёРјРІРѕР»РѕРІ РЅР° С„РёРЅР°Р»СЊРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ РёР· РјР°С‚СЂРёС†С‹
+   * @param matrix - РјР°С‚СЂРёС†Р° С„РёРЅР°Р»СЊРЅС‹С… СЃРёРјРІРѕР»РѕРІ [row][col] (Р»РѕРіРёС‡РµСЃРєРёРµ РєРѕРѕСЂРґРёРЅР°С‚С‹)
+   */
+  prepareDropState(matrix: string[][]): void {
+    const { cellHeight, rows, cols, rowGap, isMobileLayout } = this.config.dimensions;
+    const stepHeight = cellHeight + rowGap;
+    
+    // Р’ РјРѕР±РёР»СЊРЅРѕРј СЂРµР¶РёРјРµ: РІРёР·СѓР°Р»СЊРЅР°СЏ РєРѕР»РѕРЅРєР° = Р»РѕРіРёС‡РµСЃРєРёР№ row, РІРёР·СѓР°Р»СЊРЅС‹Р№ СЂСЏРґ = Р»РѕРіРёС‡РµСЃРєРёР№ col
+    const visualCols = isMobileLayout ? rows : cols;
+    const visualRows = isMobileLayout ? cols : rows;
+    
+    for (let vCol = 0; vCol < visualCols; vCol++) {
+      for (let vRow = 0; vRow < visualRows; vRow++) {
+        // РџРѕР»СѓС‡Р°РµРј СЃРёРјРІРѕР» РёР· РјР°С‚СЂРёС†С‹ РїРѕ Р»РѕРіРёС‡РµСЃРєРёРј РєРѕРѕСЂРґРёРЅР°С‚Р°Рј
+        const logicalCol = isMobileLayout ? vRow : vCol;
+        const logicalRow = isMobileLayout ? vCol : vRow;
+        const symbolId = matrix[logicalRow][logicalCol];
+        const sprite = this.symbols[vCol]?.[vRow];
+        if (sprite) {
+          this.symbolFactory.updateSymbolTexture(sprite, symbolId);
+          // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РЅР°С‡Р°Р»СЊРЅСѓСЋ Y РїРѕР·РёС†РёСЋ СЃ СѓС‡С‘С‚РѕРј Р·Р°Р·РѕСЂРѕРІ (Р±СѓРґРµС‚ РїРµСЂРµРѕРїСЂРµРґРµР»РµРЅР° DropReelAnimator)
+          sprite.y = vRow * stepHeight + cellHeight / 2;
+        }
+      }
+      
+      // РЎР±СЂРѕСЃРёРј blur С„РёР»СЊС‚СЂ
+      if (this.blurFilters[vCol]) {
+        this.blurFilters[vCol].blurY = 0;
+      }
+    }
+  }
+
+  /**
+   * РћР±РЅРѕРІРёС‚СЊ С‚РµРєСЃС‚СѓСЂСѓ РєРѕРЅРєСЂРµС‚РЅРѕРіРѕ СЃРёРјРІРѕР»Р° РїРѕ Р’РР—РЈРђР›Р¬РќР«Рњ РєРѕРѕСЂРґРёРЅР°С‚Р°Рј
+   * РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ DropReelAnimator РґР»СЏ СЃРјРµРЅС‹ СЃРёРјРІРѕР»РѕРІ РІРѕ РІСЂРµРјСЏ Р°РЅРёРјР°С†РёРё
+   */
+  updateSymbolTexture(visualCol: number, visualRow: number, symbolId: string): void {
+    const sprite = this.symbols[visualCol]?.[visualRow];
+    if (sprite) {
+      this.symbolFactory.updateSymbolTexture(sprite, symbolId);
+    }
+  }
+
+  /**
+   * РћР±РЅРѕРІРёС‚СЊ С‚РµРєСЃС‚СѓСЂСѓ РєРѕРЅРєСЂРµС‚РЅРѕРіРѕ СЃРёРјРІРѕР»Р° РїРѕ Р›РћР“РР§Р•РЎРљРРњ РєРѕРѕСЂРґРёРЅР°С‚Р°Рј
+   * Р’ РјРѕР±РёР»СЊРЅРѕРј СЂРµР¶РёРјРµ С‚СЂР°РЅСЃРїРѕРЅРёСЂСѓРµС‚ РєРѕРѕСЂРґРёРЅР°С‚С‹
+   */
+  updateSymbolTextureLogical(col: number, row: number, symbolId: string): void {
+    const { isMobileLayout } = this.config.dimensions;
+    const visualCol = isMobileLayout ? row : col;
+    const visualRow = isMobileLayout ? col : row;
+    this.updateSymbolTexture(visualCol, visualRow, symbolId);
+  }
+
+  generateRandomMatrix(): string[][] {
+    const { rows, cols } = this.config.dimensions;
+    return Array.from({ length: rows }, () => Array.from({ length: cols }, () => this.symbolFactory.getRandomSymbolId()));
+  }
+
+  destroy(): void {
+    this.reels.forEach(r => r.destroy({ children: true }));
+    this.masks.forEach(m => m.destroy());
+    this.reelsContainer?.destroy({ children: true });
+    this.reels = []; this.symbols = []; this.barabanSprites = []; 
+    this.blurFilters = []; this.masks = []; this.state = []; this.reelStrips = [];
+    this.reelsContainer = null;
+  }
+}
+
