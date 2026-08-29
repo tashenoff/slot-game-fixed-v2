@@ -310,6 +310,39 @@ const SlotGame: React.FC<SlotGameProps> = ({
     }
   }, []);
 
+  // Функция выхода из fullscreen
+  const exitFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else if ((document as any).webkitExitFullscreen) {
+        await (document as any).webkitExitFullscreen();
+      } else if ((document as any).mozCancelFullScreen) {
+        await (document as any).mozCancelFullScreen();
+      } else if ((document as any).msExitFullscreen) {
+        await (document as any).msExitFullscreen();
+      }
+      setIsFullscreen(false);
+      
+      // Разблокируем ориентацию
+      try {
+        if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+          screen.orientation.unlock();
+        }
+      } catch (e) {}
+    } catch (e) {
+      console.log('Не удалось выйти из полноэкранного режима:', e);
+    }
+  }, []);
+
+  // Обёртка для onBackToLobby — для классической темы сначала выходим из fullscreen
+  const handleBackToLobbyWithFullscreenExit = useCallback(async () => {
+    if (theme.id === 'classic' && isFullscreen) {
+      await exitFullscreen();
+    }
+    onBackToLobby?.();
+  }, [theme.id, isFullscreen, exitFullscreen, onBackToLobby]);
+
   // Принудительная альбомная ориентация на мобильных устройствах
   // Только для классической темы
   useEffect(() => {
@@ -792,7 +825,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         onToggleMusic={handleToggleMusic}
         player={player}
         themeName={theme.name}
-        onBackToLobby={onBackToLobby}
+        onBackToLobby={handleBackToLobbyWithFullscreenExit}
         fps={fps}
       />
       
