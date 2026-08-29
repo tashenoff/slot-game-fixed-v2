@@ -25,6 +25,8 @@ export interface SlotDimensions {
   isMobileLayout: boolean; // Если true - транспонируем отображение (логика остаётся 5x3)
   // Оптимизация производительности
   disableBlur: boolean; // Если true - отключить blur фильтры (для мобильных)
+  // Горизонтальный вращающийся барабан (текстура baraban.png)
+  showBarabanBackground: boolean; // Если true - показывать TilingSprite барабана (только для классики)
 }
 
 // Типы анимации барабанов
@@ -107,6 +109,7 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     symbolFillCell: false, // По умолчанию символ квадратный с паддингами
     isMobileLayout: false, // По умолчанию десктопный режим
     disableBlur: false, // По умолчанию blur включен
+    showBarabanBackground: false, // По умолчанию фон барабана выключен (только для классики)
     buffer: 1,
   },
   animation: {

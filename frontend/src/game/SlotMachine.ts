@@ -123,6 +123,13 @@ export class SlotMachine {
       }
     }
     
+    // Включаем горизонтальный вращающийся барабан только для классической темы
+    // и отключаем blur для классики
+    if (theme.id === 'classic') {
+      dimensionsOverrides.showBarabanBackground = true;
+      dimensionsOverrides.disableBlur = true;
+    }
+    
     // Собираем настройки анимации из темы
     const animationOverrides: Record<string, unknown> = {};
     // Базовые настройки из темы

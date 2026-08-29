@@ -21,28 +21,5 @@
   "reelGap": 5,
   "rowGap": 5,
   "reelsAreaWidth": 1070,
-  "reelsAreaHeight": 642,
-  "mobile": {
-    "borderWidth": 1696,
-    "borderHeight": 2528,
-    "reelsAutoCenter": false,
-    "reelsOffsetX": 340,
-    "reelsOffsetY": 425,
-    "reelsAreaWidth": 1016,
-    "reelsAreaHeight": 1718,
-    "reelGap": 4,
-    "rowGap": 5,
-    "disableBlur": true,
-    "disableDust": true,
-    "disableWinLines": true,
-    "disableShine": false,
-    "cascadeWinHighlight": true,
-    "reelAnimation": {
-      "type": "drop",
-      "bounceHeight": 15,
-      "bounceTime": 120,
-      "staggerDelay": 80,
-      "speed": 2.5
-    }
-  }
+  "reelsAreaHeight": 642
 }

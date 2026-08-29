@@ -117,7 +117,29 @@ export class ReelManager {
       blur.quality = disableBlur ? 1 : 4;
       blur.enabled = !disableBlur;
       this.blurFilters.push(blur);
-      
+
+      // Фон барабана — TilingSprite для бесшовного вращения (горизонтальный барабан)
+      // Только если showBarabanBackground включён (только для классической темы)
+      if (dimensions.showBarabanBackground) {
+        const barabanTexture = this.assetLoader.getBarabanTexture();
+        if (barabanTexture) {
+          const barabanSprite = new PIXI.TilingSprite(
+            barabanTexture,
+            cellWidth,
+            totalHeight
+          );
+          // Корректируем позицию: reel.x = reelOffset + cellWidth/2,
+          // а mask отрисовывается от reelOffset, поэтому сдвигаем на -cellWidth/2
+          barabanSprite.x = -cellWidth / 2;
+          barabanSprite.y = 0;
+          barabanSprite.tileScale.set(cellWidth / barabanTexture.width, totalHeight / barabanTexture.height);
+          barabanSprite.tilePosition.x = 0;
+          barabanSprite.tilePosition.y = 0;
+          reel.addChildAt(barabanSprite, 0);
+          this.barabanSprites[visualCol] = barabanSprite;
+        }
+      }
+
       // Инициализируем массив символов для этой визуальной колонки
       // Индексируем по визуальным координатам [visualCol][visualRow]
       this.symbols[visualCol] = [];
@@ -191,6 +213,31 @@ export class ReelManager {
     blur.quality = disableBlur ? 1 : 4;
     blur.enabled = !disableBlur;
     this.blurFilters.push(blur);
+
+    // Фон барабана — TilingSprite для бесшовного вращения (горизонтальный барабан)
+    // Только если showBarabanBackground включён (только для классической темы)
+    if (dimensions.showBarabanBackground) {
+      const barabanTexture = this.assetLoader.getBarabanTexture();
+      if (barabanTexture) {
+        const barabanSprite = new PIXI.TilingSprite(
+          barabanTexture,
+          cellWidth,
+          totalHeight
+        );
+        // Корректируем позицию: reel.x = reelOffset + cellWidth/2,
+        // а mask отрисовывается от reelOffset, поэтому сдвигаем на -cellWidth/2
+        barabanSprite.x = -cellWidth / 2;
+        barabanSprite.y = 0;
+        // Масштабируем текстуру: одна текстура = полная высота барабана
+        barabanSprite.tileScale.set(cellWidth / barabanTexture.width, totalHeight / barabanTexture.height);
+        // Горизонтальное вращение — двигаем tilePosition.x
+        barabanSprite.tilePosition.x = 0;
+        barabanSprite.tilePosition.y = 0;
+        // Помещаем фон ПОД символы (zIndex ниже)
+        reel.addChildAt(barabanSprite, 0);
+        this.barabanSprites[col] = barabanSprite;
+      }
+    }
 
     // Создаём спрайт для КАЖДОГО символа на ленте
     // Это позволяет двигать спрайты без смены текстур
@@ -286,7 +333,8 @@ export class ReelManager {
     }
     
     if (this.barabanSprites[col]) {
-      this.barabanSprites[col].tilePosition.y = offset;
+      // Горизонтальное вращение барабана
+      this.barabanSprites[col].tilePosition.x = offset;
     }
   }
 
@@ -502,7 +550,7 @@ export class ReelManager {
     // При использовании настоящей ленты - просто обновляем отображение
     // Символы уже правильные, замена текстур не нужна
     this.updateReelDisplay(col);
-    if (this.barabanSprites[col]) this.barabanSprites[col].tilePosition.y = 0;
+    if (this.barabanSprites[col]) this.barabanSprites[col].tilePosition.x = 0;
   }
 
   /**

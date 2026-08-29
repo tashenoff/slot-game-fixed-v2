@@ -6,7 +6,7 @@ import LowBalanceModal from './LowBalanceModal';
 import * as API from '../api';
 import { Stats } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
-import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath } from '../config/themes';
+import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath, isMobileDevice } from '../config/themes';
 import { SandEffect } from '../game/SandEffect';
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
@@ -266,7 +266,56 @@ const SlotGame: React.FC<SlotGameProps> = ({
     };
   }, [theme]);
 
-  // Эффект песка для египетской темы
+  // Состояние и эффект принудительной альбомной ориентации на мобильных
+  // Только для классической темы
+  const [isPortrait, setIsPortrait] = useState<boolean>(false);
+  const isMobileRef = useRef<boolean>(false);
+
+  // Принудительная альбомная ориентация на мобильных устройствах
+  // Только для классической темы
+  useEffect(() => {
+    if (theme.id !== 'classic') return;
+    
+    const checkMobile = () => {
+      isMobileRef.current = isMobileDevice();
+      if (isMobileRef.current) {
+        // Проверяем текущую ориентацию
+        const checkOrientation = () => {
+          const portrait = window.innerHeight > window.innerWidth;
+          setIsPortrait(portrait);
+        };
+        checkOrientation();
+        
+        // Пытаемся заблокировать ориентацию на альбомную
+        try {
+          if (screen.orientation && typeof screen.orientation.lock === 'function') {
+            screen.orientation.lock('landscape').catch(() => {
+              // Некоторые браузеры блокируют API — игнорируем
+            });
+          }
+        } catch (e) {
+          // API может быть недоступен
+        }
+        
+        // Слушаем изменения ориентации
+        window.addEventListener('orientationchange', () => {
+          setTimeout(checkOrientation, 300);
+        });
+        
+        return () => {
+          window.removeEventListener('orientationchange', checkOrientation);
+          // Разблокируем ориентацию при выходе
+          try {
+            if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+              screen.orientation.unlock();
+            }
+          } catch (e) {}
+        };
+      }
+    };
+    
+    checkMobile();
+  }, [theme.id]);
   useEffect(() => {
     // Уничтожаем предыдущий эффект
     if (sandEffectRef.current) {
@@ -929,6 +978,18 @@ const SlotGame: React.FC<SlotGameProps> = ({
         onRewardReceived={handleAdReward}
         currentBalance={balance}
       />
+
+      {/* Оверлей поворота экрана для мобильных устройств в портретном режиме */}
+      {isPortrait && isMobileRef.current && theme.id === 'classic' && (
+        <div className="orientation-overlay">
+          <div className="orientation-overlay-content">
+            <div className="orientation-icon">📱</div>
+            <div className="orientation-arrow">↻</div>
+            <p className="orientation-text">Поверните устройство</p>
+            <p className="orientation-subtext">Для игры используйте альбомную ориентацию</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

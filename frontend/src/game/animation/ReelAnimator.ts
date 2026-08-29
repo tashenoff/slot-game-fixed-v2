@@ -192,7 +192,7 @@ export class ReelAnimator {
       if (sprite) sprite.y = r * stepHeight + cellHeight / 2 + bounce;
     }
 
-    if (barabanSprites[col]) barabanSprites[col].tilePosition.y = bounce;
+    if (barabanSprites[col]) barabanSprites[col].tilePosition.x = bounce;
 
     if (progress >= 1) {
       s.bouncing = false;
@@ -202,7 +202,7 @@ export class ReelAnimator {
         const sprite = this.reelManager.getSymbol(col, r);
         if (sprite) sprite.y = r * stepHeight + cellHeight / 2;
       }
-      if (barabanSprites[col]) barabanSprites[col].tilePosition.y = 0;
+      if (barabanSprites[col]) barabanSprites[col].tilePosition.x = 0;
     }
   }
 
