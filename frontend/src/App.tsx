@@ -46,15 +46,76 @@ function App({ initialBalance = 10000, player }: AppProps) {
     setCurrentView('lobby');
   }, []);
 
-  // Обработчик возврата в лобби
-  const handleBackToLobby = useCallback(() => {
-    setCurrentView('lobby');
+  // Функция выхода из полноэкранного режима и разблокировки ориентации
+  const exitFullscreenAndUnlockOrientation = useCallback(async () => {
+    // Выходим из полноэкранного режима если он активен
+    const isCurrentlyFullscreen = !!(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement ||
+      (document as any).mozFullScreenElement ||
+      (document as any).msFullscreenElement
+    );
+
+    if (isCurrentlyFullscreen) {
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        } else if ((document as any).mozCancelFullScreen) {
+          await (document as any).mozCancelFullScreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
+        }
+      } catch (e) {
+        console.log('Не удалось выйти из полноэкранного режима:', e);
+      }
+    }
+
+    // Разблокируем ориентацию (в лобби должна быть вертикальная)
+    try {
+      if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+        screen.orientation.unlock();
+      }
+    } catch (e) {
+      // API может быть недоступен
+    }
   }, []);
+
+  // Обработчик возврата в лобби
+  const handleBackToLobby = useCallback(async () => {
+    await exitFullscreenAndUnlockOrientation();
+    setCurrentView('lobby');
+  }, [exitFullscreenAndUnlockOrientation]);
 
   // Обработчик изменения баланса (для синхронизации)
   const handleBalanceChange = useCallback((newBalance: number) => {
     setBalance(newBalance);
   }, []);
+
+  // Обработка кнопки "назад" браузера - возврат в лобби
+  useEffect(() => {
+    // Добавляем запись в историю при входе в игру
+    if (currentView === 'game') {
+      window.history.pushState({ view: 'game' }, '');
+    }
+
+    // Обработчик события "назад" браузера
+    const handlePopState = async (event: PopStateEvent) => {
+      // Если мы в игре, возвращаемся в лобби
+      if (currentView === 'game') {
+        event.preventDefault();
+        await exitFullscreenAndUnlockOrientation();
+        setCurrentView('lobby');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [currentView, exitFullscreenAndUnlockOrientation]);
 
   // Рендер текущего представления
   const renderCurrentView = () => {
