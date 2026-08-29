@@ -61,7 +61,7 @@
       "type": "drop",
       "bounceHeight": 15,
       "bounceTime": 120,
-      "staggerDelay": 80,
+      "staggerDelay": 250,
       "speed": 2.5
     }
   }

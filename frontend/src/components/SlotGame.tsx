@@ -541,7 +541,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         musicEl.volume = Math.max(0, musicEl.volume - 0.05);
       } else {
         musicEl.pause();
-        musicEl.volume = 1;
+        musicEl.volume = 0.2;
         if (musicFadeIntervalRef.current) {
           clearInterval(musicFadeIntervalRef.current);
           musicFadeIntervalRef.current = null;
@@ -564,7 +564,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
       musicFadeIntervalRef.current = null;
     }
     
-    musicEl.volume = 1;
+    musicEl.volume = 0.2;
     if (musicEl.paused) {
       musicEl.play().catch(() => console.log('Music play blocked'));
     }
@@ -824,7 +824,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
       if (musicFadeTimerRef.current) clearTimeout(musicFadeTimerRef.current);
       if (musicFadeIntervalRef.current) clearInterval(musicFadeIntervalRef.current);
       musicEl.pause();
-      musicEl.volume = 1;
+      musicEl.volume = 0.2;
     }
   }, [isMusicOn]);
 
