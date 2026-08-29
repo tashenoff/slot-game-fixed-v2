@@ -400,7 +400,6 @@ const SlotGame: React.FC<SlotGameProps> = ({
   }, [isMusicOn, fadeOutMusic]);
 
   // Обработчик спина (поддерживает автоспин)
-  // Оптимизировано для мобильных: анимация запускается сразу, результат подгружается параллельно
   const handleSpin = useCallback(async (isFromAutoSpin = false) => {
     // Защита от двойного вызова с помощью ref (синхронная проверка)
     if (isSpinningRef.current) {
@@ -421,8 +420,6 @@ const SlotGame: React.FC<SlotGameProps> = ({
 
     // Блокируем повторный вызов
     isSpinningRef.current = true;
-    
-    // === МГНОВЕННЫЙ ОТКЛИК: запускаем всё сразу, не дожидаясь ответа сервера ===
     
     // Воспроизводим звук спина
     if (spinSoundRef.current) {
@@ -446,17 +443,16 @@ const SlotGame: React.FC<SlotGameProps> = ({
     setIsSpinning(true);
     setWinAmount(0);
     setShowStatsModal(false);
-    
-    // ВАЖНО: Запускаем анимацию СРАЗУ, не дожидаясь ответа сервера
-    // Это убирает ощущаемую задержку на мобильных устройствах
-    slotMachine.startSpinAnimation();
 
     try {
-      // Параллельно запрашиваем результат спина с сервера
+      // Запрашиваем результат спина с сервера
       const result = await API.spin(currentBet);
       
-      // Устанавливаем результат и финализируем анимацию
-      slotMachine.setSpinResultAndFinalize(result, (spinResult) => {
+      // Устанавливаем результат в слот-машину
+      slotMachine.setSpinResult(result);
+      
+      // Запускаем анимацию вращения
+      slotMachine.spin((spinResult) => {
         // Колбэк после завершения анимации
         
         // Останавливаем звук вращения барабанов

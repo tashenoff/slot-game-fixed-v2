@@ -323,42 +323,6 @@ export class SlotMachine {
     this.reelStopCallback = cb;
   }
 
-  /**
-   * Запустить анимацию спина немедленно (без ожидания результата с сервера).
-   * Используется для устранения задержки на мобильных устройствах.
-   * Матрица результата будет установлена позже через setSpinResult().
-   */
-  startSpinAnimation(): void {
-    if (this.isSpinning) return;
-
-    this.clear();
-    this.isSpinning = true;
-    
-    // Для drop анимации начинаем с пустой pending матрицы - она будет установлена позже
-    if (this.animationType === 'drop') {
-      // Ничего не передаём - матрица будет установлена через setPendingMatrix когда придёт результат
-    }
-    // Для spin анимации генерируем случайную матрицу для начала вращения
-    // (она будет заменена на правильную в initSpinState когда придёт результат)
-    
-    this.reelAnimator.start();
-  }
-
-  /**
-   * Установить результат спина и финализировать анимацию.
-   * Вызывается после получения результата с сервера.
-   */
-  setSpinResultAndFinalize(result: SpinResult, cb: (r: SpinResult) => void): void {
-    this.currentResult = result;
-    this.spinCallback = cb;
-
-    const matrix = result.matrix;
-    
-    // Устанавливаем финальную матрицу для правильной остановки
-    // setPendingMatrix теперь есть у всех аниматоров (ReelAnimator и DropReelAnimator)
-    this.reelAnimator.setPendingMatrix?.(matrix);
-  }
-
   spin(cb: (r: SpinResult) => void): void {
     if (this.isSpinning) return;
 
