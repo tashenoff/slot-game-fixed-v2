@@ -270,27 +270,81 @@ const SlotGame: React.FC<SlotGameProps> = ({
   // Только для классической темы
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
   const isMobileRef = useRef<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Функция входа в полноэкранный режим и блокировки ориентации
+  const enterFullscreenAndLockOrientation = useCallback(async () => {
+    const docEl = document.documentElement;
+    
+    try {
+      // Пытаемся войти в полноэкранный режим
+      if (docEl.requestFullscreen) {
+        await docEl.requestFullscreen();
+      } else if ((docEl as any).webkitRequestFullscreen) {
+        await (docEl as any).webkitRequestFullscreen();
+      } else if ((docEl as any).mozRequestFullScreen) {
+        await (docEl as any).mozRequestFullScreen();
+      } else if ((docEl as any).msRequestFullscreen) {
+        await (docEl as any).msRequestFullscreen();
+      }
+      
+      setIsFullscreen(true);
+      
+      // После входа в полноэкранный режим пытаемся заблокировать ориентацию
+      // Небольшая задержка чтобы fullscreen успел активироваться
+      setTimeout(async () => {
+        try {
+          if (screen.orientation && typeof screen.orientation.lock === 'function') {
+            await screen.orientation.lock('landscape');
+            // После успешной блокировки проверяем ориентацию
+            const portrait = window.innerHeight > window.innerWidth;
+            setIsPortrait(portrait);
+          }
+        } catch (e) {
+          console.log('Не удалось заблокировать ориентацию:', e);
+        }
+      }, 100);
+      
+    } catch (e) {
+      console.log('Не удалось войти в полноэкранный режим:', e);
+    }
+  }, []);
 
   // Принудительная альбомная ориентация на мобильных устройствах
   // Только для классической темы
   useEffect(() => {
     if (theme.id !== 'classic') return;
     
+    // Проверяем текущую ориентацию
+    const checkOrientation = () => {
+      const portrait = window.innerHeight > window.innerWidth;
+      setIsPortrait(portrait);
+    };
+    
+    // Обработчик изменения fullscreen
+    const handleFullscreenChange = () => {
+      const isFs = !!(document.fullscreenElement || 
+        (document as any).webkitFullscreenElement || 
+        (document as any).mozFullScreenElement || 
+        (document as any).msFullscreenElement);
+      setIsFullscreen(isFs);
+      
+      // Если вышли из fullscreen, проверяем ориентацию
+      if (!isFs) {
+        setTimeout(checkOrientation, 300);
+      }
+    };
+    
     const checkMobile = () => {
       isMobileRef.current = isMobileDevice();
       if (isMobileRef.current) {
-        // Проверяем текущую ориентацию
-        const checkOrientation = () => {
-          const portrait = window.innerHeight > window.innerWidth;
-          setIsPortrait(portrait);
-        };
         checkOrientation();
         
-        // Пытаемся заблокировать ориентацию на альбомную
+        // Пытаемся заблокировать ориентацию на альбомную (работает только в fullscreen)
         try {
           if (screen.orientation && typeof screen.orientation.lock === 'function') {
             screen.orientation.lock('landscape').catch(() => {
-              // Некоторые браузеры блокируют API — игнорируем
+              // Браузер блокирует API без fullscreen — это нормально
             });
           }
         } catch (e) {
@@ -298,12 +352,26 @@ const SlotGame: React.FC<SlotGameProps> = ({
         }
         
         // Слушаем изменения ориентации
-        window.addEventListener('orientationchange', () => {
+        const orientationHandler = () => {
           setTimeout(checkOrientation, 300);
-        });
+        };
+        window.addEventListener('orientationchange', orientationHandler);
+        window.addEventListener('resize', checkOrientation);
+        
+        // Слушаем изменения fullscreen
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
         
         return () => {
-          window.removeEventListener('orientationchange', checkOrientation);
+          window.removeEventListener('orientationchange', orientationHandler);
+          window.removeEventListener('resize', checkOrientation);
+          document.removeEventListener('fullscreenchange', handleFullscreenChange);
+          document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+          document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+          document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+          
           // Разблокируем ориентацию при выходе
           try {
             if (screen.orientation && typeof screen.orientation.unlock === 'function') {
@@ -987,6 +1055,18 @@ const SlotGame: React.FC<SlotGameProps> = ({
             <div className="orientation-arrow">↻</div>
             <p className="orientation-text">Поверните устройство</p>
             <p className="orientation-subtext">Для игры используйте альбомную ориентацию</p>
+            
+            {/* Кнопка для автоматического переключения в landscape через fullscreen */}
+            <button 
+              className="orientation-fullscreen-btn"
+              onClick={enterFullscreenAndLockOrientation}
+            >
+              <span className="fullscreen-btn-icon">⛶</span>
+              <span>Полноэкранный режим</span>
+            </button>
+            <p className="orientation-hint">
+              Или включите автоповорот в настройках телефона
+            </p>
           </div>
         </div>
       )}

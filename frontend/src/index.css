@@ -2551,6 +2551,43 @@ body.in-lobby {
   color: #9ca3af;
 }
 
+.orientation-fullscreen-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1.5rem auto 1rem;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, #ffd700 0%, #f59e0b 100%);
+  border: none;
+  border-radius: 12px;
+  color: #1a1a2e;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+}
+
+.orientation-fullscreen-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(255, 215, 0, 0.5);
+}
+
+.orientation-fullscreen-btn:active {
+  transform: scale(0.98);
+}
+
+.fullscreen-btn-icon {
+  font-size: 1.3rem;
+}
+
+.orientation-hint {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-top: 0.75rem;
+}
+
 @keyframes orientation-rotate {
   0% { transform: rotate(0deg); }
   50% { transform: rotate(90deg); }
