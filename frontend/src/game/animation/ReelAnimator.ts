@@ -19,6 +19,8 @@ export class ReelAnimator {
   private tickFn: ((delta: number) => void) | null = null;
   private timers: number[] = [];
   private isRunning = false;
+  private pendingMatrix: string[][] | null = null; // Матрица результата (устанавливается позже)
+  private resultReceived = false; // Флаг получения результата с сервера
 
   constructor(config: SlotConfig, reelManager: ReelManager, ticker: PIXI.Ticker) {
     this.config = config;
@@ -30,12 +32,51 @@ export class ReelAnimator {
     this.callbacks = callbacks;
   }
 
+  /**
+   * Установить матрицу результата (для отложенной остановки)
+   * Вызывается когда приходит ответ от сервера
+   */
+  setPendingMatrix(matrix: string[][]): void {
+    this.pendingMatrix = matrix;
+    this.resultReceived = true;
+    
+    // Если анимация уже запущена и крутится в фазе ожидания - запускаем остановку
+    if (this.isRunning) {
+      // Инициализируем состояние спина с полученной матрицей
+      this.reelManager.initSpinState(matrix);
+      // Планируем остановку с минимальной задержкой
+      this.scheduleStops();
+    }
+  }
+
   start(): void {
     if (this.isRunning) return;
     this.isRunning = true;
+    this.resultReceived = false;
+    this.pendingMatrix = null;
     this.reelManager.resetSymbolPositions();
-    this.scheduleStops();
+    
+    // Запускаем бесконечное вращение - остановка будет запланирована
+    // когда придёт результат через setPendingMatrix()
+    this.startInfiniteSpinning();
     this.runAnimation();
+  }
+
+  /**
+   * Запустить бесконечное вращение (до получения результата)
+   */
+  private startInfiniteSpinning(): void {
+    const state = this.reelManager.getState();
+    const { cols, rows, isMobileLayout } = this.config.dimensions;
+    const { spinSpeed } = this.config.animation;
+    const visualCols = isMobileLayout ? rows : cols;
+    
+    for (let c = 0; c < visualCols; c++) {
+      state[c].on = true;
+      state[c].phase = 'spinning';
+      state[c].velocity = spinSpeed;
+      state[c].stop = false;
+    }
   }
 
   private scheduleStops(): void {
@@ -219,6 +260,8 @@ export class ReelAnimator {
     this.timers.forEach(clearTimeout);
     this.timers = [];
     this.isRunning = false;
+    this.resultReceived = false;
+    this.pendingMatrix = null;
   }
 
   isAnimating(): boolean {
