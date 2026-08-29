@@ -8,6 +8,7 @@ import { Stats } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath, isMobileDevice } from '../config/themes';
 import { SandEffect } from '../game/SandEffect';
+import { StarEffect } from '../game/effects/StarEffect';
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
 const LOW_BALANCE_THRESHOLD = 300; // Порог для показа модалки с рекламой
@@ -35,6 +36,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const slotContainerRef = useRef<HTMLDivElement>(null);
   const spinSoundRef = useRef<HTMLAudioElement | null>(null);
   const stopSoundRef = useRef<HTMLAudioElement | null>(null);
+  const stopEgyptSoundRef = useRef<HTMLAudioElement | null>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
   const eSoundRef = useRef<HTMLAudioElement | null>(null);
   const cSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -59,6 +61,8 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const lowBalanceShownRef = useRef<boolean>(false); // Чтобы не показывать модалку повторно
   const sandEffectRef = useRef<SandEffect | null>(null);
   const sandContainerRef = useRef<HTMLDivElement>(null);
+  const starEffectRef = useRef<StarEffect | null>(null);
+  const starContainerRef = useRef<HTMLDivElement>(null);
   
   // Состояния автоспина
   const [isAutoSpin, setIsAutoSpin] = useState<boolean>(false);
@@ -195,9 +199,11 @@ const SlotGame: React.FC<SlotGameProps> = ({
         
         // Устанавливаем колбэк для звука остановки каждого барабана
         machine.setReelStopCallback(() => {
-          if (stopSoundRef.current) {
+          // Для египетской темы используем специальный звук остановки
+          const stopRef = theme.id === 'egypt' ? stopEgyptSoundRef : stopSoundRef;
+          if (stopRef.current) {
             // Клонируем звук для одновременного воспроизведения нескольких
-            const sound = stopSoundRef.current.cloneNode() as HTMLAudioElement;
+            const sound = stopRef.current.cloneNode() as HTMLAudioElement;
             sound.play().catch(err => console.log('Audio play error:', err));
           }
         });
@@ -447,6 +453,34 @@ const SlotGame: React.FC<SlotGameProps> = ({
     };
   }, [theme]);
 
+  // Эффект звёзд на небе (египетская тема)
+  useEffect(() => {
+    // Уничтожаем предыдущий эффект
+    if (starEffectRef.current) {
+      starEffectRef.current.destroy();
+      starEffectRef.current = null;
+    }
+    
+    // Создаём эффект звёзд только для египетской темы
+    if (theme.id === 'egypt' && starContainerRef.current) {
+      // На мобильных чуть меньше звёзд для производительности
+      const isMobile = isMobileDevice();
+      const starEffect = new StarEffect({
+        starCount: isMobile ? 55 : 75,
+      });
+      starEffect.init(starContainerRef.current);
+      starEffectRef.current = starEffect;
+      console.log('[StarEffect] Эффект звёзд инициализирован для египетской темы');
+    }
+    
+    return () => {
+      if (starEffectRef.current) {
+        starEffectRef.current.destroy();
+        starEffectRef.current = null;
+      }
+    };
+  }, [theme]);
+
   // Смена музыки в зависимости от темы
   useEffect(() => {
     const musicEl = musicRef.current;
@@ -571,14 +605,14 @@ const SlotGame: React.FC<SlotGameProps> = ({
     // Блокируем повторный вызов
     isSpinningRef.current = true;
     
-    // Воспроизводим звук спина
-    if (spinSoundRef.current) {
+    // Воспроизводим звук спина (для египетской темы отключён)
+    if (theme.id !== 'egypt' && spinSoundRef.current) {
       spinSoundRef.current.currentTime = 0;
       spinSoundRef.current.play().catch(err => console.log('Audio play error:', err));
     }
     
-    // Воспроизводим звук вращения барабанов (loop пока крутятся)
-    if (barabanSoundRef.current) {
+    // Воспроизводим звук вращения барабанов (loop пока крутятся; для египетской темы отключён)
+    if (theme.id !== 'egypt' && barabanSoundRef.current) {
       barabanSoundRef.current.currentTime = 0;
       barabanSoundRef.current.loop = true;
       barabanSoundRef.current.play().catch(err => console.log('Baraban audio play error:', err));
@@ -799,9 +833,13 @@ const SlotGame: React.FC<SlotGameProps> = ({
       {/* Контейнер для эффекта песка (египетская тема) */}
       <div ref={sandContainerRef} className="sand-effect-container" />
       
+      {/* Контейнер для эффекта звёзд на небе (египетская тема) */}
+      <div ref={starContainerRef} className="star-effect-container" />
+      
       {/* Аудио для звуков */}
       <audio ref={spinSoundRef} src="./assets/audio/start.mp3" preload="auto" />
       <audio ref={stopSoundRef} src="./assets/audio/stop.mp3" preload="auto" />
+      <audio ref={stopEgyptSoundRef} src="./assets/audio/stop_egypt.mp3" preload="auto" />
       <audio ref={musicRef} preload="auto" loop />
       <audio ref={eSoundRef} src="./assets/audio/e-sound.mp3" preload="auto" />
       <audio ref={cSoundRef} src="./assets/audio/c-sound.mp3" preload="auto" />
