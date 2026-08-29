@@ -93,14 +93,14 @@ function App({ initialBalance = 10000, player }: AppProps) {
     setBalance(newBalance);
   }, []);
 
-  // Обработка кнопки "назад" браузера - возврат в лобби
+  // Обработка кнопки "назад" браузера и телефона - возврат в лобби
   useEffect(() => {
     // Добавляем запись в историю при входе в игру
     if (currentView === 'game') {
       window.history.pushState({ view: 'game' }, '');
     }
 
-    // Обработчик события "назад" браузера
+    // Обработчик события "назад" браузера (работает и для Android back button в WebView)
     const handlePopState = async (event: PopStateEvent) => {
       // Если мы в игре, возвращаемся в лобби
       if (currentView === 'game') {
@@ -110,10 +110,33 @@ function App({ initialBalance = 10000, player }: AppProps) {
       }
     };
 
+    // Обработчик для Cordova/Capacitor backbutton (Android hardware back button)
+    const handleBackButton = async (event: Event) => {
+      if (currentView === 'game') {
+        event.preventDefault();
+        await exitFullscreenAndUnlockOrientation();
+        setCurrentView('lobby');
+      }
+    };
+
+    // Обработчик клавиши Escape (для десктопа) и Back (KeyCode 27 на некоторых устройствах)
+    const handleKeyDown = async (event: KeyboardEvent) => {
+      // Escape или Android Back (код 4 в некоторых WebView)
+      if ((event.key === 'Escape' || event.keyCode === 27 || event.keyCode === 4) && currentView === 'game') {
+        event.preventDefault();
+        await exitFullscreenAndUnlockOrientation();
+        setCurrentView('lobby');
+      }
+    };
+
     window.addEventListener('popstate', handlePopState);
+    document.addEventListener('backbutton', handleBackButton); // Cordova/Capacitor
+    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      document.removeEventListener('backbutton', handleBackButton);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [currentView, exitFullscreenAndUnlockOrientation]);
 
