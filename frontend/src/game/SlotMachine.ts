@@ -124,10 +124,13 @@ export class SlotMachine {
     }
     
     // Включаем горизонтальный вращающийся барабан только для классической темы
-    // и отключаем blur для классики
+    // Для классики на ПК оставляем blur (лёгкое размытие), на мобильном отключаем
     if (theme.id === 'classic') {
       dimensionsOverrides.showBarabanBackground = true;
-      dimensionsOverrides.disableBlur = true;
+      // Blur отключаем ТОЛЬКО на мобильном
+      if (isMobile) {
+        dimensionsOverrides.disableBlur = true;
+      }
     }
     
     // Собираем настройки анимации из темы
