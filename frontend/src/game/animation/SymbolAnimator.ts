@@ -13,7 +13,12 @@ export class SymbolAnimator {
   private originalScales: Map<PIXI.Sprite, number> = new Map();
   private dimmedSymbols: Set<PIXI.Sprite> = new Set();
   private activeAnimations: Set<number> = new Set();
-  private cascadeTimeouts: number[] = [];
+  private cascadeState: {
+    startTime: number;
+    delay: number;
+    queue: { col: number; row: number; sprite: PIXI.Sprite }[];
+    animFrame: number;
+  } | null = null;
 
   constructor(config: SlotConfig, reelManager: ReelManager, symbolFactory: SymbolFactory) {
     this.config = config;
@@ -105,9 +110,11 @@ export class SymbolAnimator {
     const cascadeDelay = 150; // мс между подсветкой символов
     const nonWinAlpha = this.config.visual.nonWinAlpha;
 
-    // Очищаем предыдущие таймеры
-    this.cascadeTimeouts.forEach(id => clearTimeout(id));
-    this.cascadeTimeouts = [];
+    // Останавливаем предыдущий каскад, если был
+    if (this.cascadeState) {
+      cancelAnimationFrame(this.cascadeState.animFrame);
+      this.cascadeState = null;
+    }
 
     // 1. Сначала затемняем ВСЕ символы (включая выигрышные)
     for (let col = 0; col < cols; col++) {
@@ -119,30 +126,47 @@ export class SymbolAnimator {
       }
     }
 
-    // 2. Собираем уникальные позиции выигрышных символов
-    const positions = Array.from(winPositions);
+    // 2. Собираем очередь выигрышных символов (только уникальные)
+    const queue: { col: number; row: number; sprite: PIXI.Sprite }[] = [];
     const usedKeys = new Set<string>();
-
-    // 3. Поочередно зажигаем выигрышные символы
-    positions.forEach((key, index) => {
+    winPositions.forEach(key => {
       if (usedKeys.has(key)) return;
       usedKeys.add(key);
-
       const [col, row] = key.split('_').map(Number);
       const sprite = this.reelManager.getSymbol(col, row);
-
-      const timeoutId = window.setTimeout(() => {
-        if (!sprite) return;
-        // Делаем символ ярким
-        sprite.alpha = 1.0;
-        this.dimmedSymbols.delete(sprite);
-
-        // Анимация масштабирования (pop-эффект)
-        this.animateWinSymbol(col, row);
-      }, index * cascadeDelay);
-
-      this.cascadeTimeouts.push(timeoutId);
+      if (!sprite) return;
+      queue.push({ col, row, sprite });
     });
+
+    if (queue.length === 0) return;
+
+    // 3. Единый анимационный цикл вместо множества setTimeout
+    let currentIndex = 0;
+    const startTime = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const targetIndex = Math.min(Math.floor(elapsed / cascadeDelay), queue.length - 1);
+
+      // Подсвечиваем все символы до targetIndex включительно
+      while (currentIndex <= targetIndex && currentIndex < queue.length) {
+        const item = queue[currentIndex];
+        item.sprite.alpha = 1.0;
+        this.dimmedSymbols.delete(item.sprite);
+        this.animateWinSymbol(item.col, item.row);
+        currentIndex++;
+      }
+
+      // Продолжаем, пока не подсветим все
+      if (currentIndex < queue.length) {
+        this.cascadeState!.animFrame = requestAnimationFrame(animate);
+      } else {
+        this.cascadeState = null;
+      }
+    };
+
+    this.cascadeState = { startTime, delay: cascadeDelay, queue, animFrame: 0 };
+    this.cascadeState.animFrame = requestAnimationFrame(animate);
   }
 
   /**
@@ -194,9 +218,11 @@ export class SymbolAnimator {
    * Сбросить все анимации и рамки
    */
   reset(): void {
-    // Очищаем каскадные таймеры
-    this.cascadeTimeouts.forEach(id => clearTimeout(id));
-    this.cascadeTimeouts = [];
+    // Останавливаем каскадную анимацию
+    if (this.cascadeState) {
+      cancelAnimationFrame(this.cascadeState.animFrame);
+      this.cascadeState = null;
+    }
 
     this.activeAnimations.clear();
     this.originalScales.forEach((scale, sprite) => { sprite.scale.set(scale); });

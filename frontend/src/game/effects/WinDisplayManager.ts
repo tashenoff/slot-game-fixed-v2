@@ -37,7 +37,8 @@ export class WinDisplayManager {
     if (!this.options.disableWinLines) {
       this.winLineManager = new WinLineManager(stage, ticker, 5);
     }
-    if (!this.options.disableShine) {
+    // ShineManager не нужен при каскадной подсветке
+    if (!this.options.disableShine && !this.options.cascadeWinHighlight) {
       this.shineManager = new ShineEffectManager(ticker, 15);
     }
   }
@@ -60,8 +61,10 @@ export class WinDisplayManager {
       this.playCascadeHighlight(allWinPositions);
     } else {
       this.symbolAnimator.dimNonWinSymbols(allWinPositions);
-      this.symbolAnimator.applyWinnerBorders(allWinPositions);
     }
+
+    // Рамки редкости на выигрышные символы (всегда, включая каскад)
+    this.symbolAnimator.applyWinnerBorders(allWinPositions);
 
     // Показываем линии выигрыша
     wins.forEach((w, index) => this.showWinLine(w, index));
