@@ -2606,6 +2606,35 @@ body.in-lobby {
   margin-top: 0.75rem;
 }
 
+.orientation-ios-info {
+  margin: 1.5rem auto 1rem;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  max-width: 320px;
+  text-align: left;
+}
+
+.orientation-ios-text {
+  font-size: 0.9rem;
+  color: #d1d5db;
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+}
+
+.orientation-ios-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.85rem;
+  color: #9ca3af;
+  line-height: 1.8;
+}
+
+.orientation-ios-steps li strong {
+  color: #e5e7eb;
+}
+
 @keyframes orientation-rotate {
   0% { transform: rotate(0deg); }
   50% { transform: rotate(90deg); }

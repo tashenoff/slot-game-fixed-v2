@@ -181,6 +181,26 @@ export function isMobileDevice(): boolean {
 }
 
 /**
+ * Определить, является ли устройство iOS (iPhone/iPad/iPod)
+ */
+export function isAppleMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  const userAgent = navigator.userAgent || navigator.vendor || '';
+  const iOSRegex = /iPhone|iPad|iPod/i;
+  
+  return iOSRegex.test(userAgent);
+}
+
+/**
+ * Проверить, запущено ли приложение в PWA-режиме (standalone)
+ * На iOS это означает, что пользователь добавил сайт на главный экран
+ */
+export function isRunningStandalone(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (window.navigator as any).standalone === true;
+}
+/**
  * Получить путь к фону страницы
  * Фон страницы - это bg.png (всегда одинаковый для desktop и mobile)
  */

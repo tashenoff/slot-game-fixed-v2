@@ -6,7 +6,7 @@ import LowBalanceModal from './LowBalanceModal';
 import * as API from '../api';
 import { Stats } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
-import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath, isMobileDevice } from '../config/themes';
+import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath, isMobileDevice, isAppleMobileDevice, isRunningStandalone } from '../config/themes';
 import { SandEffect } from '../game/SandEffect';
 import { StarEffect } from '../game/effects/StarEffect';
 
@@ -204,6 +204,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
           if (stopRef.current) {
             // Клонируем звук для одновременного воспроизведения нескольких
             const sound = stopRef.current.cloneNode() as HTMLAudioElement;
+            sound.volume = theme.id === 'egypt' ? 0.4 : 1;
             sound.play().catch(err => console.log('Audio play error:', err));
           }
         });
@@ -277,9 +278,25 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
   const isMobileRef = useRef<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const isIOSRef = useRef<boolean>(false);
+  const isStandaloneRef = useRef<boolean>(false);
 
   // Функция входа в полноэкранный режим и блокировки ориентации
   const enterFullscreenAndLockOrientation = useCallback(async () => {
+    // На iOS (iPhone/iPad) стандартный Fullscreen API не работает для DOM-элементов
+    if (isIOSRef.current) {
+      if (isStandaloneRef.current) {
+        // Уже в PWA-режиме на iOS — экран и так в fullscreen
+        // Просто проверяем и скрываем оверлей
+        const portrait = window.innerHeight > window.innerWidth;
+        setIsPortrait(portrait);
+      } else {
+        // На iOS без PWA — показываем инструкцию пользователю
+        setIsPortrait(true); // Оставляем оверлей с инструкцией
+      }
+      return;
+    }
+
     const docEl = document.documentElement;
     
     try {
@@ -376,6 +393,8 @@ const SlotGame: React.FC<SlotGameProps> = ({
     
     const checkMobile = () => {
       isMobileRef.current = isMobileDevice();
+      isIOSRef.current = isAppleMobileDevice();
+      isStandaloneRef.current = isRunningStandalone();
       if (isMobileRef.current) {
         checkOrientation();
         
@@ -1127,16 +1146,37 @@ const SlotGame: React.FC<SlotGameProps> = ({
             <p className="orientation-text">Поверните устройство</p>
             <p className="orientation-subtext">Для игры используйте альбомную ориентацию</p>
             
-            {/* Кнопка для автоматического переключения в landscape через fullscreen */}
-            <button 
-              className="orientation-fullscreen-btn"
-              onClick={enterFullscreenAndLockOrientation}
-            >
-              <span className="fullscreen-btn-icon">⛶</span>
-              <span>Полноэкранный режим</span>
-            </button>
+            {isIOSRef.current && !isStandaloneRef.current ? (
+              <>
+                {/* iOS без PWA — fullscreen API не работает, показываем инструкцию */}
+                <div className="orientation-ios-info">
+                  <p className="orientation-ios-text">
+                    На iPhone полноэкранный режим доступен после добавления на главный экран:
+                  </p>
+                  <ol className="orientation-ios-steps">
+                    <li>Нажмите <strong>Share</strong> (квадрат со стрелкой)</li>
+                    <li>Выберите <strong>На экран «Домой»</strong></li>
+                    <li>Запускайте игру с главного экрана</li>
+                  </ol>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Кнопка для автоматического переключения в landscape через fullscreen (Android) */}
+                <button 
+                  className="orientation-fullscreen-btn"
+                  onClick={enterFullscreenAndLockOrientation}
+                >
+                  <span className="fullscreen-btn-icon">⛶</span>
+                  <span>Полноэкранный режим</span>
+                </button>
+              </>
+            )}
             <p className="orientation-hint">
-              Или включите автоповорот в настройках телефона
+              {isIOSRef.current && !isStandaloneRef.current
+                ? 'Или включите автоповорот в настройках телефона'
+                : 'Или включите автоповорот в настройках телефона'
+              }
             </p>
           </div>
         </div>
