@@ -35,7 +35,8 @@
     "disableBlur": true,
     "disableDust": true,
     "disableWinLines": true,
-    "disableShine": true,
+    "disableShine": false,
+    "cascadeWinHighlight": true,
     "reelAnimation": {
       "type": "drop",
       "bounceHeight": 15,

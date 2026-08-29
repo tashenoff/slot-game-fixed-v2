@@ -11,6 +11,22 @@
     "E": "#f39c12",
     "F": "#9b59b6"
   },
+  "glowColors": {
+    "A": "#FF1744",
+    "B": "#E91E63",
+    "C": "#2979FF",
+    "D": "#00E676",
+    "E": "#AA00FF",
+    "F": "#00BCD4"
+  },
+  "glowIntensity": {
+    "A": 1.0,
+    "B": 0.8,
+    "C": 0.6,
+    "D": 0.4,
+    "E": 0.15,
+    "F": 0.15
+  },
   "isNew": true,
   "borderWidth": 1600,
   "borderHeight": 1240,
@@ -39,7 +55,8 @@
     "disableBlur": true,
     "disableDust": true,
     "disableWinLines": true,
-    "disableShine": true,
+    "disableShine": false,
+    "cascadeWinHighlight": true,
     "reelAnimation": {
       "type": "drop",
       "bounceHeight": 15,

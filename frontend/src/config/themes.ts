@@ -45,6 +45,7 @@ export interface ThemeMobileConfig {
   disableDust?: boolean;  // Отключить эффект пыли при падении
   disableWinLines?: boolean;  // Отключить анимацию линий выигрыша
   disableShine?: boolean;     // Отключить эффект блика на символах
+  cascadeWinHighlight?: boolean;  // Каскадная подсветка выигрышных символов (поочередно)
   // Настройки анимации для мобильных (переопределяют основные)
   reelAnimation?: ThemeReelAnimation;
 }
@@ -76,6 +77,10 @@ export interface ThemeData {
   rowGap?: number; // Зазор между рядами (строками) в пикселях
   // Настройки анимации барабанов
   reelAnimation?: ThemeReelAnimation;
+  // Цвета свечения символов (glow) по редкости (ключ — символ, значение — hex цвет)
+  glowColors?: Record<string, string>;
+  // Интенсивность свечения (0-1), чем реже символ — тем ярче
+  glowIntensity?: Record<string, number>;
   // Мобильные настройки (используются при isMobileLayout = true)
   mobile?: ThemeMobileConfig;
 }

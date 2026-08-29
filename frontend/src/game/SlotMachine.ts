@@ -158,6 +158,22 @@ export class SlotMachine {
       symbols: {
         ids: theme.symbols,
         fallbackColors: theme.fallbackColors,
+        rarityGlowColors: theme.glowColors || {
+          A: '#FF1744',
+          B: '#E91E63',
+          C: '#2979FF',
+          D: '#00E676',
+          E: '#AA00FF',
+          F: '#00BCD4',
+        },
+        rarityGlowIntensity: theme.glowIntensity || {
+          A: 1.0,
+          B: 0.8,
+          C: 0.6,
+          D: 0.4,
+          E: 0.15,
+          F: 0.15,
+        },
       },
       // Применяем настройки dimensions если они есть
       ...(Object.keys(dimensionsOverrides).length > 0 && {
@@ -189,11 +205,12 @@ export class SlotMachine {
     // Создаём аниматор в зависимости от типа анимации темы
     this.reelAnimator = this.createReelAnimator();
     
-    this.symbolAnimator = new SymbolAnimator(this.config, this.reelManager);
+    this.symbolAnimator = new SymbolAnimator(this.config, this.reelManager, this.reelManager.getSymbolFactory());
     // Создаём менеджер отображения выигрышей с учётом мобильных оптимизаций
     this.winDisplayManager = new WinDisplayManager(this.config, this.reelManager, this.symbolAnimator, {
       disableWinLines: this.mobileConfig?.disableWinLines,
       disableShine: this.mobileConfig?.disableShine,
+      cascadeWinHighlight: this.mobileConfig?.cascadeWinHighlight,
     });
   }
 

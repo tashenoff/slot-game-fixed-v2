@@ -1,20 +1,24 @@
 import * as PIXI from 'pixi.js';
 import { SlotConfig } from '../config/SlotConfig';
 import { ReelManager } from '../core/ReelManager';
+import { SymbolFactory } from '../core/SymbolFactory';
 
 /**
- * SymbolAnimator - анимация символов (масштабирование, затемнение)
+ * SymbolAnimator - анимация символов (масштабирование, затемнение, рамки редкости)
  */
 export class SymbolAnimator {
   private config: SlotConfig;
   private reelManager: ReelManager;
+  private symbolFactory: SymbolFactory;
   private originalScales: Map<PIXI.Sprite, number> = new Map();
   private dimmedSymbols: Set<PIXI.Sprite> = new Set();
   private activeAnimations: Set<number> = new Set();
+  private cascadeTimeouts: number[] = [];
 
-  constructor(config: SlotConfig, reelManager: ReelManager) {
+  constructor(config: SlotConfig, reelManager: ReelManager, symbolFactory: SymbolFactory) {
     this.config = config;
     this.reelManager = reelManager;
+    this.symbolFactory = symbolFactory;
   }
 
   /**
@@ -92,6 +96,56 @@ export class SymbolAnimator {
   }
 
   /**
+   * Каскадная подсветка выигрышных символов
+   * Сначала все символы затемняются, затем выигрышные поочередно становятся яркими
+   * с задержкой между каждым
+   */
+  cascadeHighlight(winPositions: Set<string>): void {
+    const { cols, rows } = this.config.dimensions;
+    const cascadeDelay = 150; // мс между подсветкой символов
+    const nonWinAlpha = this.config.visual.nonWinAlpha;
+
+    // Очищаем предыдущие таймеры
+    this.cascadeTimeouts.forEach(id => clearTimeout(id));
+    this.cascadeTimeouts = [];
+
+    // 1. Сначала затемняем ВСЕ символы (включая выигрышные)
+    for (let col = 0; col < cols; col++) {
+      for (let row = 0; row < rows; row++) {
+        const sprite = this.reelManager.getSymbol(col, row);
+        if (!sprite) continue;
+        sprite.alpha = nonWinAlpha;
+        this.dimmedSymbols.add(sprite);
+      }
+    }
+
+    // 2. Собираем уникальные позиции выигрышных символов
+    const positions = Array.from(winPositions);
+    const usedKeys = new Set<string>();
+
+    // 3. Поочередно зажигаем выигрышные символы
+    positions.forEach((key, index) => {
+      if (usedKeys.has(key)) return;
+      usedKeys.add(key);
+
+      const [col, row] = key.split('_').map(Number);
+      const sprite = this.reelManager.getSymbol(col, row);
+
+      const timeoutId = window.setTimeout(() => {
+        if (!sprite) return;
+        // Делаем символ ярким
+        sprite.alpha = 1.0;
+        this.dimmedSymbols.delete(sprite);
+
+        // Анимация масштабирования (pop-эффект)
+        this.animateWinSymbol(col, row);
+      }, index * cascadeDelay);
+
+      this.cascadeTimeouts.push(timeoutId);
+    });
+  }
+
+  /**
    * Восстановить яркость всех символов
    */
   resetSymbolsAlpha(): void {
@@ -100,13 +154,55 @@ export class SymbolAnimator {
   }
 
   /**
-   * Сбросить все анимации
+   * Добавить рамки редкости только на выигрышные символы
+   * winPositions — логические координаты в формате "col_row"
+   */
+  applyWinnerBorders(winPositions: Set<string>): void {
+    const { cols, rows } = this.config.dimensions;
+
+    for (let col = 0; col < cols; col++) {
+      for (let row = 0; row < rows; row++) {
+        const sprite = this.reelManager.getSymbol(col, row);
+        if (!sprite) continue;
+
+        const key = `${col}_${row}`;
+        if (winPositions.has(key)) {
+          this.symbolFactory.addSymbolBorder(sprite, sprite.name);
+        } else {
+          this.symbolFactory.removeSymbolBorder(sprite);
+        }
+      }
+    }
+  }
+
+  /**
+   * Удалить рамки редкости со всех символов
+   */
+  clearAllBorders(): void {
+    const { cols, rows } = this.config.dimensions;
+
+    for (let col = 0; col < cols; col++) {
+      for (let row = 0; row < rows; row++) {
+        const sprite = this.reelManager.getSymbol(col, row);
+        if (!sprite) continue;
+        this.symbolFactory.removeSymbolBorder(sprite);
+      }
+    }
+  }
+
+  /**
+   * Сбросить все анимации и рамки
    */
   reset(): void {
+    // Очищаем каскадные таймеры
+    this.cascadeTimeouts.forEach(id => clearTimeout(id));
+    this.cascadeTimeouts = [];
+
     this.activeAnimations.clear();
     this.originalScales.forEach((scale, sprite) => { sprite.scale.set(scale); });
     this.originalScales.clear();
     this.resetSymbolsAlpha();
+    this.clearAllBorders();
   }
 
   destroy(): void {

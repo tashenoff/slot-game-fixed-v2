@@ -59,6 +59,10 @@ export interface VisualConfig {
 export interface SymbolConfig {
   ids: string[];
   fallbackColors: Record<string, string>;
+  /** Цвета свечения (glow) по редкости символа */
+  rarityGlowColors: Record<string, string>;
+  /** Интенсивность свечения (0-1), чем реже символ — тем ярче */
+  rarityGlowIntensity?: Record<string, number>;
 }
 
 export interface ReelStripConfig {
@@ -137,6 +141,22 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
       D: '#f1c40f',
       E: '#9b59b6',
       F: '#ff6600',
+    },
+    rarityGlowColors: {
+      A: '#FF1744',  // Ярко-красный — самый редкий
+      B: '#E91E63',  // Малиновый/розовый
+      C: '#2979FF',  // Ярко-синий
+      D: '#00E676',  // Ярко-зелёный
+      E: '#AA00FF',  // Фиолетовый
+      F: '#00BCD4',  // Голубой/циан (частый)
+    },
+    rarityGlowIntensity: {
+      A: 1.0,  // Яркое свечение
+      B: 0.8,
+      C: 0.6,
+      D: 0.4,
+      E: 0.15, // Едва заметное
+      F: 0.15, // Едва заметное
     },
   },
   reelStrips: {

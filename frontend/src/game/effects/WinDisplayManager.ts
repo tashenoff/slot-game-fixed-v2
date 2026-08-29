@@ -11,6 +11,7 @@ const LINE_THEMES: ('gold' | 'red' | 'green' | 'blue' | 'purple')[] = ['gold', '
 export interface WinDisplayOptions {
   disableWinLines?: boolean;  // Отключить анимацию линий
   disableShine?: boolean;     // Отключить эффект блика
+  cascadeWinHighlight?: boolean;  // Каскадная подсветка символов (поочередно)
 }
 
 /**
@@ -53,26 +54,25 @@ export class WinDisplayManager {
       }
     });
 
-    // Затемняем невыигрышные символы
-    this.symbolAnimator.dimNonWinSymbols(allWinPositions);
-
-    // Запускаем блики на выигрышных символах
-    this.playShineEffects(allWinPositions);
+    // Затемняем невыигрышные символы и добавляем рамки редкости
+    // Каскадный режим: подсветка символов поочередно
+    if (this.options.cascadeWinHighlight) {
+      this.playCascadeHighlight(allWinPositions);
+    } else {
+      this.symbolAnimator.dimNonWinSymbols(allWinPositions);
+      this.symbolAnimator.applyWinnerBorders(allWinPositions);
+    }
 
     // Показываем линии выигрыша
     wins.forEach((w, index) => this.showWinLine(w, index));
   }
 
-  private playShineEffects(winPositions: Set<string>): void {
-    let delay = 0;
-    winPositions.forEach(key => {
-      const [col, row] = key.split('_').map(Number);
-      const sprite = this.reelManager.getSymbol(col, row);
-      if (sprite && this.shineManager) {
-        this.shineManager.playOnSprite(sprite, { delay });
-        delay += 100;
-      }
-    });
+  /**
+   * Каскадная подсветка выигрышных символов (для мобильной версии)
+   * Сначала все символы затемняются, затем выигрышные поочередно становятся яркими
+   */
+  private playCascadeHighlight(winPositions: Set<string>): void {
+    this.symbolAnimator.cascadeHighlight(winPositions);
   }
 
   private showWinLine(w: Win, index: number): void {
