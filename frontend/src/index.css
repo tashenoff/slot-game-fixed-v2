@@ -950,6 +950,8 @@ body.in-lobby {
   .navbar {
     padding: 0.5rem 0.75rem;
     padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
     min-height: 40px;
   }
   
@@ -1028,6 +1030,8 @@ body.in-lobby {
   .navbar {
     padding: 0.3rem 0.5rem;
     padding-top: max(0.3rem, env(safe-area-inset-top));
+    padding-left: max(0.5rem, env(safe-area-inset-left));
+    padding-right: max(0.5rem, env(safe-area-inset-right));
     flex-shrink: 0;
     min-height: 36px;
   }
@@ -1481,6 +1485,8 @@ body.in-lobby {
   .navbar {
     padding: 0.1rem 0.3rem;
     padding-top: max(0.1rem, env(safe-area-inset-top));
+    padding-left: max(0.3rem, env(safe-area-inset-left));
+    padding-right: max(0.3rem, env(safe-area-inset-right));
     min-height: 24px;
   }
   
