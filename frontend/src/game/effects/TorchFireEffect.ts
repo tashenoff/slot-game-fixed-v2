@@ -167,11 +167,33 @@ private drawFlame(graphic: PIXI.Graphics, width: number, height: number, color: 
   private startAnimation(): void {
     if (this._destroyed) return;
 
+    // Определяем, запущены ли мы на мобильном устройстве
+    const isMobile = typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      // На мобильных не перерисовываем Graphics каждый кадр — только анимируем alpha и position
+      // Пламя будет статичным по форме, но с мерцанием и качанием
+      for (const flame of this.flames) {
+        if (flame.graphic) {
+          // Кэшируем статичную форму пламени (один раз отрисовали и закэшировали)
+          flame.graphic.cacheAsBitmap = true;
+        }
+      }
+    }
+
     const update = (): void => {
       if (this._destroyed) return;
       const time = Date.now() * 0.001;
 
       for (const flame of this.flames) {
+        if (isMobile) {
+          // Мобильный режим: только alpha + position без перерисовки формы
+          const sway = Math.sin(time * 1.2 * flame.speed + flame.phase * 0.7) * 4;
+          const alphaFlicker = 0.5 + 0.5 * Math.sin(time * 4 * flame.speed + flame.alphaPhase);
+          flame.graphic.alpha = flame.alpha * (0.3 + 0.7 * alphaFlicker);
+          flame.graphic.x = flame.offsetX + sway;
+          continue;
+        }
+
         const sway = Math.sin(time * 1.2 * flame.speed + flame.phase * 0.7) * 4;
         const heightPulse = 1 + 0.08 * Math.sin(time * 2.5 * flame.speed + flame.phase * 1.3);
 
@@ -184,9 +206,15 @@ private drawFlame(graphic: PIXI.Graphics, width: number, height: number, color: 
 
         // Пульсация высоты пламени
         if (flame.height > 0) {
+          // Отключаем кэш перед перерисовкой формы
+          if (flame.graphic.cacheAsBitmap) {
+            flame.graphic.cacheAsBitmap = false;
+          }
           const currentHeight = flame.height * heightPulse;
           const currentWidth = flame.width * (1 + 0.1 * Math.sin(time * 3 * flame.speed + flame.phase));
           this.drawFlame(flame.graphic, currentWidth, currentHeight, flame.color);
+          // Включаем кэш снова (создаст битмап-кэш новой формы)
+          flame.graphic.cacheAsBitmap = true;
         }
 
         // Анимация искр

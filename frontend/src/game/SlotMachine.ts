@@ -8,7 +8,7 @@ import { DropReelAnimator } from './animation/DropReelAnimator';
 import { CascadeDropAnimator } from './animation/CascadeDropAnimator';
 import { SymbolAnimator } from './animation/SymbolAnimator';
 import { WinDisplayManager, TorchFireEffect } from './effects';
-import { SlotTheme, isMobileDevice } from '../config/themes';
+import { SlotTheme, isMobileDevice, isAppleMobileDevice } from '../config/themes';
 
 // Общий интерфейс для всех аниматоров барабанов
 interface IReelAnimator {
@@ -200,8 +200,12 @@ export class SlotMachine {
     const { borderWidth, borderHeight } = this.config.dimensions;
 
     // Используем devicePixelRatio для чёткой картинки на Retina экранах
-    // Ограничиваем до 2 на мобильных чтобы не грузить GPU
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Ограничиваем до 1.5 на iOS (iPad) чтобы не грузить GPU
+    // На остальных мобильных до 2
+    const isAppleMobile = isAppleMobileDevice();
+    const dpr = isAppleMobile 
+      ? Math.min(window.devicePixelRatio || 1, 1.5) 
+      : Math.min(window.devicePixelRatio || 1, 2);
     
     this.app = new PIXI.Application({ 
       width: borderWidth, 
@@ -210,6 +214,11 @@ export class SlotMachine {
       resolution: dpr,
       autoDensity: true,
     });
+    
+    // Ограничиваем FPS на мобильных устройствах для экономии GPU
+    if (isMobile) {
+      this.app.ticker.maxFPS = 60;
+    }
     // Передаём тему в AssetLoader для загрузки правильной рамки (мобильной/десктопной)
     this.assetLoader = new AssetLoader(this.config, theme.assetsPath, theme);
     this.reelManager = new ReelManager(this.config, this.assetLoader);
@@ -219,9 +228,11 @@ export class SlotMachine {
     
     this.symbolAnimator = new SymbolAnimator(this.config, this.reelManager, this.reelManager.getSymbolFactory());
     // Создаём менеджер отображения выигрышей с учётом мобильных оптимизаций
+    // На iOS отключаем Shine-эффект (блик) — он тяжелее всего для GPU планшетов
+    const iosDisableShine = isAppleMobileDevice();
     this.winDisplayManager = new WinDisplayManager(this.config, this.reelManager, this.symbolAnimator, {
       disableWinLines: this.mobileConfig?.disableWinLines,
-      disableShine: this.mobileConfig?.disableShine,
+      disableShine: this.mobileConfig?.disableShine || iosDisableShine,
       cascadeWinHighlight: this.mobileConfig?.cascadeWinHighlight,
     });
   }

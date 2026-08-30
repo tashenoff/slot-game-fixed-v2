@@ -76,6 +76,11 @@ export class StarEffect {
       autoDensity: true,
     });
 
+    // Ограничиваем FPS на мобильных для экономии GPU
+    if (typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      this.app.ticker.maxFPS = 30;
+    }
+
     // Инициализация метеора (неактивен)
     const meteorGraphic = new PIXI.Graphics();
     this.meteor = {
@@ -107,6 +112,10 @@ export class StarEffect {
 
     el.appendChild(canvas);
     this.createStars();
+    // Кэшируем статичные звезды (они не меняют форму, только alpha)
+    for (const star of this.stars) {
+      star.graphic.cacheAsBitmap = true;
+    }
     this.app.stage.addChild(this.meteor.graphic);
     this.running = true;
     this.app.ticker.add((delta) => this.update(delta));

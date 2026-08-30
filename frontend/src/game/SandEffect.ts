@@ -68,6 +68,11 @@ export class SandEffect {
       autoDensity: true,
     });
     this.app.stage.sortableChildren = true;
+    
+    // Ограничиваем FPS на мобильных для экономии GPU
+    if (typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      this.app.ticker.maxFPS = 30;
+    }
   }
 
   init(el: HTMLElement) {
