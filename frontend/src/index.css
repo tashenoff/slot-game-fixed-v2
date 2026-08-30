@@ -1160,6 +1160,16 @@ body.in-lobby {
   filter: brightness(1.2);
 }
 
+/* Подпись редкости комбинации */
+.mobile-win-rarity {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px currentColor;
+  opacity: 0.9;
+}
+
 .mobile-win-label {
   font-size: 1rem;
   font-weight: 700;

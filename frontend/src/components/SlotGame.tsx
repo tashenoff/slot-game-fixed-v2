@@ -90,7 +90,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const [testFreeSpinsMode, setTestFreeSpinsMode] = useState<boolean>(false);
   const testFreeSpinsRef = useRef<boolean>(false); // Для колбэков
   const [showMobileWinModal, setShowMobileWinModal] = useState<boolean>(false);
-  const [mobileWinData, setMobileWinData] = useState<{ symbol: string; amount: number; count: number } | null>(null);
+  const [mobileWinData, setMobileWinData] = useState<{ symbol: string; amount: number; count: number; rarity: string; rarityColor: string } | null>(null);
   const mobileWinModalBlockRef = useRef<boolean>(false); // Блокировка автоспина/фриспинов пока висит модалка
   const balanceRef = useRef<number>(balance); // Для хранения актуального баланса
   const isSpinningRef = useRef<boolean>(false); // Для защиты от двойного вызова
@@ -915,10 +915,42 @@ const SlotGame: React.FC<SlotGameProps> = ({
             if (!isMountedRef.current) return;
             // Берём первый (самый ценный) выигрыш для отображения
             const topWin = spinResult.wins.reduce((max, w) => w.win > max.win ? w : max, spinResult.wins[0]);
+            // Определяем редкость комбинации
+            const weightMap: Record<string, number> = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 5, S: 1 };
+            const w = weightMap[topWin.symbol] || 5;
+            let rarity = '';
+            let rarityColor = '';
+            if (topWin.symbol === 'S') {
+              rarity = 'SCATTER';
+              rarityColor = '#ff6b6b';
+            } else if (topWin.count >= 5) {
+              rarity = 'ЛЕГЕНДАРНАЯ';
+              rarityColor = '#FF1744';
+            } else if (topWin.count >= 4 && w <= 2) {
+              rarity = 'ЛЕГЕНДАРНАЯ';
+              rarityColor = '#FF1744';
+            } else if (topWin.count >= 4 && w <= 3) {
+              rarity = 'ЭПИЧЕСКАЯ';
+              rarityColor = '#E91E63';
+            } else if (topWin.count >= 3 && w <= 2) {
+              rarity = 'ЭПИЧЕСКАЯ';
+              rarityColor = '#E91E63';
+            } else if (topWin.count >= 3 && w <= 3) {
+              rarity = 'РЕДКАЯ';
+              rarityColor = '#2979FF';
+            } else if (topWin.count >= 3 && w <= 4) {
+              rarity = 'НЕОБЫЧНАЯ';
+              rarityColor = '#00E676';
+            } else {
+              rarity = 'ОБЫЧНАЯ';
+              rarityColor = '#94a3b8';
+            }
             setMobileWinData({
               symbol: topWin.symbol,
               amount: spinResult.win_amount,
-              count: topWin.count
+              count: topWin.count,
+              rarity,
+              rarityColor,
             });
             setShowMobileWinModal(true);
             mobileWinModalBlockRef.current = true;
@@ -1269,11 +1301,14 @@ const SlotGame: React.FC<SlotGameProps> = ({
                   }}
                 />
               </div>
-              <div className="mobile-win-label">ВЫИГРЫШ!</div>
-              <div className="mobile-win-amount">+{mobileWinData.amount.toLocaleString()}</div>
+              <div className="mobile-win-rarity" style={{ color: mobileWinData.rarityColor }}>
+                {mobileWinData.rarity}
+              </div>
               {mobileWinData.count >= 3 && (
                 <div className="mobile-win-combo">{mobileWinData.symbol} x{mobileWinData.count}</div>
               )}
+              <div className="mobile-win-label">ВЫИГРЫШ!</div>
+              <div className="mobile-win-amount">+{mobileWinData.amount.toLocaleString()}</div>
             </div>
           </div>
         )}
