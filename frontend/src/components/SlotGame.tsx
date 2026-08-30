@@ -89,6 +89,9 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const freeSpinsRemainingRef = useRef<number>(0); // Для хранения фриспинов в колбэках
   const [testFreeSpinsMode, setTestFreeSpinsMode] = useState<boolean>(false);
   const testFreeSpinsRef = useRef<boolean>(false); // Для колбэков
+  const [showMobileWinModal, setShowMobileWinModal] = useState<boolean>(false);
+  const [mobileWinData, setMobileWinData] = useState<{ symbol: string; amount: number; count: number } | null>(null);
+  const mobileWinModalBlockRef = useRef<boolean>(false); // Блокировка автоспина/фриспинов пока висит модалка
   const balanceRef = useRef<number>(balance); // Для хранения актуального баланса
   const isSpinningRef = useRef<boolean>(false); // Для защиты от двойного вызова
   const isMountedRef = useRef<boolean>(true); // Для отслеживания размонтирования компонента
@@ -761,6 +764,11 @@ const SlotGame: React.FC<SlotGameProps> = ({
       console.log('[Spin] Модалка результатов фриспинов активна, спин заблокирован');
       return;
     }
+    // Если висит модалка выигрыша на мобильном
+    if (mobileWinModalBlockRef.current) {
+      console.log('[Spin] Модалка выигрыша активна, спин заблокирован');
+      return;
+    }
 
     // Используем актуальные значения из refs для автоспина
     const currentBalance = isFromAutoSpin ? balanceRef.current : balanceRef.current;
@@ -898,9 +906,67 @@ const SlotGame: React.FC<SlotGameProps> = ({
         }
         
         // === ЛОГИКА АВТОМАТИЧЕСКИХ СПИНОВ ===
-        // Приоритет: фриспины > автоспин
+        // Приоритет: мобильная модалка выигрыша > фриспины > автоспин
         
-        if (result.free_spins_remaining > 0 && !freeSpinsTriggerPendingRef.current) {
+        // Показываем модалку с выигрышем (только если нет других модалок)
+        if (spinResult.wins && spinResult.wins.length > 0 && !showFreeSpinsResult && !showFreeSpinsNotification && !showMobileWinModal) {
+          // Задержка 500мс — даём WinDisplayManager подсветить символы
+          setTimeout(() => {
+            if (!isMountedRef.current) return;
+            // Берём первый (самый ценный) выигрыш для отображения
+            const topWin = spinResult.wins.reduce((max, w) => w.win > max.win ? w : max, spinResult.wins[0]);
+            setMobileWinData({
+              symbol: topWin.symbol,
+              amount: spinResult.win_amount,
+              count: topWin.count
+            });
+            setShowMobileWinModal(true);
+            mobileWinModalBlockRef.current = true;
+            // Автоматически закрываем через 2 секунды, затем продолжаем
+            setTimeout(() => {
+            if (!isMountedRef.current) return;
+            setShowMobileWinModal(false);
+            setMobileWinData(null);
+            mobileWinModalBlockRef.current = false;
+            // После закрытия модалки — продолжаем фриспины/автоспин
+            if (result.free_spins_remaining > 0 && !freeSpinsTriggerPendingRef.current) {
+              const hasWin = spinResult.wins && spinResult.wins.length > 0;
+              const delay = hasWin ? 2500 : 1200;
+              setTimeout(() => {
+                if (isSpinningRef.current) return;
+                handleSpin(false);
+              }, delay);
+            } else if (result.is_free_spin && result.free_spins_remaining <= 0) {
+              setIsFreeSpin(false);
+              setFreeSpinsTotal(0);
+              setFreeSpinsMultiplier(1);
+              setFreeSpinsTotalWin(freeSpinsTotalWinRef.current);
+              setShowFreeSpinsResult(true);
+              freeSpinsResultRef.current = true;
+              scheduleMusicFade();
+            } else if (autoSpinRef.current && !freeSpinsTriggerPendingRef.current) {
+              setAutoSpinCount(prev => {
+                const newCount = prev - 1;
+                if (newCount <= 0 || spinResult.balance < betRef.current) {
+                  stopAutoSpin();
+                  scheduleMusicFade();
+                  return 0;
+                }
+                const hasWin = spinResult.wins && spinResult.wins.length > 0;
+                const delay = hasWin ? 2500 : 500;
+                setTimeout(() => {
+                  if (autoSpinRef.current) {
+                    handleSpin(true);
+                  }
+                }, delay);
+                return newCount;
+              });
+            } else {
+              scheduleMusicFade();
+            }
+          }, 2000);
+          }, 500);
+        } else if (result.free_spins_remaining > 0 && !freeSpinsTriggerPendingRef.current) {
           // Есть ещё фриспины — запускаем следующий автоматически
           const hasWin = spinResult.wins && spinResult.wins.length > 0;
           const delay = hasWin ? 2500 : 1200; // Фриспины с чуть большей задержкой
@@ -1174,6 +1240,40 @@ const SlotGame: React.FC<SlotGameProps> = ({
                 {freeSpinsRemaining}/{freeSpinsTotal}
               </span>
               <span className="free-spins-multiplier">x{freeSpinsMultiplier}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Мобильная модалка выигрыша */}
+        {showMobileWinModal && mobileWinData && (
+          <div className="mobile-win-overlay">
+            <div className="mobile-win-modal">
+              <div className="mobile-win-symbol">
+                <img 
+                  src={`${theme.assetsPath}/symbols/${mobileWinData.symbol.toLowerCase()}.svg`}
+                  alt={mobileWinData.symbol}
+                  className="mobile-win-symbol-img"
+                  onError={(e) => {
+                    // Если SVG не загрузился — пробуем PNG, затем показываем букву
+                    const img = e.target as HTMLImageElement;
+                    if (img.src.endsWith('.svg')) {
+                      img.src = `${theme.assetsPath}/symbols/${mobileWinData.symbol.toLowerCase()}.png`;
+                    } else {
+                      // Если и PNG нет — показываем fallback с буквой
+                      img.style.display = 'none';
+                      const parent = img.parentElement;
+                      if (parent) {
+                        parent.textContent = mobileWinData.symbol;
+                      }
+                    }
+                  }}
+                />
+              </div>
+              <div className="mobile-win-label">ВЫИГРЫШ!</div>
+              <div className="mobile-win-amount">+{mobileWinData.amount.toLocaleString()}</div>
+              {mobileWinData.count >= 3 && (
+                <div className="mobile-win-combo">{mobileWinData.symbol} x{mobileWinData.count}</div>
+              )}
             </div>
           </div>
         )}

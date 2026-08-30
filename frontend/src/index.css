@@ -1096,6 +1096,94 @@ body.in-lobby {
   to { box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); }
 }
 
+/* ===== МОБИЛЬНАЯ МОДАЛКА ВЫИГРЫША ===== */
+
+.mobile-win-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 190;
+  background: rgba(0, 0, 0, 0.65);
+  animation: mobile-win-fade-in 0.25s ease-out;
+}
+
+@keyframes mobile-win-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mobile-win-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 2rem;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  border: 2px solid #4ade80;
+  border-radius: 1.25rem;
+  box-shadow: 0 0 40px rgba(74, 222, 128, 0.3), 0 0 80px rgba(74, 222, 128, 0.1);
+  animation: mobile-win-bounce 0.4s ease-out;
+  min-width: 220px;
+}
+
+@keyframes mobile-win-bounce {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.mobile-win-symbol {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: rgba(74, 222, 128, 0.15);
+  border: 2px solid rgba(74, 222, 128, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 900;
+  color: #4ade80;
+  text-shadow: 0 0 15px rgba(74, 222, 128, 0.5);
+  overflow: hidden;
+}
+
+.mobile-win-symbol-img {
+  width: 90%;
+  height: 90%;
+  object-fit: contain;
+  filter: brightness(1.2);
+}
+
+.mobile-win-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 2px;
+}
+
+.mobile-win-amount {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #4ade80;
+  text-shadow: 0 0 25px rgba(74, 222, 128, 0.5);
+  line-height: 1;
+}
+
+.mobile-win-combo {
+  font-size: 0.85rem;
+  color: #fbbf24;
+  font-weight: 600;
+  background: rgba(251, 191, 36, 0.15);
+  padding: 0.2rem 0.75rem;
+  border-radius: 1rem;
+}
+
 /* Панель фриспинов (счётчик над барабанами) */
 .free-spins-panel {
   position: absolute;
