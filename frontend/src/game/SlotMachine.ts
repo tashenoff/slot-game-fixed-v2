@@ -6,7 +6,7 @@ import { ReelManager } from './core/ReelManager';
 import { ReelAnimator } from './animation/ReelAnimator';
 import { DropReelAnimator } from './animation/DropReelAnimator';
 import { SymbolAnimator } from './animation/SymbolAnimator';
-import { WinDisplayManager } from './effects/WinDisplayManager';
+import { WinDisplayManager, TorchFireEffect } from './effects';
 import { SlotTheme, isMobileDevice } from '../config/themes';
 
 // Общий интерфейс для всех аниматоров барабанов
@@ -32,6 +32,7 @@ export class SlotMachine {
   private symbolAnimator: SymbolAnimator;
   private winDisplayManager: WinDisplayManager;
   private borderSprite: PIXI.Sprite | null = null;
+  private torchFireEffect: TorchFireEffect | null = null;
   private theme: SlotTheme;
   private animationType: ReelAnimationType;
 
@@ -300,6 +301,25 @@ export class SlotMachine {
 
     // Инициализация отображения выигрышей (zIndex 20 - выше рамки)
     this.winDisplayManager.init(this.app.stage, this.app.ticker);
+
+    // Эффект огня факелов для темы ацтеков на мобильных устройствах
+    if (this.theme.id === 'aztec' && this.mobileConfig) {
+      const { borderWidth, borderHeight } = this.config.dimensions;
+      // Факелы расположены по бокам рамки, примерно на 45% высоты (центр рамки ~848px)
+      // Координаты определены анализом изображения bg_mini.png (1138x1696):
+      // пламя факелов — самые яркие желто-белые пиксели на боковых колоннах
+      const torchX = 110;                    // отступ от левого края
+      const torchY = Math.round(borderHeight * 0.448); // ~760px (44.8% высоты)
+      this.torchFireEffect = new TorchFireEffect(
+        this.app.stage,
+        [
+          { x: torchX, y: torchY },
+          { x: borderWidth - torchX, y: torchY },
+        ],
+        this.app.ticker
+      );
+      console.log('[TorchFireEffect] Огонь факелов инициализирован для темы ацтеков (mobile)');
+    }
   }
 
   private resize(): void {
@@ -368,6 +388,11 @@ export class SlotMachine {
 
   destroy(): void {
     this.clear();
+    // Уничтожаем эффект огня факелов
+    if (this.torchFireEffect) {
+      this.torchFireEffect.destroy();
+      this.torchFireEffect = null;
+    }
     this.reelManager.destroy();
     this.assetLoader.destroy();
     this.winDisplayManager.destroy();

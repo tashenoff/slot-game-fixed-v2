@@ -8,7 +8,7 @@ import { Stats } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath, isMobileDevice, isAppleMobileDevice, isRunningStandalone } from '../config/themes';
 import { SandEffect } from '../game/SandEffect';
-import { StarEffect } from '../game/effects/StarEffect';
+import { StarEffect, FireflyEffect } from '../game/effects';
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
 const LOW_BALANCE_THRESHOLD = 300; // Порог для показа модалки с рекламой
@@ -43,6 +43,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const bSoundRef = useRef<HTMLAudioElement | null>(null);
   const fSoundRef = useRef<HTMLAudioElement | null>(null);
   const barabanSoundRef = useRef<HTMLAudioElement | null>(null);
+  const ambientRef = useRef<HTMLAudioElement | null>(null);
   const musicFadeTimerRef = useRef<number | null>(null);
   const musicFadeIntervalRef = useRef<number | null>(null);
   const [isMusicOn, setIsMusicOn] = useState<boolean>(true);
@@ -63,6 +64,8 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const sandContainerRef = useRef<HTMLDivElement>(null);
   const starEffectRef = useRef<StarEffect | null>(null);
   const starContainerRef = useRef<HTMLDivElement>(null);
+  const fireflyEffectRef = useRef<FireflyEffect | null>(null);
+  const fireflyContainerRef = useRef<HTMLDivElement>(null);
   
   // Состояния автоспина
   const [isAutoSpin, setIsAutoSpin] = useState<boolean>(false);
@@ -500,6 +503,33 @@ const SlotGame: React.FC<SlotGameProps> = ({
     };
   }, [theme]);
 
+  // Эффект светлячков для темы ацтеков
+  useEffect(() => {
+    // Уничтожаем предыдущий эффект
+    if (fireflyEffectRef.current) {
+      fireflyEffectRef.current.destroy();
+      fireflyEffectRef.current = null;
+    }
+
+    // Создаём эффект светлячков только для темы ацтеков
+    if (theme.id === 'aztec' && fireflyContainerRef.current) {
+      const isMobile = isMobileDevice();
+      const fireflyEffect = new FireflyEffect({
+        count: isMobile ? 15 : 35,
+      });
+      fireflyEffect.init(fireflyContainerRef.current);
+      fireflyEffectRef.current = fireflyEffect;
+      console.log('[FireflyEffect] Эффект светлячков инициализирован для темы ацтеков');
+    }
+
+    return () => {
+      if (fireflyEffectRef.current) {
+        fireflyEffectRef.current.destroy();
+        fireflyEffectRef.current = null;
+      }
+    };
+  }, [theme]);
+
   // Смена музыки в зависимости от темы
   useEffect(() => {
     const musicEl = musicRef.current;
@@ -536,6 +566,29 @@ const SlotGame: React.FC<SlotGameProps> = ({
           musicEl.play().catch(err => console.log('Music play error:', err));
         }
       });
+  }, [theme, isMusicOn]);
+
+  // Фоновый звук (primary.mp3) для темы ацтеков - играет пока не нажата кнопка спин
+  useEffect(() => {
+    const ambientEl = ambientRef.current;
+    if (!ambientEl || !isMusicOn) return;
+
+    if (theme.id === 'aztec') {
+      ambientEl.volume = 0.2; // 20% громкость
+      ambientEl.loop = true;
+      ambientEl.play().catch(err => console.log('[Ambient] Play error:', err));
+      console.log('[Ambient] Запущен фоновый звук primary.mp3 для темы ацтеков');
+    } else {
+      ambientEl.pause();
+      ambientEl.currentTime = 0;
+    }
+
+    return () => {
+      if (ambientEl) {
+        ambientEl.pause();
+        ambientEl.currentTime = 0;
+      }
+    };
   }, [theme, isMusicOn]);
 
   // Остановка автоспина
@@ -583,11 +636,30 @@ const SlotGame: React.FC<SlotGameProps> = ({
       musicFadeIntervalRef.current = null;
     }
     
+    // Музыка сразу на полную громкость
     musicEl.volume = 0.2;
     if (musicEl.paused) {
       musicEl.play().catch(() => console.log('Music play blocked'));
     }
-  }, [isMusicOn]);
+    
+    // Для темы ацтеков — плавно затухает только ambient
+    if (theme.id === 'aztec') {
+      const ambientEl = ambientRef.current;
+      if (!ambientEl || ambientEl.paused) return;
+      
+      let ambientVol = ambientEl.volume || 0.2;
+      const fadeInterval = window.setInterval(() => {
+        ambientVol = Math.max(0, ambientVol - 0.05);
+        ambientEl.volume = ambientVol;
+        
+        if (ambientVol <= 0) {
+          ambientEl.pause();
+          console.log('[Ambient] Затухание завершено при спине');
+          clearInterval(fadeInterval);
+        }
+      }, 50);
+    }
+  }, [isMusicOn, theme.id]);
 
   // Функция для запуска таймера затухания после окончания спина
   const scheduleMusicFade = useCallback(() => {
@@ -599,8 +671,32 @@ const SlotGame: React.FC<SlotGameProps> = ({
     
     musicFadeTimerRef.current = window.setTimeout(() => {
       fadeOutMusic();
+      // После затухания музыки возобновляем фоновый звук для темы ацтеков
+      if (theme.id === 'aztec') {
+        const ambientEl = ambientRef.current;
+        const musicEl = musicRef.current;
+        if (!ambientEl || !musicEl) return;
+        
+        // Crossfade: музыка затухает до 0, ambient возрастает до 0.2
+        ambientEl.volume = 0;
+        ambientEl.play().catch(err => console.log('[Ambient] Resume error:', err));
+        
+        let musicVol = musicEl.volume;
+        let ambientVol = 0;
+        const fadeInterval = window.setInterval(() => {
+          musicVol = Math.max(0, musicVol - 0.008);
+          ambientVol = Math.min(0.2, ambientVol + 0.012);
+          musicEl.volume = musicVol;
+          ambientEl.volume = ambientVol;
+          
+          if (musicVol <= 0 && ambientVol >= 0.2) {
+            musicEl.pause();
+            clearInterval(fadeInterval);
+          }
+        }, 50);
+      }
     }, 2000);
-  }, [isMusicOn, fadeOutMusic]);
+  }, [isMusicOn, fadeOutMusic, theme.id]);
 
   // Обработчик спина (поддерживает автоспин)
   const handleSpin = useCallback(async (isFromAutoSpin = false) => {
@@ -844,6 +940,11 @@ const SlotGame: React.FC<SlotGameProps> = ({
       if (musicFadeIntervalRef.current) clearInterval(musicFadeIntervalRef.current);
       musicEl.pause();
       musicEl.volume = 0.2;
+      // Также останавливаем фоновый звук для темы ацтеков
+      const ambientEl = ambientRef.current;
+      if (ambientEl && !ambientEl.paused) {
+        ambientEl.pause();
+      }
     }
   }, [isMusicOn]);
 
@@ -855,6 +956,9 @@ const SlotGame: React.FC<SlotGameProps> = ({
       {/* Контейнер для эффекта звёзд на небе (египетская тема) */}
       <div ref={starContainerRef} className="star-effect-container" />
       
+      {/* Контейнер для эффекта светлячков (тема ацтеков) */}
+      <div ref={fireflyContainerRef} className="firefly-effect-container" />
+      
       {/* Аудио для звуков */}
       <audio ref={spinSoundRef} src="./assets/audio/start.mp3" preload="auto" />
       <audio ref={stopSoundRef} src="./assets/audio/stop.mp3" preload="auto" />
@@ -865,6 +969,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
       <audio ref={bSoundRef} src="./assets/audio/b-sound.mp3" preload="auto" />
       <audio ref={fSoundRef} src="./assets/audio/f-sound.mp3" preload="auto" />
       <audio ref={barabanSoundRef} src="./assets/audio/baraban.mp3" preload="auto" />
+      <audio ref={ambientRef} src="./assets/themes/aztec/primary.mp3" preload="auto" loop />
       
       {/* Навбар с кнопками управления */}
       <Navbar
@@ -891,6 +996,12 @@ const SlotGame: React.FC<SlotGameProps> = ({
         {/* Контейнер для слот-машины (Pixi.js) */}
         <div className="slot-container" ref={slotContainerRef}></div>
         
+        {/* Панель ставки для мобильных (на нижней рамке слота) */}
+        <div className="mobile-bet-panel">
+          <span className="mobile-bet-label">СТАВКА:</span>
+          <span className="mobile-bet-value">◎{bet}</span>
+        </div>
+        
         {/* Оверлей загрузки слот-машины */}
         {isSlotLoading && (
           <div className="slot-loading-overlay">
@@ -904,12 +1015,6 @@ const SlotGame: React.FC<SlotGameProps> = ({
             </div>
           </div>
         )}
-      </div>
-
-      {/* Панель ставки для мобильных (между слотом и кнопками) */}
-      <div className="mobile-bet-panel">
-        <span className="mobile-bet-label">ТЕКУЩАЯ СТАВКА:</span>
-        <span className="mobile-bet-value">◎{bet}</span>
       </div>
 
       {/* Обёртка для панели управления с отступами */}
