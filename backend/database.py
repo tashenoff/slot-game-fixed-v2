@@ -17,6 +17,7 @@ INITIAL_BALANCE = 10000
 def init_db():
     """Инициализация базы данных и создание таблиц"""
     with get_db() as db:
+        # PRAGMA настройки now applied in get_connection()
         db.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,18 +34,32 @@ def init_db():
             )
         ''')
         db.commit()
-        print(f"[DB] База данных инициализирована: {DB_PATH}")
+        print(f"[DB] База данных инициализирована: {DB_PATH} (WAL mode, persistent connection)")
 
 
 @contextmanager
 def get_db():
     """Контекстный менеджер для подключения к БД"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Доступ к колонкам по имени
+    conn = get_connection()
     try:
         yield conn
+    except Exception as e:
+        conn.rollback()
+        raise e
     finally:
-        conn.close()
+        pass  # НЕ закрываем соединение
+
+
+def get_connection():
+    """Получить постоянное соединение с БД (создаётся один раз)"""
+    if not hasattr(get_connection, 'conn') or get_connection.conn is None:
+        get_connection.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        get_connection.conn.row_factory = sqlite3.Row
+        get_connection.conn.execute('PRAGMA journal_mode=WAL')
+        get_connection.conn.execute('PRAGMA synchronous=NORMAL')
+        get_connection.conn.execute('PRAGMA cache_size=-8000')
+        print(f"[DB] Постоянное соединение создано: {DB_PATH}")
+    return get_connection.conn
 
 
 def get_or_create_user(platform: str, player_id: str) -> dict:

@@ -22,6 +22,12 @@ export interface SpinResult {
   wins: Win[];
   win_amount: number;
   balance: number;
+  // Поля фриспинов
+  is_free_spin: boolean;
+  free_spins_triggered: number;
+  free_spins_remaining: number;
+  free_spins_multiplier: number;
+  scatter_count?: number;
 }
 
 export interface Stats {

@@ -136,7 +136,7 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     separatorWidth: 2,
   },
   symbols: {
-    ids: ['A', 'B', 'C', 'D', 'E', 'F'],
+    ids: ['A', 'B', 'C', 'D', 'E', 'F', 'S'],
     fallbackColors: {
       A: '#e74c3c',
       B: '#2ecc71',
@@ -144,6 +144,7 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
       D: '#f1c40f',
       E: '#9b59b6',
       F: '#ff6600',
+      S: '#ffd700',
     },
     rarityGlowColors: {
       A: '#FF1744',  // Ярко-красный — самый редкий
@@ -152,6 +153,7 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
       D: '#00E676',  // Ярко-зелёный
       E: '#AA00FF',  // Фиолетовый
       F: '#00BCD4',  // Голубой/циан (частый)
+      S: '#FFD700',  // Золотой — Scatter
     },
     rarityGlowIntensity: {
       A: 1.0,  // Яркое свечение
@@ -160,6 +162,7 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
       D: 0.4,
       E: 0.15, // Едва заметное
       F: 0.15, // Едва заметное
+      S: 1.0,  // Максимальное свечение
     },
   },
   reelStrips: {

@@ -5,6 +5,7 @@ import { AssetLoader } from './core/AssetLoader';
 import { ReelManager } from './core/ReelManager';
 import { ReelAnimator } from './animation/ReelAnimator';
 import { DropReelAnimator } from './animation/DropReelAnimator';
+import { CascadeDropAnimator } from './animation/CascadeDropAnimator';
 import { SymbolAnimator } from './animation/SymbolAnimator';
 import { WinDisplayManager, TorchFireEffect } from './effects';
 import { SlotTheme, isMobileDevice } from '../config/themes';
@@ -230,6 +231,10 @@ export class SlotMachine {
    */
   private createReelAnimator(): IReelAnimator {
     switch (this.animationType) {
+      case 'cascade':
+        return new CascadeDropAnimator(this.config, this.reelManager, this.app.ticker, {
+          dustEffect: !this.mobileConfig?.disableDust,
+        });
       case 'drop':
         // Для drop анимации включаем эффект пыли (отключаем на мобильных для производительности)
         return new DropReelAnimator(this.config, this.reelManager, this.app.ticker, {
@@ -272,18 +277,31 @@ export class SlotMachine {
       reelsContainer.zIndex = 0;
       reelsContainer.sortableChildren = true;
       
-      // Инициализируем эффект пыли для drop анимации
-      if (this.animationType === 'drop' && this.reelAnimator instanceof DropReelAnimator) {
-        (this.reelAnimator as DropReelAnimator).initDustEffect(reelsContainer, {
-          // Песочные цвета для египетской темы - много мелкой пыли
-          colors: [0xD4A574, 0xC4956A, 0xE8C99B, 0xDEB887, 0xC9B896, 0xBFAE8C],
-          particleCount: 120,    // Много мелких частиц
-          spreadX: 55,           // Разброс
-          spreadY: 18,           // Высота
-          minSize: 0.5,          // Очень мелкие
-          maxSize: 1.8,          // Мелкие
-          baseAlpha: 0.55,       // Видимая пыль
-        });
+      // Инициализируем эффект пыли для drop и cascade анимации
+      if ((this.animationType === 'drop' && this.reelAnimator instanceof DropReelAnimator) ||
+          (this.animationType === 'cascade' && this.reelAnimator instanceof CascadeDropAnimator)) {
+        const dustColors = [0xD4A574, 0xC4956A, 0xE8C99B, 0xDEB887, 0xC9B896, 0xBFAE8C];
+        if (this.animationType === 'drop') {
+          (this.reelAnimator as DropReelAnimator).initDustEffect(reelsContainer, {
+            colors: dustColors,
+            particleCount: 120,
+            spreadX: 55,
+            spreadY: 18,
+            minSize: 0.5,
+            maxSize: 1.8,
+            baseAlpha: 0.55,
+          });
+        } else {
+          (this.reelAnimator as CascadeDropAnimator).initDustEffect(reelsContainer, {
+            colors: dustColors,
+            particleCount: 80,    // Меньше частиц для каскада
+            spreadX: 45,
+            spreadY: 15,
+            minSize: 0.5,
+            maxSize: 1.5,
+            baseAlpha: 0.5,
+          });
+        }
       }
     }
 
@@ -363,8 +381,8 @@ export class SlotMachine {
     const matrix = this.currentResult?.matrix || this.reelManager.generateRandomMatrix();
     
     // Выбираем метод подготовки в зависимости от типа анимации
-    if (this.animationType === 'drop') {
-      // Для drop анимации: передаём матрицу в аниматор, он сам обновит текстуры после выхода старых символов
+    if (this.animationType === 'drop' || this.animationType === 'cascade') {
+      // Для drop/cascade анимации: передаём матрицу в аниматор, он сам обновит текстуры
       this.reelAnimator.setPendingMatrix?.(matrix);
     } else {
       this.reelManager.initSpinState(matrix);

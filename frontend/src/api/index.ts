@@ -83,10 +83,20 @@ export const fetchBalance = async (): Promise<number> => {
   }
 };
 
-// Выполнение одиночного спина
-export const spin = async (bet: number): Promise<SpinResult> => {
+// Выполнение одиночного спина (поддерживает фриспины)
+export const spin = async (
+  bet: number,
+  freeSpinsRemaining: number = 0,
+  isFreeSpin: boolean = false,
+  testFreeSpins: boolean = false
+): Promise<SpinResult> => {
   try {
-    const response = await api.post('/spin', { bet });
+    const response = await api.post('/spin', {
+      bet,
+      free_spins_remaining: freeSpinsRemaining,
+      is_free_spin: isFreeSpin,
+      test_free_spins: testFreeSpins
+    });
     return response.data;
   } catch (error) {
     console.error('Error performing spin:', error);

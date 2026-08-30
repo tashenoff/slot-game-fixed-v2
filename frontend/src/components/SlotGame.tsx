@@ -73,8 +73,45 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const [showAutoSpinMenu, setShowAutoSpinMenu] = useState<boolean>(false);
   const autoSpinRef = useRef<boolean>(false); // Для отслеживания состояния автоспина в колбэках
   const betRef = useRef<number>(bet); // Для хранения текущей ставки в колбэках
+  
+  // Состояния фриспинов
+  const [freeSpinsRemaining, setFreeSpinsRemaining] = useState<number>(0);
+  const [freeSpinsTotal, setFreeSpinsTotal] = useState<number>(0);
+  const [freeSpinsMultiplier, setFreeSpinsMultiplier] = useState<number>(3);
+  const [isFreeSpin, setIsFreeSpin] = useState<boolean>(false);
+  const [showFreeSpinsNotification, setShowFreeSpinsNotification] = useState<boolean>(false);
+  const [freeSpinsTriggeredCount, setFreeSpinsTriggeredCount] = useState<number>(0);
+  const freeSpinsTriggerPendingRef = useRef<boolean>(false); // Для отслеживания ожидания нотификации
+  const freeSpinsRemainingRef = useRef<number>(0); // Для хранения фриспинов в колбэках
+  const [testFreeSpinsMode, setTestFreeSpinsMode] = useState<boolean>(false);
+  const testFreeSpinsRef = useRef<boolean>(false); // Для колбэков
   const balanceRef = useRef<number>(balance); // Для хранения актуального баланса
   const isSpinningRef = useRef<boolean>(false); // Для защиты от двойного вызова
+  const isMountedRef = useRef<boolean>(true); // Для отслеживания размонтирования компонента
+  const freeSpinTimerRef = useRef<number | null>(null); // Таймер автоматического фриспина
+  const freeSpinNotificationTimerRef = useRef<number | null>(null); // Таймер уведомления о фриспинах
+  const autoSpinTimerRef = useRef<number | null>(null); // Таймер автоспина
+  
+  // Отслеживание размонтирования компонента для предотвращения утечек памяти
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // Очищаем все таймеры при размонтировании
+      if (freeSpinTimerRef.current) {
+        clearTimeout(freeSpinTimerRef.current);
+        freeSpinTimerRef.current = null;
+      }
+      if (freeSpinNotificationTimerRef.current) {
+        clearTimeout(freeSpinNotificationTimerRef.current);
+        freeSpinNotificationTimerRef.current = null;
+      }
+      if (autoSpinTimerRef.current) {
+        clearTimeout(autoSpinTimerRef.current);
+        autoSpinTimerRef.current = null;
+      }
+    };
+  }, []);
   
   // История спинов для отладки
   interface SpinHistoryItem {
@@ -597,6 +634,11 @@ const SlotGame: React.FC<SlotGameProps> = ({
     setIsAutoSpin(false);
     setAutoSpinCount(0);
     setShowAutoSpinMenu(false);
+    // Очищаем таймер автоспина при остановке
+    if (autoSpinTimerRef.current) {
+      clearTimeout(autoSpinTimerRef.current);
+      autoSpinTimerRef.current = null;
+    }
   }, []);
 
   // Функция для плавного затухания музыки
@@ -706,19 +748,27 @@ const SlotGame: React.FC<SlotGameProps> = ({
     }
     
     // Используем актуальные значения из refs для автоспина
-    const currentBalance = isFromAutoSpin ? balanceRef.current : balance;
+    const currentBalance = isFromAutoSpin ? balanceRef.current : balanceRef.current;
     const currentBet = betRef.current;
+    const currentFreeSpinsRemaining = freeSpinsRemainingRef.current;
+    const currentIsFreeSpin = currentFreeSpinsRemaining > 0;
     
-    if (!slotMachine || currentBalance < currentBet) {
-      // Если автоспин и баланс недостаточен - останавливаем
-      if (isFromAutoSpin && currentBalance < currentBet) {
-        stopAutoSpin();
+    // Фриспины — не проверяем баланс и не блокируем
+    if (!currentIsFreeSpin) {
+      if (!slotMachine || currentBalance < currentBet) {
+        // Если автоспин и баланс недостаточен - останавливаем
+        if (isFromAutoSpin && currentBalance < currentBet) {
+          stopAutoSpin();
+        }
+        return;
       }
-      return;
     }
 
-    // Блокируем повторный вызов
+    // Блокируем повторный вызов (ref — не вызывает рендер)
     isSpinningRef.current = true;
+    
+    console.time('spin-total');
+    console.time('spin-api');
     
     // Воспроизводим звук спина (для египетской темы отключён)
     if (theme.id !== 'egypt' && spinSoundRef.current) {
@@ -739,20 +789,58 @@ const SlotGame: React.FC<SlotGameProps> = ({
     // Сохраняем баланс до спина
     const balanceBefore = currentBalance;
 
-    setIsSpinning(true);
-    setWinAmount(0);
-    setShowStatsModal(false);
-
     try {
       // Запрашиваем результат спина с сервера
-      const result = await API.spin(currentBet);
+      const result = await API.spin(currentBet, currentFreeSpinsRemaining, currentIsFreeSpin, testFreeSpinsRef.current);
+      
+      console.timeEnd('spin-api');
+      console.time('spin-before-anim');
+      
+      // Только после ответа сервера — блокируем UI визуально
+      setIsSpinning(true);
+      setWinAmount(0);
+      setShowStatsModal(false);
+      
+      console.timeEnd('spin-before-anim');
+      console.time('spin-anim-start');
       
       // Устанавливаем результат в слот-машину
       slotMachine.setSpinResult(result);
       
-      // Запускаем анимацию вращения
+      // Запускаем анимацию вращения — НЕМЕДЛЕННО, без лишних setState
       slotMachine.spin((spinResult) => {
-        // Колбэк после завершения анимации
+        // ====== ВСЁ, ЧТО ПОСЛЕ АНИМАЦИИ ======
+        
+        console.timeEnd('spin-anim-start');
+        console.time('spin-post-anim');
+        
+        // Обрабатываем фриспины
+        if (result.free_spins_triggered > 0) {
+          // Активированы фриспины!
+          setFreeSpinsTriggeredCount(result.free_spins_triggered);
+          setFreeSpinsTotal(result.free_spins_remaining);
+          setFreeSpinsMultiplier(result.free_spins_multiplier);
+          setIsFreeSpin(true);
+          setFreeSpinsRemaining(result.free_spins_remaining);
+          setShowFreeSpinsNotification(true);
+          freeSpinsTriggerPendingRef.current = true;
+          freeSpinsRemainingRef.current = result.free_spins_remaining;
+          
+          // Автоматически скрываем уведомление через 3 секунды
+          if (freeSpinNotificationTimerRef.current) {
+            clearTimeout(freeSpinNotificationTimerRef.current);
+          }
+          freeSpinNotificationTimerRef.current = window.setTimeout(() => {
+            if (!isMountedRef.current) return;
+            setShowFreeSpinsNotification(false);
+            freeSpinsTriggerPendingRef.current = false;
+            freeSpinNotificationTimerRef.current = null;
+          }, 3000);
+        } else if (result.is_free_spin) {
+          // Фриспин без ре-триггера — обновляем остаток
+          setFreeSpinsRemaining(result.free_spins_remaining);
+          freeSpinsRemainingRef.current = result.free_spins_remaining;
+        }
         
         // Останавливаем звук вращения барабанов
         if (barabanSoundRef.current) {
@@ -802,22 +890,50 @@ const SlotGame: React.FC<SlotGameProps> = ({
           }
         }
         
-        // Если автоспин активен - продолжаем
-        if (autoSpinRef.current) {
+        // === ЛОГИКА АВТОМАТИЧЕСКИХ СПИНОВ ===
+        // Приоритет: фриспины > автоспин
+        
+        if (result.free_spins_remaining > 0) {
+          // Есть ещё фриспины — запускаем следующий автоматически
+          const hasWin = spinResult.wins && spinResult.wins.length > 0;
+          const delay = hasWin ? 2500 : 1200; // Фриспины с чуть большей задержкой
+          // Очищаем предыдущий таймер фриспина
+          if (freeSpinTimerRef.current) {
+            clearTimeout(freeSpinTimerRef.current);
+          }
+          freeSpinTimerRef.current = window.setTimeout(() => {
+            if (!isMountedRef.current) return; // Защита от вызова после размонтирования
+            if (isSpinningRef.current) return; // Защита от двойного вызова
+            freeSpinTimerRef.current = null;
+            // Обновляем ref-ы для следующего фриспина
+            freeSpinsRemainingRef.current = result.free_spins_remaining;
+            handleSpin(false); // Запускаем следующий фриспин
+          }, delay);
+        } else if (result.is_free_spin && result.free_spins_remaining <= 0) {
+          // Фриспины закончились
+          setIsFreeSpin(false);
+          setFreeSpinsTotal(0);
+          setFreeSpinsMultiplier(1);
+          // Показываем итоговый выигрыш
+          scheduleMusicFade();
+        } else if (autoSpinRef.current) {
+          // Обычный автоспин
           setAutoSpinCount(prev => {
             const newCount = prev - 1;
             if (newCount <= 0 || spinResult.balance < betRef.current) {
-              // Останавливаем автоспин
               stopAutoSpin();
-              // Запускаем затухание музыки после окончания автоспина
               scheduleMusicFade();
               return 0;
             }
-            // Задержка перед следующим спином - дольше если был выигрыш
-            // чтобы успела проиграться анимация линии и блика
             const hasWin = spinResult.wins && spinResult.wins.length > 0;
             const delay = hasWin ? 2500 : 500;
-            setTimeout(() => {
+            // Очищаем предыдущий таймер автоспина
+            if (autoSpinTimerRef.current) {
+              clearTimeout(autoSpinTimerRef.current);
+            }
+            autoSpinTimerRef.current = window.setTimeout(() => {
+              if (!isMountedRef.current) return; // Защита от вызова после размонтирования
+              autoSpinTimerRef.current = null;
               if (autoSpinRef.current) {
                 handleSpin(true);
               }
@@ -825,9 +941,12 @@ const SlotGame: React.FC<SlotGameProps> = ({
             return newCount;
           });
         } else {
-          // Для обычного спина - запускаем таймер затухания музыки
+          // Обычный спин
           scheduleMusicFade();
         }
+        
+        console.timeEnd('spin-post-anim');
+        console.timeEnd('spin-total');
       });
     } catch (error) {
       console.error('Spin failed:', error);
@@ -838,7 +957,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         stopAutoSpin();
       }
     }
-  }, [slotMachine, balance, stopAutoSpin, startMusicOnSpin, scheduleMusicFade]);
+  }, [slotMachine, stopAutoSpin, startMusicOnSpin, scheduleMusicFade]);
 
   // Запуск автоспина
   const startAutoSpin = useCallback((count: number) => {
@@ -1015,6 +1134,31 @@ const SlotGame: React.FC<SlotGameProps> = ({
             </div>
           </div>
         )}
+
+        {/* Уведомление о активации фриспинов */}
+        {showFreeSpinsNotification && (
+          <div className="free-spins-overlay">
+            <div className="free-spins-notification">
+              <div className="free-spins-icon">🎰</div>
+              <h2 className="free-spins-title">БЕСПЛАТНЫЕ ВРАЩЕНИЯ!</h2>
+              <div className="free-spins-count-big">x{freeSpinsTriggeredCount}</div>
+              <p className="free-spins-subtitle">Множитель x{freeSpinsMultiplier}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Панель фриспинов (счётчик) */}
+        {isFreeSpin && freeSpinsTotal > 0 && !showFreeSpinsNotification && (
+          <div className="free-spins-panel">
+            <div className="free-spins-panel-inner">
+              <span className="free-spins-label">FREE SPINS</span>
+              <span className="free-spins-counter">
+                {freeSpinsRemaining}/{freeSpinsTotal}
+              </span>
+              <span className="free-spins-multiplier">x{freeSpinsMultiplier}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Обёртка для панели управления с отступами */}
@@ -1030,7 +1174,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         <button 
           className="control-btn minus-btn"
           onClick={() => setBet(Math.max(1, bet - 10))}
-          disabled={isSpinning || isAutoSpin || bet <= 1}
+          disabled={isSpinning || isAutoSpin || isFreeSpin || bet <= 1}
         >
           −
         </button>
@@ -1070,7 +1214,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         <button 
           className="control-btn plus-btn"
           onClick={() => setBet(Math.min(500, bet + 10))}
-          disabled={isSpinning || isAutoSpin || bet >= 500}
+          disabled={isSpinning || isAutoSpin || isFreeSpin || bet >= 500}
         >
           +
         </button>
@@ -1096,11 +1240,16 @@ const SlotGame: React.FC<SlotGameProps> = ({
 
         {/* Главная кнопка СПИН */}
         <button
-          className="spin-btn"
+          className={`spin-btn ${isFreeSpin ? 'free-spin-btn' : ''}`}
           onClick={() => handleSpin(false)}
-          disabled={isSpinning || balance < bet || isAutoSpin}
+          disabled={(isSpinning || isAutoSpin) && !isFreeSpin}
         >
-          {isSpinning && !isProcessingMultiSpin && !isAutoSpin ? '...' : 'СПИН'}
+          {isFreeSpin && freeSpinsRemaining > 0 ? (
+            <span className="spin-btn-content">
+              <span className="spin-btn-label">FREE SPIN</span>
+              <span className="spin-btn-sub">x{freeSpinsMultiplier}</span>
+            </span>
+          ) : isSpinning && !isProcessingMultiSpin && !isAutoSpin ? '...' : 'СПИН'}
         </button>
 
         {/* Автоспин */}
@@ -1144,6 +1293,18 @@ const SlotGame: React.FC<SlotGameProps> = ({
             </div>
           )}
         </div>
+{/* Кнопка тестового режима фриспинов */}
+        <button
+          className={`control-btn test-fs-btn ${testFreeSpinsMode ? 'test-fs-btn-active' : ''}`}
+          onClick={() => {
+            setTestFreeSpinsMode(!testFreeSpinsMode);
+            testFreeSpinsRef.current = !testFreeSpinsRef.current;
+          }}
+          disabled={isSpinning || isAutoSpin}
+          title={testFreeSpinsMode ? "Тестовый режим ВКЛ" : "Тестовый режим фриспинов"}
+        >
+          <span className="test-fs-label">{testFreeSpinsMode ? '🎯 FS ON' : '🎯 TEST'}</span>
+        </button>
         </div>
       </div>
       

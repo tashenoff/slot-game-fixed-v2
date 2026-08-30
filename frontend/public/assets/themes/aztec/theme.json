@@ -2,14 +2,15 @@
   "id": "aztec",
   "name": "Ацтекское золото",
   "description": "Древние ацтеки, пирамиды и сокровища Мезоамерики",
-  "symbols": ["A", "B", "C", "D", "E", "F"],
+  "symbols": ["A", "B", "C", "D", "E", "F", "S"],
   "fallbackColors": {
     "A": "#d4841c",
     "B": "#8b4513",
     "C": "#2e8b57",
     "D": "#cd853f",
     "E": "#b8860b",
-    "F": "#6b3a2a"
+    "F": "#6b3a2a",
+    "S": "#ffd700"
   },
   "glowColors": {
     "A": "#FF6F00",
@@ -17,7 +18,8 @@
     "C": "#1B5E20",
     "D": "#E65100",
     "E": "#F57F17",
-    "F": "#4E342E"
+    "F": "#4E342E",
+    "S": "#FFD700"
   },
   "glowIntensity": {
     "A": 1.0,
@@ -25,24 +27,25 @@
     "C": 0.6,
     "D": 0.4,
     "E": 0.15,
-    "F": 0.15
+    "F": 0.15,
+    "S": 1.0
   },
   "isNew": true,
   "borderWidth": 1264,
   "borderHeight": 848,
   "symbolSizeRatio": 0.94,
   "symbolFillCell": true,
-  "reelsOffsetX": 176,
-  "reelsOffsetY": 178,
-  "reelsAreaWidth": 912,
-  "reelsAreaHeight": 500,
-  "reelGap": 4,
-  "rowGap": 4,
+  "reelsOffsetX": 212,
+  "reelsOffsetY": 172,
+  "reelsAreaWidth": 840,
+  "reelsAreaHeight": 504,
+  "reelGap": 0,
+  "rowGap": 0,
   "reelAnimation": {
-    "type": "drop",
+    "type": "cascade",
     "bounceHeight": 20,
     "bounceTime": 160,
-    "staggerDelay": 90
+    "staggerDelay": 80
   },
   "mobile": {
     "borderWidth": 1138,
@@ -60,10 +63,10 @@
     "disableShine": false,
     "cascadeWinHighlight": true,
     "reelAnimation": {
-      "type": "drop",
+      "type": "cascade",
       "bounceHeight": 15,
       "bounceTime": 130,
-      "staggerDelay": 250,
+      "staggerDelay": 150,
       "speed": 2.5
     }
   }

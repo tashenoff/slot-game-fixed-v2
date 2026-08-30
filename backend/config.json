@@ -5,7 +5,25 @@
     "C": {"weight": 3, "payout": {"3": 3, "4": 6, "5": 10}},
     "D": {"weight": 4, "payout": {"3": 2, "4": 4, "5": 8}},
     "E": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}},
-    "F": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}}
+    "F": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}},
+    "S": {"weight": 1, "payout": {"3": 3, "4": 8, "5": 15}}
+  },
+  "scatter_symbol": "S",
+  "free_spins": {
+    "trigger_count": 3,
+    "free_spins_count": 10,
+    "multiplier": 3,
+    "retrigger_count": 3,
+    "retrigger_free_spins": 10
+  },
+  "free_spins_weights": {
+    "A": 3,
+    "B": 4,
+    "C": 4,
+    "D": 4,
+    "E": 2,
+    "F": 2,
+    "S": 1
   },
   "paylines": [
     [{"row": 1, "col": 0}, {"row": 1, "col": 1}, {"row": 1, "col": 2}, {"row": 1, "col": 3}, {"row": 1, "col": 4}],

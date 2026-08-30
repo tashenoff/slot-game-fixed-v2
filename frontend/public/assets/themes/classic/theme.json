@@ -2,14 +2,15 @@
   "id": "classic",
   "name": "Классический",
   "description": "Классические символы A, B, C, D, E, F",
-  "symbols": ["A", "B", "C", "D", "E", "F"],
+  "symbols": ["A", "B", "C", "D", "E", "F", "S"],
   "fallbackColors": {
     "A": "#e74c3c",
     "B": "#2ecc71",
     "C": "#3498db",
     "D": "#f1c40f",
     "E": "#9b59b6",
-    "F": "#ff6600"
+    "F": "#ff6600",
+    "S": "#ffd700"
   },
   "isHot": true,
   "borderWidth": 1600,

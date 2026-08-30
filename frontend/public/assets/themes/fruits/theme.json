@@ -2,14 +2,15 @@
   "id": "fruits",
   "name": "Фруктовый рай",
   "description": "Сочные фрукты и большие выигрыши!",
-  "symbols": ["A", "B", "C", "D", "E", "F"],
+  "symbols": ["A", "B", "C", "D", "E", "F", "S"],
   "fallbackColors": {
     "A": "#e74c3c",
     "B": "#2ecc71",
     "C": "#3498db",
     "D": "#f1c40f",
     "E": "#9b59b6",
-    "F": "#ff6600"
+    "F": "#ff6600",
+    "S": "#ffd700"
   },
   "isNew": true
 }

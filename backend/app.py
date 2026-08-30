@@ -8,7 +8,7 @@ from database import init_db, get_or_create_user, get_user_by_id, update_user_ba
 from auth import create_token, require_auth
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}})
+CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}})
 
 # Инициализация БД при старте
 init_db()
@@ -50,26 +50,66 @@ def load_config():
 config = load_config()
 
 # Генерация случайного символа с учетом весов
-def generate_random_symbol():
+def generate_random_symbol(col=None, is_free_spin=False):
     symbols = config["symbols"]
-    weights = [symbols[s]["weight"] for s in symbols]
-    total_weight = sum(weights)
+    free_spins_weights = config.get("free_spins_weights", {})
+
+    # Во время фриспинов используем улучшенные веса (ценные символы чаще)
+    if is_free_spin:
+        weights = [free_spins_weights.get(s, symbols[s]["weight"]) for s in symbols]
+    else:
+        weights = [symbols[s]["weight"] for s in symbols]
     
-    # Нормализация весов для получения вероятностей
+    # Scatter ("S") может выпасть только на колонках 0, 1, 2 (первые 3 барабана)
+    # На колонках 3, 4 исключаем Scatter из пула
+    if col is not None and col >= 3:
+        symbols_without_scatter = {k: v for k, v in symbols.items() if k != config.get("scatter_symbol", "S")}
+        if is_free_spin:
+            weights_without = [free_spins_weights.get(s, symbols[s]["weight"]) for s in symbols_without_scatter]
+        else:
+            weights_without = [symbols_without_scatter[s]["weight"] for s in symbols_without_scatter]
+        total_weight = sum(weights_without)
+        probabilities = [w / total_weight for w in weights_without]
+        return random.choices(list(symbols_without_scatter.keys()), probabilities)[0]
+    
+    total_weight = sum(weights)
     probabilities = [w / total_weight for w in weights]
     
-    # Выбор символа на основе вероятностей
     return random.choices(list(symbols.keys()), probabilities)[0]
 
 # Генерация матрицы результатов спина
-def generate_spin_result():
+def generate_spin_result(test_mode=False, is_free_spin=False):
     result = []
     for row in range(3):
         result_row = []
         for col in range(5):
-            result_row.append(generate_random_symbol())
+            # В тестовом режиме — гарантируем 3 Scatter на барабанах 0,1,2
+            if test_mode and col < 3 and row == 1:  # Средний ряд, колонки 0,1,2
+                result_row.append(config.get("scatter_symbol", "S"))
+            else:
+                # Передаём колонку и флаг фриспина
+                result_row.append(generate_random_symbol(col, is_free_spin))
         result.append(result_row)
     return result
+
+# Проверка Scatter символов (по всей матрице, не по линиям)
+def check_scatter(matrix):
+    scatter_symbol = config.get("scatter_symbol", "S")
+    free_spins_config = config.get("free_spins", {})
+    trigger_count = free_spins_config.get("trigger_count", 3)
+    
+    scatter_count = 0
+    for row in matrix:
+        for sym in row:
+            if sym == scatter_symbol:
+                scatter_count += 1
+    
+    triggered = scatter_count >= trigger_count
+    return {
+        "scatter_count": scatter_count,
+        "triggered": triggered,
+        "trigger_count": trigger_count
+    }
 
 # Проверка выигрышных линий
 def check_winlines(matrix):
@@ -144,40 +184,95 @@ def auth():
 @app.route('/api/spin', methods=['POST'])
 @require_auth
 def spin(user_id: int):
-    """Спин с авторизацией"""
+    """Спин с авторизацией (поддерживает фриспины)"""
     user = get_user_by_id(user_id)
     if not user:
         return jsonify({'error': 'Пользователь не найден'}), 404
     
-    # Получаем ставку из запроса
+    # Получаем ставку и статус фриспинов из запроса
     data = request.get_json() or {}
     bet = data.get('bet', 1)
+    is_free_spin = data.get('is_free_spin', False)
+    free_spins_remaining = data.get('free_spins_remaining', 0)
+    test_mode = data.get('test_free_spins', False)  # Тестовый режим для гарантированного фриспина
     
-    # Проверяем, достаточно ли баланса
-    if user['balance'] < bet:
-        return jsonify({'error': 'Недостаточно средств'}), 400
+    free_spins_config = config.get("free_spins", {})
+    fs_multiplier = free_spins_config.get("multiplier", 2)
     
-    # Генерируем результат спина
-    matrix = generate_spin_result()
+    # Если это не фриспин — проверяем баланс и списываем ставку
+    if not is_free_spin:
+        if user['balance'] < bet:
+            return jsonify({'error': 'Недостаточно средств'}), 400
+        balance = user['balance'] - bet
+    else:
+        # Фриспин — ставка не списывается
+        balance = user['balance']
     
-    # Проверяем выигрыш
+    # Генерируем результат спина (с улучшенными весами для фриспинов)
+    matrix = generate_spin_result(test_mode=test_mode, is_free_spin=is_free_spin)
+    
+    # Проверяем регулярные выигрышные линии
     win_result = check_winlines(matrix)
     
     # Умножаем выигрыш на ставку
     win_amount = win_result['total_win'] * bet
     
-    # Вычисляем новый баланс
-    new_balance = user['balance'] - bet + win_amount
+    # Если это фриспин — применяем множитель
+    if is_free_spin and win_amount > 0:
+        win_amount *= fs_multiplier
     
-    # Сохраняем в БД
-    update_user_balance(user_id, new_balance)
-    update_user_stats(user_id, bet, win_amount)
+    # Проверяем Scatter (триггер фриспинов)
+    scatter_result = check_scatter(matrix)
+    free_spins_triggered = 0
+    
+    if scatter_result["triggered"]:
+        # Если фриспины уже активны — это ре-триггер
+        if is_free_spin:
+            free_spins_triggered = free_spins_config.get("retrigger_free_spins", 10)
+        else:
+            free_spins_triggered = free_spins_config.get("free_spins_count", 10)
+    
+    # Обновляем оставшиеся фриспины
+    if free_spins_triggered > 0:
+        free_spins_remaining_new = free_spins_remaining + free_spins_triggered
+    elif is_free_spin:
+        free_spins_remaining_new = free_spins_remaining - 1
+    else:
+        free_spins_remaining_new = 0
+    
+    # Вычисляем новый баланс (для фриспинов — добавляем выигрыш)
+    if not is_free_spin:
+        new_balance = balance + win_amount
+    else:
+        new_balance = balance + win_amount
+    
+    # Сохраняем в БД — одно соединение для всех операций
+    from database import get_db
+    with get_db() as db:
+        db.execute(
+            'UPDATE users SET balance = ? WHERE id = ?',
+            (new_balance, user_id)
+        )
+        db.execute('''
+            UPDATE users SET 
+                total_spins = total_spins + 1,
+                total_wagered = total_wagered + ?,
+                total_won = total_won + ?,
+                biggest_win = MAX(biggest_win, ?)
+            WHERE id = ?
+        ''', (bet if not is_free_spin else 0, win_amount, win_amount, user_id))
+        db.commit()
     
     return jsonify({
         'matrix': matrix,
         'wins': win_result['wins'],
         'win_amount': win_amount,
-        'balance': new_balance
+        'balance': new_balance,
+        'is_free_spin': is_free_spin,
+        'free_spins_triggered': free_spins_triggered,
+        'free_spins_remaining': free_spins_remaining_new,
+        'free_spins_multiplier': fs_multiplier if is_free_spin else 1,
+        'scatter_count': scatter_result["scatter_count"]
     })
 
 
@@ -336,4 +431,4 @@ def claim_ad_reward(user_id: int):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)

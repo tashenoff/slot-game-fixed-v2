@@ -2,14 +2,15 @@
   "id": "tanks",
   "name": "Танки",
   "description": "Боевые машины и военная техника!",
-  "symbols": ["A", "B", "C", "D", "E", "F"],
+  "symbols": ["A", "B", "C", "D", "E", "F", "S"],
   "fallbackColors": {
     "A": "#4a5d23",
     "B": "#8b4513",
     "C": "#2f4f4f",
     "D": "#556b2f",
     "E": "#3c3c3c",
-    "F": "#cd853f"
+    "F": "#cd853f",
+    "S": "#ffd700"
   },
   "isNew": true,
   "borderWidth": 1600,
