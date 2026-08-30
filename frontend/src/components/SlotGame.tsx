@@ -81,7 +81,11 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const [isFreeSpin, setIsFreeSpin] = useState<boolean>(false);
   const [showFreeSpinsNotification, setShowFreeSpinsNotification] = useState<boolean>(false);
   const [freeSpinsTriggeredCount, setFreeSpinsTriggeredCount] = useState<number>(0);
+  const [showFreeSpinsResult, setShowFreeSpinsResult] = useState<boolean>(false);
+  const [freeSpinsTotalWin, setFreeSpinsTotalWin] = useState<number>(0);
+  const freeSpinsTotalWinRef = useRef<number>(0); // Для накопления в колбэках
   const freeSpinsTriggerPendingRef = useRef<boolean>(false); // Для отслеживания ожидания нотификации
+  const freeSpinsResultRef = useRef<boolean>(false); // Блокировка спинов во время модалки результатов
   const freeSpinsRemainingRef = useRef<number>(0); // Для хранения фриспинов в колбэках
   const [testFreeSpinsMode, setTestFreeSpinsMode] = useState<boolean>(false);
   const testFreeSpinsRef = useRef<boolean>(false); // Для колбэков
@@ -747,6 +751,17 @@ const SlotGame: React.FC<SlotGameProps> = ({
       return;
     }
     
+    // Если висит модалка фриспинов — не запускаем новый спин
+    if (freeSpinsTriggerPendingRef.current) {
+      console.log('[Spin] Модалка фриспинов активна, спин заблокирован');
+      return;
+    }
+    // Если висит модалка результатов фриспинов
+    if (freeSpinsResultRef.current) {
+      console.log('[Spin] Модалка результатов фриспинов активна, спин заблокирован');
+      return;
+    }
+
     // Используем актуальные значения из refs для автоспина
     const currentBalance = isFromAutoSpin ? balanceRef.current : balanceRef.current;
     const currentBet = betRef.current;
@@ -813,6 +828,16 @@ const SlotGame: React.FC<SlotGameProps> = ({
           setShowFreeSpinsNotification(true);
           freeSpinsTriggerPendingRef.current = true;
           freeSpinsRemainingRef.current = result.free_spins_remaining;
+          // Сбрасываем накопленный выигрыш
+          freeSpinsTotalWinRef.current = 0;
+          setIsSpinning(false);
+          isSpinningRef.current = false;
+          // Принудительно останавливаем аниматор слот-машины (важно для drop/cascade)
+          slotMachine.clear();
+          // Останавливаем автоспин, если он был активен
+          if (autoSpinRef.current) {
+            stopAutoSpin();
+          }
           // Таймер НЕ ставим — ждём кнопку от пользователя
         } else if (result.is_free_spin) {
           // Фриспин без ре-триггера — обновляем остаток
@@ -828,6 +853,10 @@ const SlotGame: React.FC<SlotGameProps> = ({
         
         updateBalance(spinResult.balance);
         setWinAmount(spinResult.win_amount);
+        // Накопляем выигрыш за фриспины
+        if (result.is_free_spin && spinResult.win_amount > 0) {
+          freeSpinsTotalWinRef.current += spinResult.win_amount;
+        }
         setIsSpinning(false);
         isSpinningRef.current = false; // Разблокируем
         
@@ -892,9 +921,12 @@ const SlotGame: React.FC<SlotGameProps> = ({
           setIsFreeSpin(false);
           setFreeSpinsTotal(0);
           setFreeSpinsMultiplier(1);
-          // Показываем итоговый выигрыш
+          // Показываем модалку с итоговым выигрышем
+          setFreeSpinsTotalWin(freeSpinsTotalWinRef.current);
+          setShowFreeSpinsResult(true);
+          freeSpinsResultRef.current = true;
           scheduleMusicFade();
-        } else if (autoSpinRef.current) {
+        } else if (autoSpinRef.current && !freeSpinsTriggerPendingRef.current) {
           // Обычный автоспин
           setAutoSpinCount(prev => {
             const newCount = prev - 1;
@@ -1142,6 +1174,28 @@ const SlotGame: React.FC<SlotGameProps> = ({
                 {freeSpinsRemaining}/{freeSpinsTotal}
               </span>
               <span className="free-spins-multiplier">x{freeSpinsMultiplier}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Модалка результатов фриспинов */}
+        {showFreeSpinsResult && (
+          <div className="free-spins-overlay">
+            <div className="free-spins-notification">
+              <div className="free-spins-icon">💰</div>
+              <h2 className="free-spins-title">ФРИСПИНЫ ЗАВЕРШЕНЫ!</h2>
+              <div className="free-spins-result-amount">+{freeSpinsTotalWin.toLocaleString()}</div>
+              <p className="free-spins-subtitle">Выигрыш за все фриспины</p>
+              <button 
+                className="free-spins-start-btn"
+                onClick={() => {
+                  setShowFreeSpinsResult(false);
+                  freeSpinsResultRef.current = false;
+                  setFreeSpinsTotalWin(0);
+                }}
+              >
+                ЗАБРАТЬ
+              </button>
             </div>
           </div>
         )}

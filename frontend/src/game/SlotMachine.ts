@@ -399,7 +399,7 @@ export class SlotMachine {
     }
   }
 
-  private clear(): void {
+  clear(): void {
     this.reelAnimator.stop();
     this.winDisplayManager.hide();
   }
