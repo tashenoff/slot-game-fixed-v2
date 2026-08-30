@@ -87,8 +87,6 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const freeSpinsTriggerPendingRef = useRef<boolean>(false); // Для отслеживания ожидания нотификации
   const freeSpinsResultRef = useRef<boolean>(false); // Блокировка спинов во время модалки результатов
   const freeSpinsRemainingRef = useRef<number>(0); // Для хранения фриспинов в колбэках
-  const [testFreeSpinsMode, setTestFreeSpinsMode] = useState<boolean>(false);
-  const testFreeSpinsRef = useRef<boolean>(false); // Для колбэков
   const [showMobileWinModal, setShowMobileWinModal] = useState<boolean>(false);
   const [mobileWinData, setMobileWinData] = useState<{ symbol: string; amount: number; count: number; rarity: string; rarityColor: string } | null>(null);
   const mobileWinModalBlockRef = useRef<boolean>(false); // Блокировка автоспина/фриспинов пока висит модалка
@@ -811,7 +809,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
 
     try {
       // Запрашиваем результат спина с сервера
-      const result = await API.spin(currentBet, currentFreeSpinsRemaining, currentIsFreeSpin, testFreeSpinsRef.current);
+      const result = await API.spin(currentBet, currentFreeSpinsRemaining, currentIsFreeSpin);
       
       // Только после ответа сервера — блокируем UI визуально
       setIsSpinning(true);
@@ -915,42 +913,23 @@ const SlotGame: React.FC<SlotGameProps> = ({
             if (!isMountedRef.current) return;
             // Берём первый (самый ценный) выигрыш для отображения
             const topWin = spinResult.wins.reduce((max, w) => w.win > max.win ? w : max, spinResult.wins[0]);
-            // Определяем редкость комбинации
-            const weightMap: Record<string, number> = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 5, S: 1 };
-            const w = weightMap[topWin.symbol] || 5;
-            let rarity = '';
-            let rarityColor = '';
-            if (topWin.symbol === 'S') {
-              rarity = 'SCATTER';
-              rarityColor = '#ff6b6b';
-            } else if (topWin.count >= 5) {
-              rarity = 'ЛЕГЕНДАРНАЯ';
-              rarityColor = '#FF1744';
-            } else if (topWin.count >= 4 && w <= 2) {
-              rarity = 'ЛЕГЕНДАРНАЯ';
-              rarityColor = '#FF1744';
-            } else if (topWin.count >= 4 && w <= 3) {
-              rarity = 'ЭПИЧЕСКАЯ';
-              rarityColor = '#E91E63';
-            } else if (topWin.count >= 3 && w <= 2) {
-              rarity = 'ЭПИЧЕСКАЯ';
-              rarityColor = '#E91E63';
-            } else if (topWin.count >= 3 && w <= 3) {
-              rarity = 'РЕДКАЯ';
-              rarityColor = '#2979FF';
-            } else if (topWin.count >= 3 && w <= 4) {
-              rarity = 'НЕОБЫЧНАЯ';
-              rarityColor = '#00E676';
-            } else {
-              rarity = 'ОБЫЧНАЯ';
-              rarityColor = '#94a3b8';
-            }
+            // Определяем редкость комбинации (по символу)
+            const rarityMap: Record<string, { label: string; color: string }> = {
+              A: { label: 'ЛЕГЕНДАРНАЯ', color: '#FF1744' },
+              B: { label: 'ЭПИЧЕСКАЯ', color: '#E91E63' },
+              C: { label: 'РЕДКАЯ', color: '#2979FF' },
+              D: { label: 'НЕОБЫЧНАЯ', color: '#00E676' },
+              E: { label: 'ОБЫЧНАЯ', color: '#94a3b8' },
+              F: { label: 'ОБЫЧНАЯ', color: '#94a3b8' },
+              S: { label: 'SCATTER', color: '#ffd700' },
+            };
+            const r = rarityMap[topWin.symbol] || { label: 'ОБЫЧНАЯ', color: '#94a3b8' };
             setMobileWinData({
               symbol: topWin.symbol,
               amount: spinResult.win_amount,
               count: topWin.count,
-              rarity,
-              rarityColor,
+              rarity: r.label,
+              rarityColor: r.color,
             });
             setShowMobileWinModal(true);
             mobileWinModalBlockRef.current = true;
@@ -1468,19 +1447,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
             </div>
           )}
         </div>
-{/* Кнопка тестового режима фриспинов */}
-        <button
-          className={`control-btn test-fs-btn ${testFreeSpinsMode ? 'test-fs-btn-active' : ''}`}
-          onClick={() => {
-            setTestFreeSpinsMode(!testFreeSpinsMode);
-            testFreeSpinsRef.current = !testFreeSpinsRef.current;
-          }}
-          disabled={isSpinning || isAutoSpin}
-          title={testFreeSpinsMode ? "Тестовый режим ВКЛ" : "Тестовый режим фриспинов"}
-        >
-          <span className="test-fs-label">{testFreeSpinsMode ? '🎯 FS ON' : '🎯 TEST'}</span>
-        </button>
-        </div>
+</div>
       </div>
       
       {/* Модальное окно истории спинов */}
