@@ -34,7 +34,7 @@ def init_db():
             )
         ''')
         db.commit()
-        print(f"[DB] База данных инициализирована: {DB_PATH} (WAL mode, persistent connection)")
+        print(f"[DB] База данных инициализирована: {DB_PATH} (persistent connection)")
 
 
 @contextmanager
@@ -55,8 +55,8 @@ def get_connection():
     if not hasattr(get_connection, 'conn') or get_connection.conn is None:
         get_connection.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         get_connection.conn.row_factory = sqlite3.Row
-        get_connection.conn.execute('PRAGMA journal_mode=WAL')
-        get_connection.conn.execute('PRAGMA synchronous=NORMAL')
+        # Оптимизации производительности (без WAL — DELETE journal)
+        get_connection.conn.execute('PRAGMA synchronous=OFF')  # быстрее, WAL не нужен
         get_connection.conn.execute('PRAGMA cache_size=-8000')
         print(f"[DB] Постоянное соединение создано: {DB_PATH}")
     return get_connection.conn
