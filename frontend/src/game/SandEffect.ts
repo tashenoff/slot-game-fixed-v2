@@ -4,7 +4,7 @@ import * as PIXI from 'pixi.js';
  * Частица песка
  */
 interface SandParticle {
-  graphic: PIXI.Graphics;
+  graphic: PIXI.Sprite;
   x: number;
   y: number;
   baseSpeed: number;
@@ -19,7 +19,6 @@ interface SandParticle {
   color: number;
   rotation: number;
   rotationSpeed: number;
-  shape: 'circle' | 'oval' | 'irregular';
 }
 
 interface SandEffectOptions {
@@ -32,14 +31,25 @@ interface SandEffectOptions {
   gustInterval?: number;
 }
 
+interface SharedRenderContext {
+  stage: PIXI.Container;
+  ticker: PIXI.Ticker;
+}
+
 /**
- * SandEffect - эффект песчаной бури для египетской темы
+ * SandEffect - эффект песчаной бури для египетской темы.
+ * Использует PIXI.Sprite с текстурой вместо PIXI.Graphics для производительности.
+ * Может работать на shared PIXI.Application (один WebGL контекст для всех эффектов).
  */
 export class SandEffect {
-  private app: PIXI.Application;
+  private app: PIXI.Application | null = null;
+  private sharedContext: SharedRenderContext | null = null;
+  private parentContainer: PIXI.Container | null = null;
   private particles: SandParticle[] = [];
   private container: HTMLElement | null = null;
   private running = false;
+  
+  private particleTexture: PIXI.Texture | null = null;
   
   private options: Required<SandEffectOptions> = {
     particleCount: 180,
@@ -59,24 +69,46 @@ export class SandEffect {
 
   constructor(options?: SandEffectOptions) {
     if (options) this.options = { ...this.options, ...options };
+  }
+
+  /**
+   * Инициализация эффекта на shared PIXI.Application
+   * (один WebGL контекст для всех фоновых эффектов)
+   */
+  initOnStage(context: SharedRenderContext): void {
+    this.sharedContext = context;
+    this.parentContainer = new PIXI.Container();
+    context.stage.addChild(this.parentContainer);
+    
+    this.createParticleTexture();
+    this.createParticles();
+    this.running = true;
+    context.ticker.add((delta) => this.update(delta));
+    
+    if (this.options.gustEnabled) this.startGustTimer();
+  }
+
+  /**
+   * Оригинальный метод инициализации (создаёт свой PIXI.Application)
+   * Для обратной совместимости
+   */
+  init(el: HTMLElement) {
+    this.container = el;
     
     this.app = new PIXI.Application({
       resizeTo: window,
       backgroundAlpha: 0,
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
+      antialias: false,
+      resolution: 1,
       autoDensity: true,
+      powerPreference: 'low-power',
     });
     this.app.stage.sortableChildren = true;
     
-    // Ограничиваем FPS на мобильных для экономии GPU
     if (typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
       this.app.ticker.maxFPS = 30;
     }
-  }
 
-  init(el: HTMLElement) {
-    this.container = el;
     const canvas = this.app.view as HTMLCanvasElement;
     canvas.style.position = 'fixed';
     canvas.style.top = '0';
@@ -87,6 +119,9 @@ export class SandEffect {
     canvas.style.zIndex = '1';
     
     el.appendChild(canvas);
+    this.parentContainer = this.app.stage;
+    
+    this.createParticleTexture();
     this.createParticles();
     this.running = true;
     this.app.ticker.add((delta) => this.update(delta));
@@ -95,7 +130,23 @@ export class SandEffect {
     window.addEventListener('resize', this.handleResize);
   }
 
+  private createParticleTexture(): void {
+    const size = 4;
+    const canvas = document.createElement('canvas');
+    canvas.width = size * 2;
+    canvas.height = size * 2;
+    const ctx = canvas.getContext('2d')!;
+    const gradient = ctx.createRadialGradient(size, size, 0, size, size, size);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.3, 'rgba(255,255,255,0.8)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size * 2, size * 2);
+    this.particleTexture = PIXI.Texture.from(canvas);
+  }
+
   private createParticles() {
+    if (!this.parentContainer) return;
     const width = window.innerWidth;
     const height = window.innerHeight;
     
@@ -104,12 +155,11 @@ export class SandEffect {
       const cfg = this.getLayerConfig(layer);
       const color = this.options.colors[Math.floor(Math.random() * this.options.colors.length)];
       const size = cfg.sizeMin + Math.random() * (cfg.sizeMax - cfg.sizeMin);
-      const shapeRand = Math.random();
-      const shape: 'circle' | 'oval' | 'irregular' = 
-        shapeRand < 0.5 ? 'circle' : (shapeRand < 0.8 ? 'oval' : 'irregular');
       
-      const graphic = new PIXI.Graphics();
-      this.drawParticle(graphic, size, color, shape);
+      const sprite = new PIXI.Sprite(this.particleTexture!);
+      sprite.anchor.set(0.5);
+      sprite.tint = color;
+      sprite.scale.set(size / 4);
       
       const x = Math.random() * (width + 200) - 100;
       const y = Math.random() * height;
@@ -117,7 +167,8 @@ export class SandEffect {
       const windDir = this.options.windDirection === 'right' ? 1 : -1;
       
       const particle: SandParticle = {
-        graphic, x, y,
+        graphic: sprite,
+        x, y,
         baseSpeed: baseSpeed * this.options.windSpeed * 0.5,
         speedX: baseSpeed * windDir * this.options.windSpeed * 0.5,
         speedY: (Math.random() - 0.5) * 0.3,
@@ -129,44 +180,24 @@ export class SandEffect {
         layer, color,
         rotation: Math.random() * Math.PI * 2,
         rotationSpeed: (Math.random() - 0.5) * 0.05,
-        shape,
       };
       
-      graphic.alpha = particle.alpha * this.options.intensity;
-      graphic.x = particle.x;
-      graphic.y = particle.y;
-      graphic.zIndex = layer;
+      sprite.alpha = particle.alpha * this.options.intensity;
+      sprite.x = particle.x;
+      sprite.y = particle.y;
+      sprite.zIndex = layer;
       
       this.particles.push(particle);
-      this.app.stage.addChild(graphic);
+      this.parentContainer!.addChild(sprite);
     }
   }
 
   private getLayerConfig(layer: number) {
-    // Уменьшенные скорости для более спокойного эффекта
     switch (layer) {
       case 2: return { sizeMin: 2.5, sizeMax: 5, speedMin: 1.5, speedMax: 2.5, alphaMin: 0.12, alphaMax: 0.28 };
       case 1: return { sizeMin: 1.2, sizeMax: 2.5, speedMin: 1, speedMax: 1.8, alphaMin: 0.15, alphaMax: 0.35 };
       default: return { sizeMin: 0.5, sizeMax: 1.2, speedMin: 0.5, speedMax: 1, alphaMin: 0.1, alphaMax: 0.25 };
     }
-  }
-
-  private drawParticle(graphic: PIXI.Graphics, size: number, color: number, shape: string) {
-    graphic.clear();
-    graphic.beginFill(color);
-    switch (shape) {
-      case 'oval': graphic.drawEllipse(0, 0, size, size * 0.6); break;
-      case 'irregular':
-        graphic.moveTo(0, -size * 0.8);
-        graphic.lineTo(size * 0.7, -size * 0.3);
-        graphic.lineTo(size * 0.5, size * 0.6);
-        graphic.lineTo(-size * 0.3, size * 0.5);
-        graphic.lineTo(-size * 0.8, 0);
-        graphic.closePath();
-        break;
-      default: graphic.drawCircle(0, 0, size);
-    }
-    graphic.endFill();
   }
 
   private update(delta: number) {
@@ -190,10 +221,9 @@ export class SandEffect {
       p.x += (speedX + turbX) * dt;
       p.y += (p.speedY + turbY) * dt;
       
-      if (p.shape !== 'circle') {
-        p.rotation += p.rotationSpeed * dt * gustEffect;
-        p.graphic.rotation = p.rotation;
-      }
+      // Вращение
+      p.rotation += p.rotationSpeed * dt * gustEffect;
+      p.graphic.rotation = p.rotation;
       
       // Обёртка позиции
       if (windDir > 0 && p.x > width + 50) {
@@ -288,6 +318,14 @@ export class SandEffect {
     window.removeEventListener('resize', this.handleResize);
     this.particles.forEach((p) => p.graphic.destroy());
     this.particles = [];
-    this.app.destroy(true, { children: true, texture: true, baseTexture: true });
+    if (this.app) {
+      this.app.destroy(true, { children: true, texture: true, baseTexture: true });
+      this.app = null;
+    } else if (this.parentContainer) {
+      this.parentContainer.destroy({ children: true });
+      this.parentContainer = null;
+    }
+    this.particleTexture?.destroy(true);
+    this.particleTexture = null;
   }
 }

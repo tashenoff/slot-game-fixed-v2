@@ -1,7 +1,7 @@
 import * as PIXI from 'pixi.js';
 
 interface Firefly {
-  graphic: PIXI.Graphics;
+  graphic: PIXI.Sprite;
   x: number;
   y: number;
   speedX: number;
@@ -19,16 +19,24 @@ interface FireflyEffectOptions {
   maxRadius?: number;
 }
 
+interface SharedRenderContext {
+  stage: PIXI.Container;
+  ticker: PIXI.Ticker;
+}
+
 /**
  * FireflyEffect - эффект светлячков для темы ацтеков.
- * Маленькие золотистые огоньки плавно парят по всему экрану,
- * мягко мерцают и создают атмосферу джунглей.
+ * Оптимизирован: использует PIXI.Sprite с текстурой.
+ * Может работать на shared PIXI.Application.
  */
 export class FireflyEffect {
-  private app: PIXI.Application;
+  private app: PIXI.Application | null = null;
+  private parentContainer: PIXI.Container | null = null;
   private fireflies: Firefly[] = [];
   private container: HTMLElement | null = null;
   private running = false;
+  
+  private fireflyTexture: PIXI.Texture | null = null;
 
   private options: Required<FireflyEffectOptions> = {
     count: 30,
@@ -39,24 +47,36 @@ export class FireflyEffect {
 
   constructor(options?: FireflyEffectOptions) {
     if (options) this.options = { ...this.options, ...options };
+  }
 
-    this.app = new PIXI.Application({
-      resizeTo: window,
-      backgroundAlpha: 0,
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-    });
-    this.app.stage.sortableChildren = true;
-    
-    // Ограничиваем FPS на мобильных для экономии GPU
-    if (typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-      this.app.ticker.maxFPS = 30;
-    }
+  /**
+   * Инициализация на shared PIXI.Application
+   */
+  initOnStage(context: SharedRenderContext): void {
+    this.parentContainer = context.stage;
+    this.createFireflyTexture();
+    this.createFireflies();
+    this.running = true;
+    context.ticker.add((delta) => this.update(delta));
   }
 
   init(el: HTMLElement) {
     this.container = el;
+    
+    this.app = new PIXI.Application({
+      resizeTo: window,
+      backgroundAlpha: 0,
+      antialias: false,
+      resolution: 1,
+      autoDensity: true,
+      powerPreference: 'low-power',
+    });
+    this.app.stage.sortableChildren = true;
+    
+    if (typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      this.app.ticker.maxFPS = 30;
+    }
+
     const canvas = this.app.view as HTMLCanvasElement;
     canvas.style.position = 'fixed';
     canvas.style.top = '0';
@@ -67,12 +87,37 @@ export class FireflyEffect {
     canvas.style.zIndex = '1';
 
     el.appendChild(canvas);
+    this.parentContainer = this.app.stage;
+    this.createFireflyTexture();
     this.createFireflies();
     this.running = true;
     this.app.ticker.add((delta) => this.update(delta));
   }
 
+  private createFireflyTexture(): void {
+    const maxR = this.options.maxRadius;
+    const size = Math.ceil(maxR * 10);
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const cx = size / 2;
+    const cy = size / 2;
+    
+    // Мягкое свечение с ярким центром
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, cx);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.15, 'rgba(255,255,255,0.8)');
+    gradient.addColorStop(0.4, 'rgba(255,255,255,0.4)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    
+    this.fireflyTexture = PIXI.Texture.from(canvas);
+  }
+
   private createFireflies() {
+    if (!this.parentContainer) return;
     const width = window.innerWidth;
     const height = window.innerHeight;
 
@@ -83,30 +128,13 @@ export class FireflyEffect {
       const x = Math.random() * width;
       const y = Math.random() * height;
 
-      const graphic = new PIXI.Graphics();
-
-      // Внешнее свечение (ореол)
-      graphic.beginFill(color, 0.2);
-      graphic.drawCircle(0, 0, radius * 4);
-      graphic.endFill();
-
-      // Внутреннее свечение
-      graphic.beginFill(color, 0.5);
-      graphic.drawCircle(0, 0, radius * 2);
-      graphic.endFill();
-
-      // Яркая сердцевина
-      graphic.beginFill(0xFFFFFF, 0.9);
-      graphic.drawCircle(0, 0, radius * 0.5);
-      graphic.endFill();
-
-      // Основной цветной центр
-      graphic.beginFill(color, 1);
-      graphic.drawCircle(0, 0, radius);
-      graphic.endFill();
+      const sprite = new PIXI.Sprite(this.fireflyTexture!);
+      sprite.anchor.set(0.5);
+      sprite.tint = color;
+      sprite.scale.set(radius / 3);
 
       this.fireflies.push({
-        graphic,
+        graphic: sprite,
         x,
         y,
         speedX: (Math.random() - 0.5) * 0.6,
@@ -117,9 +145,9 @@ export class FireflyEffect {
         alphaPhase: Math.random() * Math.PI * 2,
       });
 
-      graphic.x = x;
-      graphic.y = y;
-      this.app.stage.addChild(graphic);
+      sprite.x = x;
+      sprite.y = y;
+      this.parentContainer.addChild(sprite);
     }
   }
 
@@ -162,9 +190,17 @@ export class FireflyEffect {
 
   destroy() {
     this.running = false;
-    if (this.container && this.app.view.parentNode) {
-      this.container.removeChild(this.app.view as HTMLCanvasElement);
+    if (this.app) {
+      if (this.container && this.app.view.parentNode) {
+        this.container.removeChild(this.app.view as HTMLCanvasElement);
+      }
+      this.app.destroy(true, { children: true, texture: true, baseTexture: true });
+      this.app = null;
     }
-    this.app.destroy(true, { children: true });
+    this.fireflies.forEach((f) => f.graphic.destroy());
+    this.fireflies = [];
+    this.fireflyTexture?.destroy(true);
+    this.fireflyTexture = null;
+    this.parentContainer = null;
   }
 }

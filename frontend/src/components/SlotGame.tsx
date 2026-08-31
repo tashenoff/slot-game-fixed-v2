@@ -7,6 +7,7 @@ import * as API from '../api';
 import { Stats } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath, isMobileDevice, isAppleMobileDevice, isRunningStandalone } from '../config/themes';
+import { SharedPixiApp } from '../game/core';
 import { SandEffect } from '../game/SandEffect';
 import { StarEffect, FireflyEffect } from '../game/effects';
 
@@ -60,12 +61,8 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const [multiSpinProgress, setMultiSpinProgress] = useState<number>(0);
   const [isSlotLoading, setIsSlotLoading] = useState<boolean>(true); // Состояние загрузки слот-машины
   const lowBalanceShownRef = useRef<boolean>(false); // Чтобы не показывать модалку повторно
-  const sandEffectRef = useRef<SandEffect | null>(null);
-  const sandContainerRef = useRef<HTMLDivElement>(null);
-  const starEffectRef = useRef<StarEffect | null>(null);
-  const starContainerRef = useRef<HTMLDivElement>(null);
-  const fireflyEffectRef = useRef<FireflyEffect | null>(null);
-  const fireflyContainerRef = useRef<HTMLDivElement>(null);
+  const effectsContainerRef = useRef<HTMLDivElement>(null);
+  const sharedPixiAppRef = useRef<SharedPixiApp | null>(null);
   
   // Состояния автоспина
   const [isAutoSpin, setIsAutoSpin] = useState<boolean>(false);
@@ -487,91 +484,71 @@ const SlotGame: React.FC<SlotGameProps> = ({
     
     checkMobile();
   }, [theme.id]);
+  // Единый эффект для всех фоновых визуальных эффектов
+  // Использует SharedPixiApp — один PIXI.Application для всех эффектов,
+  // вместо того чтобы каждый эффект создавал свой WebGL контекст.
   useEffect(() => {
-    // Уничтожаем предыдущий эффект
-    if (sandEffectRef.current) {
-      sandEffectRef.current.destroy();
-      sandEffectRef.current = null;
-    }
-    
-    // Создаём эффект песка только для египетской темы
-    if (theme.id === 'egypt' && sandContainerRef.current) {
-      const sandEffect = new SandEffect({
-        particleCount: 120,
-        windDirection: 'right',
-        windSpeed: 1.5,        // Медленный, спокойный ветер
-        intensity: 0.6,        // Менее заметные частицы
-        gustEnabled: true,
-        gustInterval: 6000,    // Порывы реже
-      });
-      sandEffect.init(sandContainerRef.current);
-      sandEffectRef.current = sandEffect;
-      console.log('[SandEffect] Эффект песка инициализирован для египетской темы');
-    }
-    
-    return () => {
-      if (sandEffectRef.current) {
-        sandEffectRef.current.destroy();
-        sandEffectRef.current = null;
+    // Инициализируем SharedPixiApp (один WebGL контекст для всех эффектов)
+    if (!sharedPixiAppRef.current) {
+      const shared = SharedPixiApp.getInstance();
+      if (effectsContainerRef.current) {
+        shared.init(effectsContainerRef.current);
       }
-    };
-  }, [theme]);
-
-  // Эффект звёзд на небе (египетская тема)
-  useEffect(() => {
-    // Уничтожаем предыдущий эффект
-    if (starEffectRef.current) {
-      starEffectRef.current.destroy();
-      starEffectRef.current = null;
+      sharedPixiAppRef.current = shared;
     }
     
-    // Создаём эффект звёзд только для египетской темы
-    if (theme.id === 'egypt' && starContainerRef.current) {
-      // На мобильных чуть меньше звёзд для производительности
+    const context = {
+      stage: sharedPixiAppRef.current.stage,
+      ticker: sharedPixiAppRef.current.ticker,
+    };
+    
+    const activeEffects: { destroy: () => void }[] = [];
+    
+    // Создаём нужные эффекты в зависимости от темы
+    if (theme.id === 'egypt') {
+      // Эффект песка (египет)
+      const sandEffect = new SandEffect({
+        particleCount: 80,        // Уменьшили для мобильных
+        windDirection: 'right',
+        windSpeed: 1.5,
+        intensity: 0.6,
+        gustEnabled: true,
+        gustInterval: 6000,
+      });
+      sandEffect.initOnStage(context);
+      activeEffects.push(sandEffect);
+      
+      // Эффект звёзд (египет)
       const isMobile = isMobileDevice();
       const starEffect = new StarEffect({
-        starCount: isMobile ? 55 : 75,
+        starCount: isMobile ? 35 : 55,  // Уменьшили
       });
-      starEffect.init(starContainerRef.current);
-      starEffectRef.current = starEffect;
-      console.log('[StarEffect] Эффект звёзд инициализирован для египетской темы');
+      starEffect.initOnStage(context);
+      activeEffects.push(starEffect);
+    } else if (theme.id === 'aztec') {
+      // Эффект светлячков (ацтеки)
+      const isMobile = isMobileDevice();
+      const fireflyEffect = new FireflyEffect({
+        count: isMobile ? 10 : 25,  // Уменьшили
+      });
+      fireflyEffect.initOnStage(context);
+      activeEffects.push(fireflyEffect);
     }
     
     return () => {
-      if (starEffectRef.current) {
-        starEffectRef.current.destroy();
-        starEffectRef.current = null;
-      }
+      activeEffects.forEach(e => e.destroy());
     };
-  }, [theme]);
+  }, [theme.id]);
 
-  // Эффект светлячков для темы ацтеков
+// Очистка SharedPixiApp при размонтировании компонента
   useEffect(() => {
-    // Уничтожаем предыдущий эффект
-    if (fireflyEffectRef.current) {
-      fireflyEffectRef.current.destroy();
-      fireflyEffectRef.current = null;
-    }
-
-    // Создаём эффект светлячков только для темы ацтеков
-    if (theme.id === 'aztec' && fireflyContainerRef.current) {
-      const isMobile = isMobileDevice();
-      const fireflyEffect = new FireflyEffect({
-        count: isMobile ? 15 : 35,
-      });
-      fireflyEffect.init(fireflyContainerRef.current);
-      fireflyEffectRef.current = fireflyEffect;
-      console.log('[FireflyEffect] Эффект светлячков инициализирован для темы ацтеков');
-    }
-
     return () => {
-      if (fireflyEffectRef.current) {
-        fireflyEffectRef.current.destroy();
-        fireflyEffectRef.current = null;
+      if (sharedPixiAppRef.current) {
+        sharedPixiAppRef.current.destroy();
+        sharedPixiAppRef.current = null;
       }
     };
-  }, [theme]);
-
+  }, []);
   // Смена музыки в зависимости от темы
   useEffect(() => {
     const musicEl = musicRef.current;
@@ -1153,14 +1130,8 @@ const SlotGame: React.FC<SlotGameProps> = ({
 
   return (
     <div className="game-container">
-      {/* Контейнер для эффекта песка (египетская тема) */}
-      <div ref={sandContainerRef} className="sand-effect-container" />
-      
-      {/* Контейнер для эффекта звёзд на небе (египетская тема) */}
-      <div ref={starContainerRef} className="star-effect-container" />
-      
-      {/* Контейнер для эффекта светлячков (тема ацтеков) */}
-      <div ref={fireflyContainerRef} className="firefly-effect-container" />
+      {/* Единый контейнер для всех фоновых эффектов (песок, звёзды, светлячки) */}
+      <div ref={effectsContainerRef} className="effects-container" />
       
       {/* Аудио для звуков */}
       <audio ref={spinSoundRef} src="./assets/audio/start.mp3" preload="auto" />

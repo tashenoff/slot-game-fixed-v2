@@ -1391,9 +1391,9 @@ body.in-lobby {
     display: none !important;
   }
   
-  /* Скрываем FPS на мобильных */
+  /* Показываем FPS на мобильных */
   .navbar-fps {
-    display: none !important;
+    display: inline !important;
   }
   
   /* Скрываем кнопку истории на мобильных */
@@ -1702,9 +1702,9 @@ body.in-lobby {
     display: none !important;
   }
   
-  /* Скрываем FPS в ландшафтной ориентации */
+  /* Показываем FPS в ландшафтной ориентации */
   .navbar-fps {
-    display: none !important;
+    display: inline !important;
   }
   
   /* Скрываем кнопку истории */
@@ -1897,9 +1897,9 @@ body.in-lobby {
     display: none !important;
   }
   
-  /* Скрываем FPS */
+  /* Показываем FPS */
   .navbar-fps {
-    display: none !important;
+    display: inline !important;
   }
   
   /* Скрываем кнопку истории */

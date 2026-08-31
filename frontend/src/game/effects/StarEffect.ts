@@ -4,7 +4,7 @@ import * as PIXI from 'pixi.js';
  * Звезда на небе
  */
 interface Star {
-  graphic: PIXI.Graphics;
+  graphic: PIXI.Sprite;
   x: number;            // Нормализованная позиция по горизонтали (0..1)
   y: number;            // Нормализованная позиция по вертикали в области неба (0..1)
   baseAlpha: number;    // Базовая прозрачность
@@ -41,19 +41,27 @@ interface StarEffectOptions {
   meteorsEnabled?: boolean;  // Включить метеоры
 }
 
+interface SharedRenderContext {
+  stage: PIXI.Container;
+  ticker: PIXI.Ticker;
+}
+
 /**
  * StarEffect - эффект мерцающих звёзд на небе для египетской темы.
- * Звёзды располагаются в верхней части экрана (зона неба), имеют мягкий
- * ореол и плавно, слегка мерцают, не отвлекая от игрового интерфейса.
+ * Оптимизирован: использует PIXI.Sprite с текстурой для звёзд.
+ * Может работать на shared PIXI.Application.
  */
 export class StarEffect {
-  private app: PIXI.Application;
+  private app: PIXI.Application | null = null;
+  private parentContainer: PIXI.Container | null = null;
   private stars: Star[] = [];
   private meteor: Meteor;
   private container: HTMLElement | null = null;
   private running = false;
   private time = 0;
-  private meteorTimer: ReturnType<typeof setTimeout> | null = null;
+  private meteorTimer: ReturnType<typeof setTimeout> | null = null;  
+
+  private starTexture: PIXI.Texture | null = null;
 
   private options: Required<StarEffectOptions> = {
     starCount: 75,
@@ -67,19 +75,6 @@ export class StarEffect {
 
   constructor(options?: StarEffectOptions) {
     if (options) this.options = { ...this.options, ...options };
-
-    this.app = new PIXI.Application({
-      resizeTo: window,
-      backgroundAlpha: 0,
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-    });
-
-    // Ограничиваем FPS на мобильных для экономии GPU
-    if (typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-      this.app.ticker.maxFPS = 30;
-    }
 
     // Инициализация метеора (неактивен)
     const meteorGraphic = new PIXI.Graphics();
@@ -99,8 +94,43 @@ export class StarEffect {
     };
   }
 
+  /**
+   * Инициализация на shared PIXI.Application (один WebGL контекст)
+   */
+  initOnStage(context: SharedRenderContext): void {
+    this.parentContainer = context.stage;
+
+    this.createStarTexture();
+    this.createStars();
+    this.parentContainer.addChild(this.meteor.graphic);
+    this.running = true;
+    context.ticker.add((delta) => this.update(delta));
+
+    if (this.options.meteorsEnabled) {
+      this.scheduleMeteor(3000 + Math.random() * 5000);
+    }
+  }
+
+  /**
+   * Оригинальная инициализация (создаёт свой PIXI.Application)
+   * Для обратной совместимости
+   */
   init(el: HTMLElement) {
     this.container = el;
+    
+    this.app = new PIXI.Application({
+      resizeTo: window,
+      backgroundAlpha: 0,
+      antialias: false,
+      resolution: 1,
+      autoDensity: true,
+      powerPreference: 'low-power',
+    });
+
+    if (typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      this.app.ticker.maxFPS = 30;
+    }
+
     const canvas = this.app.view as HTMLCanvasElement;
     canvas.style.position = 'fixed';
     canvas.style.top = '0';
@@ -111,19 +141,38 @@ export class StarEffect {
     canvas.style.zIndex = '1';
 
     el.appendChild(canvas);
+    this.parentContainer = this.app.stage;
+    this.createStarTexture();
     this.createStars();
-    // Кэшируем статичные звезды (они не меняют форму, только alpha)
-    for (const star of this.stars) {
-      star.graphic.cacheAsBitmap = true;
-    }
     this.app.stage.addChild(this.meteor.graphic);
     this.running = true;
     this.app.ticker.add((delta) => this.update(delta));
 
-    // Запланировать первый метеор через случайный интервал
     if (this.options.meteorsEnabled) {
       this.scheduleMeteor(5000 + Math.random() * 8000);
     }
+  }
+
+  private createStarTexture(): void {
+    const maxR = this.options.maxRadius * 4;
+    const size = Math.ceil(maxR * 2);
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const cx = size / 2;
+    const cy = size / 2;
+    
+    // Мягкая круглая точка с ореолом
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, cx);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.3, 'rgba(255,255,255,0.85)');
+    gradient.addColorStop(0.7, 'rgba(255,255,255,0.2)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    
+    this.starTexture = PIXI.Texture.from(canvas);
   }
 
   private createStars() {
@@ -160,7 +209,7 @@ export class StarEffect {
       graphic.alpha = baseAlpha;
 
       const star: Star = {
-        graphic,
+        graphic: new PIXI.Sprite(this.starTexture!),
         // Меньше звёзд в нижней части неба - лёгкий градиент вверх
         x: Math.random(),
         y: Math.pow(Math.random(), 1.15),
@@ -171,11 +220,15 @@ export class StarEffect {
       };
 
       // Стартовая позиция
-      graphic.x = star.x * width;
-      graphic.y = star.y * skyHeight;
+      star.graphic.anchor.set(0.5);
+      star.graphic.tint = color;
+      star.graphic.scale.set(radius / (this.options.maxRadius * 2));
+      star.graphic.alpha = baseAlpha;
+      star.graphic.x = star.x * width;
+      star.graphic.y = star.y * skyHeight;
 
       this.stars.push(star);
-      this.app.stage.addChild(graphic);
+      this.parentContainer!.addChild(star.graphic);
     }
   }
 
@@ -338,10 +391,16 @@ export class StarEffect {
   destroy() {
     this.running = false;
     if (this.meteorTimer) clearTimeout(this.meteorTimer);
-    this.app.ticker.remove(this.update);
+    if (this.app) {
+      this.app.ticker.remove(this.update);
+      this.app.destroy(true, { children: true, texture: true, baseTexture: true });
+      this.app = null;
+    }
     this.stars.forEach((s) => s.graphic.destroy({ children: true }));
     this.stars = [];
     this.meteor.graphic.destroy();
-    this.app.destroy(true, { children: true, texture: true, baseTexture: true });
+    this.starTexture?.destroy(true);
+    this.starTexture = null;
+    this.parentContainer = null;
   }
 }
