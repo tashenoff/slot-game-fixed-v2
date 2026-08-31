@@ -25,7 +25,8 @@ def load_config():
                 "C": {"weight": 3, "payout": {"3": 3, "4": 6, "5": 10}},
                 "D": {"weight": 4, "payout": {"3": 2, "4": 4, "5": 8}},
                 "E": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}},
-                "F": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}}
+                "F": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}},
+                "G": {"weight": 1, "payout": {}}
             },
             "paylines": [
                 # Горизонтальные линии (центр, верх, низ)
@@ -37,7 +38,13 @@ def load_config():
                 # Λ-образная линия
                 [{"row": 2, "col": 0}, {"row": 1, "col": 1}, {"row": 0, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 4}]
             ],
-            "rtp_target": 0.95  # Целевой RTP (Return to Player)
+            "rtp_target": 0.95,  # Целевой RTP (Return to Player)
+            "bonus_dice": {
+                "symbol": "G",
+                "trigger_count": 3,
+                "levels": [],
+                "dice": []
+            }
         }
         with open(config_path, 'w') as f:
             json.dump(default_config, f, indent=2)
@@ -78,13 +85,16 @@ def generate_random_symbol(col=None, is_free_spin=False):
     return random.choices(list(symbols.keys()), probabilities)[0]
 
 # Генерация матрицы результатов спина
-def generate_spin_result(test_mode=False, is_free_spin=False):
+def generate_spin_result(test_mode=False, is_free_spin=False, test_bonus=False):
     result = []
     for row in range(3):
         result_row = []
         for col in range(5):
+            # В тестовом режиме бонуса — гарантируем 3 бонусных символа на барабанах 0,1,2
+            if test_bonus and col < 3 and row == 1:  # Средний ряд, колонки 0,1,2
+                result_row.append(config.get("bonus_dice", {}).get("symbol", "G"))
             # В тестовом режиме — гарантируем 3 Scatter на барабанах 0,1,2
-            if test_mode and col < 3 and row == 1:  # Средний ряд, колонки 0,1,2
+            elif test_mode and col < 3 and row == 1:  # Средний ряд, колонки 0,1,2
                 result_row.append(config.get("scatter_symbol", "S"))
             else:
                 # Передаём колонку и флаг фриспина
@@ -145,6 +155,149 @@ def check_winlines(matrix):
     
     return {"wins": wins, "total_win": total_win}
 
+# ============== БОНУСНАЯ ИГРА DICE LADDER ==============
+# Грани кубика:
+#   coin    🪙  — подъём на +1 ступень (множитель растёт)
+#   diamond 💎  — безопасный шаг (остаёмся на месте, выигрыш не теряется)
+#   fire    🔥  — сразу +2 ступени
+#   skull   💀  — проигрыш бонуса (весь выигрыш сгорает)
+
+DICE_FACE_STEPS = {
+    "coin": 1,
+    "diamond": 0,
+    "fire": 2,
+    "skull": 0,
+}
+
+def check_bonus(matrix):
+    """Проверка бонусного символа (по всей матрице, как scatter)"""
+    bonus_config = config.get("bonus_dice", {})
+    bonus_symbol = bonus_config.get("symbol", "G")
+    trigger_count = bonus_config.get("trigger_count", 3)
+    count = sum(1 for row in matrix for sym in row if sym == bonus_symbol)
+    return {
+        "g_count": count,
+        "triggered": count >= trigger_count,
+        "trigger_count": trigger_count,
+    }
+
+def get_bonus_levels():
+    """Список ступеней бонусной лестницы"""
+    return config.get("bonus_dice", {}).get("levels", [])
+
+def get_bonus_multiplier(level):
+    """Множитель для заданной ступени"""
+    for entry in get_bonus_levels():
+        if int(entry.get("level")) == int(level):
+            return int(entry.get("multiplier", 0))
+    return 0
+
+def get_bonus_max_level():
+    """Максимальная ступень (вершина лестницы)"""
+    levels = get_bonus_levels()
+    return max((int(l["level"]) for l in levels), default=0)
+
+def get_dice_faces(level):
+    """Список граней кубика для текущей ступени (по весам из конфига)"""
+    dice_cfg = config.get("bonus_dice", {}).get("dice", [])
+    entry = next((d for d in dice_cfg if int(d.get("level")) == int(level)), None)
+    if entry is None and dice_cfg:
+        # Для уровня 0 (старт) и неизвестных уровней используем самую лёгкую запись
+        entry = dice_cfg[0]
+    faces_cfg = entry.get("faces", {}) if entry else {"coin": 2, "diamond": 2, "fire": 1, "skull": 1}
+    faces = []
+    for face, count in faces_cfg.items():
+        faces.extend([face] * int(count))
+    if not faces:
+        faces = ["coin", "coin", "diamond", "diamond", "fire", "skull"]
+    return faces
+
+@app.route('/api/bonus_dice/roll', methods=['POST'])
+@require_auth
+def bonus_dice_roll(user_id: int):
+    """Бросок кубика в бонусной игре Dice Ladder"""
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'Пользователь не найден'}), 404
+
+    data = request.get_json() or {}
+    bet = int(data.get('bet', 0))
+    level = int(data.get('level', 0))
+    force_face = data.get('force_face')  # для тестирования
+
+    max_level = get_bonus_max_level()
+    if bet <= 0:
+        return jsonify({'error': 'Неверная ставка'}), 400
+    if level < 0 or level > max_level:
+        return jsonify({'error': 'Неверный уровень'}), 400
+
+    # Выбираем грань (test-режим позволяет форсировать результат)
+    valid_faces = ("coin", "diamond", "fire", "skull")
+    if force_face in valid_faces:
+        face = force_face
+    else:
+        face = random.choice(get_dice_faces(level))
+
+    # Считаем новую ступень
+    steps = DICE_FACE_STEPS.get(face, 0)
+    new_level = min(level + steps, max_level)
+    reached_top = new_level >= max_level and level < max_level
+    game_over = face == "skull" or reached_top
+
+    multiplier = get_bonus_multiplier(new_level)
+    # При 💀 выигрыш сгорает, при остальных гранях — выигрыш = ставка × множитель ступени
+    win_amount = bet * multiplier if face != "skull" else 0
+
+    balance = user['balance']
+    # При достижении вершины — автоматический кэшаут (баланс начисляется сразу)
+    if reached_top and win_amount > 0:
+        balance += win_amount
+        update_user_balance(user_id, balance)
+        print(f"[BONUS] user_id={user_id} достиг вершины лестницы, выигрыш={win_amount}, balance={balance}")
+
+    return jsonify({
+        'face': face,
+        'new_level': new_level,
+        'win_amount': win_amount,
+        'game_over': game_over,
+        'reached_top': reached_top,
+        'balance': balance,
+        'levels': get_bonus_levels(),
+        'multiplier': multiplier,
+    })
+
+
+@app.route('/api/bonus_dice/cashout', methods=['POST'])
+@require_auth
+def bonus_dice_cashout(user_id: int):
+    """Забрать текущий выигрыш в бонусной игре Dice Ladder"""
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'Пользователь не найден'}), 404
+
+    data = request.get_json() or {}
+    bet = int(data.get('bet', 0))
+    level = int(data.get('level', 0))
+
+    if level <= 0:
+        return jsonify({'error': 'Нет выигрыша для забора'}), 400
+
+    multiplier = get_bonus_multiplier(level)
+    win_amount = bet * multiplier
+    if win_amount <= 0:
+        return jsonify({'error': 'Нет выигрыша для забора'}), 400
+
+    balance = user['balance'] + win_amount
+    update_user_balance(user_id, balance)
+    print(f"[BONUS] user_id={user_id} забрал выигрыш на ступени {level} (x{multiplier}) = {win_amount}, balance={balance}")
+
+    return jsonify({
+        'win_amount': win_amount,
+        'balance': balance,
+        'level': level,
+        'multiplier': multiplier,
+    })
+
 # ============== АВТОРИЗАЦИЯ ==============
 
 @app.route('/api/auth', methods=['POST'])
@@ -195,6 +348,7 @@ def spin(user_id: int):
     is_free_spin = data.get('is_free_spin', False)
     free_spins_remaining = data.get('free_spins_remaining', 0)
     test_mode = data.get('test_free_spins', False)  # Тестовый режим для гарантированного фриспина
+    test_bonus = data.get('test_bonus', False)  # Тестовый режим для гарантированного бонуса
     
     free_spins_config = config.get("free_spins", {})
     fs_multiplier = free_spins_config.get("multiplier", 2)
@@ -209,7 +363,7 @@ def spin(user_id: int):
         balance = user['balance']
     
     # Генерируем результат спина (с улучшенными весами для фриспинов)
-    matrix = generate_spin_result(test_mode=test_mode, is_free_spin=is_free_spin)
+    matrix = generate_spin_result(test_mode=test_mode, is_free_spin=is_free_spin, test_bonus=test_bonus)
     
     # Проверяем регулярные выигрышные линии
     win_result = check_winlines(matrix)
@@ -224,6 +378,9 @@ def spin(user_id: int):
     # Проверяем Scatter (триггер фриспинов)
     scatter_result = check_scatter(matrix)
     free_spins_triggered = 0
+
+    # Проверяем бонусный символ (триггер Dice Ladder)
+    bonus_result = check_bonus(matrix)
     
     if scatter_result["triggered"]:
         # Если фриспины уже активны — это ре-триггер
@@ -272,7 +429,10 @@ def spin(user_id: int):
         'free_spins_triggered': free_spins_triggered,
         'free_spins_remaining': free_spins_remaining_new,
         'free_spins_multiplier': fs_multiplier if is_free_spin else 1,
-        'scatter_count': scatter_result["scatter_count"]
+        'scatter_count': scatter_result["scatter_count"],
+        'bonus_triggered': bonus_result["triggered"],
+        'bonus_symbol_count': bonus_result["g_count"],
+        'bonus_levels': get_bonus_levels()
     })
 
 

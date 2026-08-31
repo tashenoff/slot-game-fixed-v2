@@ -6,7 +6,8 @@
     "D": {"weight": 4, "payout": {"3": 2, "4": 4, "5": 8}},
     "E": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}},
     "F": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}},
-    "S": {"weight": 1, "payout": {"3": 3, "4": 8, "5": 15}}
+    "S": {"weight": 1, "payout": {"3": 3, "4": 8, "5": 15}},
+    "G": {"weight": 1, "payout": {}}
   },
   "scatter_symbol": "S",
   "free_spins": {
@@ -24,6 +25,34 @@
     "E": 5,
     "F": 5,
     "S": 1
+  },
+  "bonus_dice": {
+    "symbol": "G",
+    "trigger_count": 3,
+    "levels": [
+      {"level": 1, "multiplier": 2},
+      {"level": 2, "multiplier": 4},
+      {"level": 3, "multiplier": 6},
+      {"level": 4, "multiplier": 10},
+      {"level": 5, "multiplier": 15},
+      {"level": 6, "multiplier": 20},
+      {"level": 7, "multiplier": 30},
+      {"level": 8, "multiplier": 40},
+      {"level": 9, "multiplier": 60},
+      {"level": 10, "multiplier": 100}
+    ],
+    "dice": [
+      {"level": 1, "faces": {"coin": 2, "diamond": 2, "fire": 1, "skull": 1}},
+      {"level": 2, "faces": {"coin": 2, "diamond": 2, "fire": 1, "skull": 1}},
+      {"level": 3, "faces": {"coin": 2, "diamond": 2, "fire": 1, "skull": 1}},
+      {"level": 4, "faces": {"coin": 2, "diamond": 1, "fire": 1, "skull": 2}},
+      {"level": 5, "faces": {"coin": 2, "diamond": 1, "fire": 1, "skull": 2}},
+      {"level": 6, "faces": {"coin": 2, "diamond": 1, "fire": 1, "skull": 2}},
+      {"level": 7, "faces": {"coin": 1, "diamond": 1, "fire": 1, "skull": 3}},
+      {"level": 8, "faces": {"coin": 1, "diamond": 1, "fire": 1, "skull": 3}},
+      {"level": 9, "faces": {"coin": 1, "diamond": 1, "fire": 1, "skull": 3}},
+      {"level": 10, "faces": {"coin": 0, "diamond": 0, "fire": 0, "skull": 0}}
+    ]
   },
   "paylines": [
     [{"row": 1, "col": 0}, {"row": 1, "col": 1}, {"row": 1, "col": 2}, {"row": 1, "col": 3}, {"row": 1, "col": 4}],

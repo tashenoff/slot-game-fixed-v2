@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
-import { SpinResult, Stats } from '../types';
+import { SpinResult, Stats, DiceFace, DiceRollResult, DiceCashoutResult } from '../types';
 
 // URL API — задаётся через переменную окружения VITE_API_URL
 // См. .env и .env.production
@@ -83,19 +83,21 @@ export const fetchBalance = async (): Promise<number> => {
   }
 };
 
-// Выполнение одиночного спина (поддерживает фриспины)
+// Выполнение одиночного спина (поддерживает фриспины и тестовый бонус)
 export const spin = async (
   bet: number,
   freeSpinsRemaining: number = 0,
   isFreeSpin: boolean = false,
-  testFreeSpins: boolean = false
+  testFreeSpins: boolean = false,
+  testBonus: boolean = false
 ): Promise<SpinResult> => {
   try {
     const response = await api.post('/spin', {
       bet,
       free_spins_remaining: freeSpinsRemaining,
       is_free_spin: isFreeSpin,
-      test_free_spins: testFreeSpins
+      test_free_spins: testFreeSpins,
+      test_bonus: testBonus
     });
     return response.data;
   } catch (error) {
@@ -133,6 +135,38 @@ export const claimAdReward = async (): Promise<{ balance: number; reward: number
     return response.data;
   } catch (error) {
     console.error('Error claiming ad reward:', error);
+    throw error;
+  }
+};
+
+// ============== БОНУСНАЯ ИГРА DICE LADDER ==============
+
+// Бросок кубика (forceFace — только для тестирования)
+export const rollDice = async (
+  bet: number,
+  level: number,
+  forceFace?: DiceFace
+): Promise<DiceRollResult> => {
+  try {
+    const response = await api.post('/bonus_dice/roll', {
+      bet,
+      level,
+      force_face: forceFace,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error rolling bonus dice:', error);
+    throw error;
+  }
+};
+
+// Забрать выигрыш
+export const cashoutDice = async (bet: number, level: number): Promise<DiceCashoutResult> => {
+  try {
+    const response = await api.post('/bonus_dice/cashout', { bet, level });
+    return response.data;
+  } catch (error) {
+    console.error('Error cashing out bonus dice:', error);
     throw error;
   }
 };

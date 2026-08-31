@@ -284,8 +284,8 @@ function getAssetDisplayName(url: string): string {
     'preview': 'Превью',
   };
   
-  // Если это символ (a, b, c, d, e, f)
-  if (/^[a-f]$/i.test(name)) {
+  // Если это символ (a, b, c, d, e, f, g)
+  if (/^[a-g]$/i.test(name)) {
     return `Символ ${name.toUpperCase()}`;
   }
   

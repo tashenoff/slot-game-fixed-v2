@@ -3,8 +3,9 @@ import { SlotMachine } from '../game/SlotMachine';
 import Navbar from './Navbar';
 import Modal from './Modal';
 import LowBalanceModal from './LowBalanceModal';
+import DiceLadder from './DiceLadder';
 import * as API from '../api';
-import { Stats } from '../types';
+import { Stats, DiceLevel } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
 import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath, isMobileDevice, isAppleMobileDevice, isRunningStandalone } from '../config/themes';
 import { SharedPixiApp } from '../game/core';
@@ -69,6 +70,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const [autoSpinCount, setAutoSpinCount] = useState<number>(0);
   const [showAutoSpinMenu, setShowAutoSpinMenu] = useState<boolean>(false);
   const autoSpinRef = useRef<boolean>(false); // Для отслеживания состояния автоспина в колбэках
+  const testBonusRef = useRef<boolean>(false); // Флаг для тестового бонуса Dice Ladder
   const betRef = useRef<number>(bet); // Для хранения текущей ставки в колбэках
   
   // Состояния фриспинов
@@ -84,6 +86,16 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const freeSpinsTriggerPendingRef = useRef<boolean>(false); // Для отслеживания ожидания нотификации
   const freeSpinsResultRef = useRef<boolean>(false); // Блокировка спинов во время модалки результатов
   const freeSpinsRemainingRef = useRef<number>(0); // Для хранения фриспинов в колбэках
+  // Состояния бонусной игры Dice Ladder
+  const [showBonusNotification, setShowBonusNotification] = useState<boolean>(false);
+  const [bonusTriggeredCount, setBonusTriggeredCount] = useState<number>(3);
+  const [showDiceLadder, setShowDiceLadder] = useState<boolean>(false);
+  const [diceLadderData, setDiceLadderData] = useState<{
+    bet: number;
+    balance: number;
+    levels: DiceLevel[];
+  } | null>(null);
+  const bonusPausedFreeSpinsRef = useRef<number>(0); // Сколько фриспинов осталось при входе в бонус
   const [showMobileWinModal, setShowMobileWinModal] = useState<boolean>(false);
   const [mobileWinData, setMobileWinData] = useState<{ symbol: string; amount: number; count: number; rarity: string; rarityColor: string } | null>(null);
   const mobileWinModalBlockRef = useRef<boolean>(false); // Блокировка автоспина/фриспинов пока висит модалка
@@ -744,6 +756,11 @@ const SlotGame: React.FC<SlotGameProps> = ({
       console.log('[Spin] Модалка выигрыша активна, спин заблокирован');
       return;
     }
+    // Если активна бонусная игра Dice Ladder
+    if (showBonusNotification || showDiceLadder) {
+      console.log('[Spin] Бонусная игра активна, спин заблокирован');
+      return;
+    }
 
     // Используем актуальные значения из refs для автоспина
     const currentBalance = isFromAutoSpin ? balanceRef.current : balanceRef.current;
@@ -786,7 +803,8 @@ const SlotGame: React.FC<SlotGameProps> = ({
 
     try {
       // Запрашиваем результат спина с сервера
-      const result = await API.spin(currentBet, currentFreeSpinsRemaining, currentIsFreeSpin);
+      const result = await API.spin(currentBet, currentFreeSpinsRemaining, currentIsFreeSpin, false, testBonusRef.current);
+      testBonusRef.current = false; // Сбрасываем флаг после спина
       
       // Только после ответа сервера — блокируем UI визуально
       setIsSpinning(true);
@@ -799,7 +817,64 @@ const SlotGame: React.FC<SlotGameProps> = ({
       // Запускаем анимацию вращения — НЕМЕДЛЕННО, без лишних setState
       slotMachine.spin((spinResult) => {
         // ====== ВСЁ, ЧТО ПОСЛЕ АНИМАЦИИ ======
-        
+
+        // === БОНУСНАЯ ИГРА DICE LADDER ===
+        // Выпало 3+ символа G — запускаем бонус вместо обычной логики фриспинов/автоспина
+        if (spinResult.bonus_triggered) {
+          // Записываем в историю
+          spinCounterRef.current += 1;
+          setSpinHistory(prev => [...prev, {
+            spinNumber: spinCounterRef.current,
+            bet: currentBet,
+            win: spinResult.win_amount,
+            balanceBefore: balanceBefore,
+            balanceAfter: spinResult.balance,
+          }]);
+          // Обновляем баланс и выигрыш (обычные линии на спин-триггере тоже платятся)
+          updateBalance(spinResult.balance);
+          setWinAmount(spinResult.win_amount);
+          if (spinResult.is_free_spin && spinResult.win_amount > 0) {
+            freeSpinsTotalWinRef.current += spinResult.win_amount;
+          }
+
+          // Останавливаем звук вращения барабанов
+          if (barabanSoundRef.current) {
+            barabanSoundRef.current.pause();
+            barabanSoundRef.current.currentTime = 0;
+          }
+
+          // Останавливаем автоспин и таймеры
+          if (autoSpinRef.current) {
+            stopAutoSpin();
+          }
+          if (freeSpinTimerRef.current) {
+            clearTimeout(freeSpinTimerRef.current);
+            freeSpinTimerRef.current = null;
+          }
+          // Если бонус сработал во время фриспинов — запоминаем остаток
+          if (spinResult.is_free_spin) {
+            freeSpinsRemainingRef.current = spinResult.free_spins_remaining;
+            bonusPausedFreeSpinsRef.current = spinResult.free_spins_remaining;
+          } else {
+            bonusPausedFreeSpinsRef.current = 0;
+          }
+
+          // Разблокируем UI
+          setIsSpinning(false);
+          isSpinningRef.current = false;
+          slotMachine.clear();
+
+          // Открываем уведомление о бонусе
+          setBonusTriggeredCount(spinResult.bonus_symbol_count ?? 3);
+          setDiceLadderData({
+            bet: currentBet,
+            balance: spinResult.balance,
+            levels: spinResult.bonus_levels ?? [],
+          });
+          setShowBonusNotification(true);
+          return;
+        }
+
         // Обрабатываем фриспины
         if (result.free_spins_triggered > 0) {
           // Активированы фриспины!
@@ -1018,7 +1093,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         stopAutoSpin();
       }
     }
-  }, [slotMachine, stopAutoSpin, startMusicOnSpin, scheduleMusicFade]);
+  }, [slotMachine, stopAutoSpin, startMusicOnSpin, scheduleMusicFade, showBonusNotification, showDiceLadder]);
 
   // Запуск автоспина
   const startAutoSpin = useCallback((count: number) => {
@@ -1036,6 +1111,27 @@ const SlotGame: React.FC<SlotGameProps> = ({
     // Запускаем первый спин
     handleSpin(true);
   }, [isSpinning, balance, bet, handleSpin]);
+
+  // Закрытие бонусной игры (обновление баланса и продолжение)
+  const handleDiceLadderClose = useCallback((result: { win: number; balance: number }) => {
+    setShowDiceLadder(false);
+    setDiceLadderData(null);
+    setShowBonusNotification(false);
+    updateBalance(result.balance);
+    setWinAmount(result.win);
+    scheduleMusicFade();
+
+    // Если бонус прервал фриспины — продолжаем их
+    if (bonusPausedFreeSpinsRef.current > 0) {
+      const remaining = bonusPausedFreeSpinsRef.current;
+      bonusPausedFreeSpinsRef.current = 0;
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          handleSpin(false);
+        }
+      }, 1200);
+    }
+  }, [handleSpin, updateBalance, scheduleMusicFade]);
 
   // Переключение меню автоспина
   const toggleAutoSpinMenu = useCallback(() => {
@@ -1211,6 +1307,37 @@ const SlotGame: React.FC<SlotGameProps> = ({
               </button>
             </div>
           </div>
+        )}
+
+        {/* Уведомление о активации бонусной игры Dice Ladder */}
+        {showBonusNotification && (
+          <div className="free-spins-overlay">
+            <div className="free-spins-notification">
+              <div className="free-spins-icon">🎁</div>
+              <h2 className="free-spins-title">БОНУС! ЛЕСТНИЦА УДАЧИ</h2>
+              <div className="free-spins-count-big">x{bonusTriggeredCount} 🎲</div>
+              <p className="free-spins-subtitle">Бесплатная бонусная игра</p>
+              <button
+                className="free-spins-start-btn"
+                onClick={() => {
+                  setShowBonusNotification(false);
+                  setShowDiceLadder(true);
+                }}
+              >
+                ИГРАТЬ
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Бонусная игра Dice Ladder */}
+        {showDiceLadder && diceLadderData && (
+          <DiceLadder
+            bet={diceLadderData.bet}
+            balance={diceLadderData.balance}
+            levels={diceLadderData.levels}
+            onClose={handleDiceLadderClose}
+          />
         )}
 
         {/* Панель фриспинов (счётчик) */}
@@ -1418,6 +1545,19 @@ const SlotGame: React.FC<SlotGameProps> = ({
             </div>
           )}
         </div>
+
+        {/* Кнопка тестового бонуса Dice Ladder (следующий спин гарантированно активирует бонус) */}
+        <button
+          className="control-btn bonus-test-btn"
+          onClick={() => {
+            testBonusRef.current = true;
+            handleSpin(false); // сразу запускаем спин
+          }}
+          disabled={isSpinning || isAutoSpin || balance < bet}
+          title="🎲 Test Bonus — следующий спин с бонусом"
+        >
+          🎲
+        </button>
 </div>
       </div>
       

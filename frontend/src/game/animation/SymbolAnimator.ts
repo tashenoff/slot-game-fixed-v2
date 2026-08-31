@@ -1,10 +1,16 @@
 import * as PIXI from 'pixi.js';
+import gsap from 'gsap';
 import { SlotConfig } from '../config/SlotConfig';
 import { ReelManager } from '../core/ReelManager';
 import { SymbolFactory } from '../core/SymbolFactory';
 
 /**
  * SymbolAnimator - анимация символов (масштабирование, затемнение, рамки редкости)
+ * 
+ * Переписано на GSAP: ручной requestAnimationFrame + easing → gsap.to()
+ * - Пульсация:   ~35 строк → 1 вызов gsap.to с yoyo
+ * - Каскад:      ~50 строк → gsap timeline со stagger
+ * - Easing:      ручной easeOutQuad/easeInQuad → встроенные power2.out / back.out
  */
 export class SymbolAnimator {
   private config: SlotConfig;
@@ -12,7 +18,6 @@ export class SymbolAnimator {
   private symbolFactory: SymbolFactory;
   private originalScales: Map<PIXI.Sprite, number> = new Map();
   private dimmedSymbols: Set<PIXI.Sprite> = new Set();
-  private activeAnimations: Set<number> = new Set();
   private cascadeState: {
     startTime: number;
     delay: number;
@@ -28,6 +33,8 @@ export class SymbolAnimator {
 
   /**
    * Анимация масштабирования выигрышного символа
+   * Раньше: ~35 строк с performance.now() + requestAnimationFrame + ручной easing
+   * Сейчас: 1 вызов gsap.to с yoyo
    */
   animateWinSymbol(col: number, row: number): void {
     const sprite = this.reelManager.getSymbol(col, row);
@@ -39,39 +46,23 @@ export class SymbolAnimator {
 
     const originalScale = this.originalScales.get(sprite)!;
     const targetScale = originalScale * this.config.animation.winSymbolScale;
-    const duration = this.config.animation.winAnimationDuration;
+    const duration = this.config.animation.winAnimationDuration / 1000; // ms → seconds для GSAP
 
-    this.smoothScaleAnimation(sprite, targetScale, originalScale, duration);
-  }
+    // Убиваем предыдущую анимацию на этом scale, если была
+    gsap.killTweensOf(sprite.scale);
 
-  private smoothScaleAnimation(sprite: PIXI.Sprite, peakScale: number, originalScale: number, totalDuration: number): void {
-    const startTime = performance.now();
-    const halfDuration = totalDuration / 2;
-    const animId = Math.random();
-    this.activeAnimations.add(animId);
-
-    const animate = (currentTime: number) => {
-      if (!this.activeAnimations.has(animId)) return;
-
-      const elapsed = currentTime - startTime;
-
-      if (elapsed < halfDuration) {
-        const progress = elapsed / halfDuration;
-        const eased = 1 - (1 - progress) * (1 - progress);
-        sprite.scale.set(originalScale + (peakScale - originalScale) * eased);
-        requestAnimationFrame(animate);
-      } else if (elapsed < totalDuration) {
-        const progress = (elapsed - halfDuration) / halfDuration;
-        const eased = progress * progress;
-        sprite.scale.set(peakScale - (peakScale - originalScale) * eased);
-        requestAnimationFrame(animate);
-      } else {
+    // GSAP: scale → target → обратно с power2.out (плавный старт/финиш)
+    gsap.to(sprite.scale, {
+      x: targetScale,
+      y: targetScale,
+      duration: duration / 2,
+      ease: 'power2.out',
+      yoyo: true,
+      repeat: 1,
+      onComplete: () => {
         sprite.scale.set(originalScale);
-        this.activeAnimations.delete(animId);
       }
-    };
-
-    requestAnimationFrame(animate);
+    });
   }
 
   /**
@@ -107,12 +98,12 @@ export class SymbolAnimator {
    */
   cascadeHighlight(winPositions: Set<string>): void {
     const { cols, rows } = this.config.dimensions;
-    const cascadeDelay = 150; // мс между подсветкой символов
+    const cascadeDelay = 0.08; // секунды между подсветкой символов (80ms)
     const nonWinAlpha = this.config.visual.nonWinAlpha;
 
     // Останавливаем предыдущий каскад, если был
     if (this.cascadeState) {
-      cancelAnimationFrame(this.cascadeState.animFrame);
+      this.cascadeState.queue.forEach(item => gsap.killTweensOf(item.sprite));
       this.cascadeState = null;
     }
 
@@ -140,33 +131,28 @@ export class SymbolAnimator {
 
     if (queue.length === 0) return;
 
-    // 3. Единый анимационный цикл вместо множества setTimeout
-    let currentIndex = 0;
-    const startTime = performance.now();
-
-    const animate = (now: number) => {
-      const elapsed = now - startTime;
-      const targetIndex = Math.min(Math.floor(elapsed / cascadeDelay), queue.length - 1);
-
-      // Подсвечиваем все символы до targetIndex включительно
-      while (currentIndex <= targetIndex && currentIndex < queue.length) {
-        const item = queue[currentIndex];
-        item.sprite.alpha = 1.0;
+    // 3. GSAP Timeline: каскадная подсветка со stagger
+    // Вместо ручного requestAnimationFrame цикла
+    const tl = gsap.timeline();
+    queue.forEach((item, i) => {
+      tl.to(item.sprite, {
+        alpha: 1.0,
+        duration: 0.15,
+        ease: 'power2.out',
+      }, i * cascadeDelay)
+      .call(() => {
         this.dimmedSymbols.delete(item.sprite);
         this.animateWinSymbol(item.col, item.row);
-        currentIndex++;
-      }
+      }, [], `-=${0.05}`);
+    });
 
-      // Продолжаем, пока не подсветим все
-      if (currentIndex < queue.length) {
-        this.cascadeState!.animFrame = requestAnimationFrame(animate);
-      } else {
-        this.cascadeState = null;
-      }
+    // Сохраняем для возможности отмены
+    this.cascadeState = {
+      startTime: performance.now(),
+      delay: cascadeDelay * 1000,
+      queue,
+      animFrame: 0
     };
-
-    this.cascadeState = { startTime, delay: cascadeDelay, queue, animFrame: 0 };
-    this.cascadeState.animFrame = requestAnimationFrame(animate);
   }
 
   /**
@@ -218,15 +204,19 @@ export class SymbolAnimator {
    * Сбросить все анимации и рамки
    */
   reset(): void {
-    // Останавливаем каскадную анимацию
+    // Убиваем все GSAP-анимации на scale (animateWinSymbol)
+    this.originalScales.forEach((scale, sprite) => {
+      gsap.killTweensOf(sprite.scale);
+      sprite.scale.set(scale);
+    });
+    this.originalScales.clear();
+
+    // Убиваем каскадную анимацию
     if (this.cascadeState) {
-      cancelAnimationFrame(this.cascadeState.animFrame);
+      this.cascadeState.queue.forEach(item => gsap.killTweensOf(item.sprite));
       this.cascadeState = null;
     }
 
-    this.activeAnimations.clear();
-    this.originalScales.forEach((scale, sprite) => { sprite.scale.set(scale); });
-    this.originalScales.clear();
     this.resetSymbolsAlpha();
     this.clearAllBorders();
   }
