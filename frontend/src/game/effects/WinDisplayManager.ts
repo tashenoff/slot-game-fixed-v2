@@ -4,9 +4,13 @@ import { ReelManager } from '../core/ReelManager';
 import { SymbolAnimator } from '../animation/SymbolAnimator';
 import { WinLineManager } from '../WinLine';
 import { ShineEffectManager } from '../ShineEffect';
+import { LightningManager } from './LightningEffect';
 import { Win } from '../../types';
 
 const LINE_THEMES: ('gold' | 'red' | 'green' | 'blue' | 'purple')[] = ['gold', 'red', 'green', 'blue', 'purple'];
+
+/** Символы-камни, для которых показывается электрический разряд вместо обычной линии */
+const STONE_SYMBOLS = new Set(['A', 'B', 'C', 'F']);
 
 export interface WinDisplayOptions {
   disableWinLines?: boolean;  // Отключить анимацию линий
@@ -23,6 +27,7 @@ export class WinDisplayManager {
   private symbolAnimator: SymbolAnimator;
   private winLineManager: WinLineManager | null = null;
   private shineManager: ShineEffectManager | null = null;
+  private lightningManager: LightningManager | null = null;
   private options: WinDisplayOptions = {};
 
   constructor(config: SlotConfig, reelManager: ReelManager, symbolAnimator: SymbolAnimator, options?: WinDisplayOptions) {
@@ -41,6 +46,8 @@ export class WinDisplayManager {
     if (!this.options.disableShine && !this.options.cascadeWinHighlight) {
       this.shineManager = new ShineEffectManager(ticker, 15);
     }
+    // LightningManager для эффекта молнии на символах-камнях
+    this.lightningManager = new LightningManager(stage, ticker, 5);
   }
 
   showWins(wins: Win[]): void {
@@ -120,31 +127,45 @@ export class WinDisplayManager {
     const theme = LINE_THEMES[w.line % LINE_THEMES.length];
     const animatedSymbols = new Set<number>();
 
+    // Проверяем, является ли символ камнем (A, B, C, F) — для них показываем молнию
+    const isStone = STONE_SYMBOLS.has(w.symbol);
+
     setTimeout(() => {
-      this.winLineManager?.showLine(
-        w.line, points, theme, true,
-        () => { animatedSymbols.clear(); },
-        (progress: number, pointIndex: number) => {
-          if (pointIndex < winSymbolPositions.length && !animatedSymbols.has(pointIndex)) {
-            animatedSymbols.add(pointIndex);
-            const pos = winSymbolPositions[pointIndex];
-            this.symbolAnimator.animateWinSymbol(pos.col, pos.row);
+      if (isStone && this.lightningManager) {
+        // Показываем электрический разряд вместо обычной линии
+        // Берём только точки выигрышных символов (первые w.count)
+        const lightningPoints = points.slice(0, w.count);
+        this.lightningManager.showLightning(w.line, lightningPoints, true);
+      } else {
+        // Обычная золотая линия выигрыша
+        this.winLineManager?.showLine(
+          w.line, points, theme, true,
+          () => { animatedSymbols.clear(); },
+          (progress: number, pointIndex: number) => {
+            if (pointIndex < winSymbolPositions.length && !animatedSymbols.has(pointIndex)) {
+              animatedSymbols.add(pointIndex);
+              const pos = winSymbolPositions[pointIndex];
+              this.symbolAnimator.animateWinSymbol(pos.col, pos.row);
+            }
           }
-        }
-      );
+        );
+      }
     }, index * 200);
   }
 
   hide(): void {
     this.winLineManager?.hideAll();
     this.shineManager?.stopAll();
+    this.lightningManager?.hideAll();
     this.symbolAnimator.reset();
   }
 
   destroy(): void {
     this.winLineManager?.destroy();
     this.shineManager?.destroy();
+    this.lightningManager?.destroy();
     this.winLineManager = null;
     this.shineManager = null;
+    this.lightningManager = null;
   }
 }

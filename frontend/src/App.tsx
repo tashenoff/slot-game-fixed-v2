@@ -142,17 +142,6 @@ function App({ initialBalance = 10000, player }: AppProps) {
 
   // Рендер текущего представления
   const renderCurrentView = () => {
-    // Показываем прелоадер если есть ожидающая тема
-    if (currentView === 'loading' && pendingTheme) {
-      return (
-        <SlotPreloader
-          theme={pendingTheme}
-          onLoadComplete={handleLoadComplete}
-          onLoadError={handleLoadError}
-        />
-      );
-    }
-
     // Показываем игру если есть выбранная тема
     if (currentView === 'game' && selectedTheme) {
       return (
@@ -179,6 +168,15 @@ function App({ initialBalance = 10000, player }: AppProps) {
   return (
     <div className="App min-h-screen text-white">
       {renderCurrentView()}
+
+      {/* Прелоадер поверх всего — показывается поверх игры или лобби */}
+      {currentView === 'loading' && pendingTheme && (
+        <SlotPreloader
+          theme={pendingTheme}
+          onLoadComplete={handleLoadComplete}
+          onLoadError={handleLoadError}
+        />
+      )}
     </div>
   );
 }

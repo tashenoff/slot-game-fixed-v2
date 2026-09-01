@@ -2848,14 +2848,13 @@ body.in-lobby {
 /* ===== Р С›Р вЂ™Р вЂўР В Р вЂєР вЂўР в„ў Р вЂ”Р С’Р вЂњР В Р Р€Р вЂ”Р С™Р В Р РЋР вЂєР С›Р СћР С’ (Р Р† SlotGame) ===== */
 
 .slot-loading-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
-  border-radius: 1rem;
+  z-index: 9999;
 }
 
 .slot-loading-content {

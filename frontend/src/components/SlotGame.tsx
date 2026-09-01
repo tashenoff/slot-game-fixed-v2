@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { SlotMachine } from '../game/SlotMachine';
 import Navbar from './Navbar';
 import Modal from './Modal';
@@ -1272,20 +1273,6 @@ const SlotGame: React.FC<SlotGameProps> = ({
           <span className="mobile-bet-value">◎{bet}</span>
         </div>
         
-        {/* Оверлей загрузки слот-машины */}
-        {isSlotLoading && (
-          <div className="slot-loading-overlay">
-            <div className="slot-loading-content">
-              <div className="slot-loading-spinner">
-                <div className="slot-loading-spinner-ring"></div>
-                <div className="slot-loading-spinner-ring"></div>
-                <div className="slot-loading-spinner-ring"></div>
-              </div>
-              <p className="slot-loading-text">Загрузка слота...</p>
-            </div>
-          </div>
-        )}
-
         {/* Уведомление о активации фриспинов */}
         {showFreeSpinsNotification && (
           <div className="free-spins-overlay">
@@ -1699,6 +1686,21 @@ const SlotGame: React.FC<SlotGameProps> = ({
             </p>
           </div>
         </div>
+      )}
+
+      {/* Оверлей загрузки слот-машины — через portal в body, поверх всего экрана */}
+      {isSlotLoading && createPortal(
+        <div className="slot-loading-overlay">
+          <div className="slot-loading-content">
+            <div className="slot-loading-spinner">
+              <div className="slot-loading-spinner-ring"></div>
+              <div className="slot-loading-spinner-ring"></div>
+              <div className="slot-loading-spinner-ring"></div>
+            </div>
+            <p className="slot-loading-text">Загрузка слота...</p>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
