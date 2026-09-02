@@ -315,10 +315,6 @@ body.in-lobby {
 /* ===== Р СњР С’Р вЂ™Р вЂР С’Р В  ===== */
 
 .navbar {
-  position: sticky;
-  top: 0;
-  left: 0;
-  right: 0;
   flex-shrink: 0;
   z-index: 100;
   display: flex;
