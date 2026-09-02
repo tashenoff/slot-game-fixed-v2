@@ -3725,6 +3725,10 @@ body.in-lobby {
   font-family: 'Arial Black', 'Impact', sans-serif;
 }
 
+.win-modal-amount-value.gold-text {
+  text-shadow: 0 0 10px #FFD70088, 0 0 30px #FFD70044;
+}
+
 .win-modal-amount-currency {
   font-size: 1.75rem;
   margin-left: 0.25rem;

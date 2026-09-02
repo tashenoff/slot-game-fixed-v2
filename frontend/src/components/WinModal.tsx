@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState, useCallback } from 'react';
+﻿import React, { useLayoutEffect, useRef, useCallback, memo } from 'react';
 import gsap from 'gsap';
 
 /**
@@ -51,7 +51,7 @@ interface WinModalProps {
   winningSymbols?: { symbol: string; count: number; amount: number }[];
 }
 
-const WinModal: React.FC<WinModalProps> = ({
+const WinModal: React.FC<WinModalProps> = memo(({
   isOpen,
   totalWin,
   bet,
@@ -63,10 +63,11 @@ const WinModal: React.FC<WinModalProps> = ({
   const titleRef = useRef<HTMLHeadingElement>(null);
   const amountRef = useRef<HTMLDivElement>(null);
   const particlesContainerRef = useRef<HTMLDivElement>(null);
-  const [displayAmount, setDisplayAmount] = useState(0);
+  // amountValueRef — для прямой записи бегущих цифр в DOM (минуя React)
+  const amountValueRef = useRef<HTMLSpanElement>(null);
   const animTimelineRef = useRef<gsap.core.Timeline | null>(null);
-  const countAnimRef = useRef<gsap.core.Tween | null>(null);
-  const isFirstMount = useRef(true);
+  const countAnimRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number>(0);
 
   const multiplier = bet > 0 ? totalWin / bet : 0;
   const level = getWinLevelByMultiplier(multiplier);
@@ -74,14 +75,18 @@ const WinModal: React.FC<WinModalProps> = ({
 
   useLayoutEffect(() => {
     if (!isOpen) {
-      setDisplayAmount(0);
+      if (countAnimRef.current !== null) {
+        cancelAnimationFrame(countAnimRef.current);
+        countAnimRef.current = null;
+      }
       return;
     }
 
-    setDisplayAmount(0);
-
     if (animTimelineRef.current) animTimelineRef.current.kill();
-    if (countAnimRef.current) countAnimRef.current.kill();
+    if (countAnimRef.current !== null) {
+      cancelAnimationFrame(countAnimRef.current);
+      countAnimRef.current = null;
+    }
 
     const tl = gsap.timeline();
 
@@ -116,28 +121,60 @@ const WinModal: React.FC<WinModalProps> = ({
 
     animTimelineRef.current = tl;
 
-    const duration = Math.min(2, Math.max(0.6, totalWin / 30000));
-    countAnimRef.current = gsap.to(
-      { val: 0 },
-      {
-        val: totalWin,
-        duration,
-        ease: 'power2.out',
-        onUpdate: function () {
-          setDisplayAmount(Math.round(this.targets()[0].val));
-        },
+    // ===== Эффект счётчика от 0 до суммы =====
+    const targetValue = totalWin;
+    const duration = Math.min(6, Math.max(3, targetValue / 10000));
+    startTimeRef.current = performance.now();
+
+    // Начинаем с нуля
+    if (amountValueRef.current) {
+      amountValueRef.current.textContent = '+0';
+    }
+
+    const animateCount = (now: number) => {
+      const elapsed = (now - startTimeRef.current) / 1000;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Easing: cubic ease-out
+      const eased = 1 - Math.pow(1 - progress, 2.5);
+
+      // Текущее значение от 0 до targetValue
+      const currentValue = Math.round(targetValue * eased);
+
+      // Прямая запись в DOM — минуя React
+      if (amountValueRef.current) {
+        amountValueRef.current.textContent = '+' + currentValue.toLocaleString();
       }
-    );
+
+      if (progress < 1) {
+        countAnimRef.current = requestAnimationFrame(animateCount);
+      } else {
+        // Финальное значение — точно
+        if (amountValueRef.current) {
+          amountValueRef.current.textContent = '+' + targetValue.toLocaleString();
+        }
+        countAnimRef.current = null;
+      }
+    };
+
+// Запускаем сразу
+    countAnimRef.current = requestAnimationFrame(animateCount);
 
     return () => {
       if (animTimelineRef.current) animTimelineRef.current.kill();
-      if (countAnimRef.current) countAnimRef.current.kill();
+      if (countAnimRef.current !== null) {
+        cancelAnimationFrame(countAnimRef.current);
+        countAnimRef.current = null;
+      }
     };
   }, [isOpen, totalWin, bet, isSignificant]);
 
   const handleCollect = useCallback(() => {
     if (animTimelineRef.current) animTimelineRef.current.kill();
-    if (countAnimRef.current) countAnimRef.current.kill();
+    if (countAnimRef.current !== null) {
+      cancelAnimationFrame(countAnimRef.current);
+      countAnimRef.current = null;
+    }
 
     if (overlayRef.current && modalRef.current) {
       gsap.to(overlayRef.current, {
@@ -227,8 +264,8 @@ const WinModal: React.FC<WinModalProps> = ({
         </h2>
 
         <div className="win-modal-amount" ref={amountRef}>
-          <span className="win-modal-amount-value" style={{ color: level.color }}>
-            +{displayAmount.toLocaleString()}
+          <span className="win-modal-amount-value gold-text" ref={amountValueRef} style={{ color: '#FFD700' }}>
+            +{totalWin.toLocaleString()}
           </span>
           <span className="win-modal-amount-currency">◎</span>
         </div>
@@ -264,7 +301,7 @@ const WinModal: React.FC<WinModalProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default WinModal;
 export type { WinModalProps };
