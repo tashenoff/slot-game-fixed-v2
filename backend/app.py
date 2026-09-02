@@ -4,7 +4,7 @@ import json
 import random
 import os
 
-from database import init_db, get_or_create_user, get_user_by_id, update_user_balance, update_user_stats
+from database import init_db, get_or_create_user, get_user_by_id, update_user_balance, update_user_stats, deduct_balance, add_balance, get_user_balance
 from auth import create_token, require_auth
 from journal import log_spin, get_recent, get_summary
 
@@ -374,14 +374,16 @@ def spin(user_id: int):
     free_spins_config = config.get("free_spins", {})
     fs_multiplier = free_spins_config.get("multiplier", 2)
     
-    # Если это не фриспин — проверяем баланс и списываем ставку
+    # Если это не фриспин — списываем ставку атомарно
     if not is_free_spin:
-        if user['balance'] < bet:
+        balance = deduct_balance(user_id, bet)
+        if balance is None:
             return jsonify({'error': 'Недостаточно средств'}), 400
-        balance = user['balance'] - bet
     else:
-        # Фриспин — ставка не списывается
-        balance = user['balance']
+        # Фриспин — ставка не списывается, получаем текущий баланс
+        balance = get_user_balance(user_id)
+        if balance is None:
+            return jsonify({'error': 'Пользователь не найден'}), 404
     
     # Генерируем результат спина (с улучшенными весами для фриспинов)
     matrix = generate_spin_result(test_mode=test_mode, is_free_spin=is_free_spin, test_bonus=test_bonus)
@@ -418,19 +420,15 @@ def spin(user_id: int):
     else:
         free_spins_remaining_new = 0
     
-    # Вычисляем новый баланс (для фриспинов — добавляем выигрыш)
-    if not is_free_spin:
-        new_balance = balance + win_amount
+    # Начисляем выигрыш (атомарно)
+    if win_amount > 0:
+        new_balance = add_balance(user_id, win_amount)
     else:
-        new_balance = balance + win_amount
+        new_balance = balance
     
-    # Сохраняем в БД — одно соединение для всех операций
+    # Обновляем статистику (атомарно)
     from database import get_db
     with get_db() as db:
-        db.execute(
-            'UPDATE users SET balance = ? WHERE id = ?',
-            (new_balance, user_id)
-        )
         db.execute('''
             UPDATE users SET 
                 total_spins = total_spins + 1,
@@ -710,9 +708,8 @@ def claim_ad_reward(user_id: int):
                 'error': f'Подождите {remaining} секунд перед следующей наградой'
             }), 429
     
-    # Начисляем награду
-    new_balance = user['balance'] + AD_REWARD_AMOUNT
-    update_user_balance(user_id, new_balance)
+    # Начисляем награду (атомарно)
+    new_balance = add_balance(user_id, AD_REWARD_AMOUNT)
     
     # Обновляем время последней награды
     last_ad_reward[user_id] = current_time

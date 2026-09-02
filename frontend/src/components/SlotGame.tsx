@@ -5,6 +5,7 @@ import Navbar from './Navbar';
 import Modal from './Modal';
 import LowBalanceModal from './LowBalanceModal';
 import DiceLadder from './DiceLadder';
+import WinModal from './WinModal';
 import * as API from '../api';
 import { Stats, DiceLevel } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
@@ -14,6 +15,7 @@ import { SandEffect } from '../game/SandEffect';
 import { StarEffect, FireflyEffect } from '../game/effects';
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
+const BET_OPTIONS = [500, 1000, 2000];
 const LOW_BALANCE_THRESHOLD = 300; // Порог для показа модалки с рекламой
 
 interface PlayerInfo {
@@ -52,7 +54,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const [isMusicOn, setIsMusicOn] = useState<boolean>(true);
   const [slotMachine, setSlotMachine] = useState<SlotMachine | null>(null);
   const [balance, setBalance] = useState<number>(initialBalance);
-  const [bet, setBet] = useState<number>(100);
+  const [bet, setBet] = useState<number>(500);
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
   const [winAmount, setWinAmount] = useState<number>(0);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -70,6 +72,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const [isAutoSpin, setIsAutoSpin] = useState<boolean>(false);
   const [autoSpinCount, setAutoSpinCount] = useState<number>(0);
   const [showAutoSpinMenu, setShowAutoSpinMenu] = useState<boolean>(false);
+  const [showBetMenu, setShowBetMenu] = useState<boolean>(false);
   const autoSpinRef = useRef<boolean>(false); // Для отслеживания состояния автоспина в колбэках
   const testBonusRef = useRef<boolean>(false); // Флаг для тестового бонуса Dice Ladder
   const betRef = useRef<number>(bet); // Для хранения текущей ставки в колбэках
@@ -99,6 +102,9 @@ const SlotGame: React.FC<SlotGameProps> = ({
   } | null>(null);
   const bonusPausedFreeSpinsRef = useRef<number>(0); // Сколько фриспинов осталось при входе в бонус
   const [mobileWinData, setMobileWinData] = useState<{ symbol: string; amount: number; count: number; rarity: string; rarityColor: string }[]>([]);
+  const [showWinModal, setShowWinModal] = useState<boolean>(false);
+  const [winModalData, setWinModalData] = useState<{ totalWin: number; bet: number; symbols: { symbol: string; count: number; amount: number }[] } | null>(null);
+  const winModalCollectRef = useRef<(() => void) | null>(null); // Колбэк после закрытия модалки
   const balanceRef = useRef<number>(balance); // Для хранения актуального баланса
   const isSpinningRef = useRef<boolean>(false); // Для защиты от двойного вызова
   const isMountedRef = useRef<boolean>(true); // Для отслеживания размонтирования компонента
@@ -955,7 +961,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         // Приоритет: мобильная модалка выигрыша > фриспины > автоспин
         
         // Показываем модалку с выигрышем (только если нет других модалок)
-        if (spinResult.wins && spinResult.wins.length > 0 && !showFreeSpinsResult && !showFreeSpinsNotification) {
+        if (((spinResult.wins && spinResult.wins.length > 0) || spinResult.win_amount > 0) && !showFreeSpinsResult && !showFreeSpinsNotification) {
           // Задержка 500мс — даём WinDisplayManager подсветить символы
           setTimeout(() => {
             if (!isMountedRef.current) return;
@@ -1000,52 +1006,79 @@ const SlotGame: React.FC<SlotGameProps> = ({
               }, i * 600);
             });
 
-            // Продолжаем фриспины/автоспин после показа тостов
-            if (result.free_spins_remaining > 0 && !freeSpinsTriggerPendingRef.current) {
-              const hasWin = true;
-              const delay = 2500; // Фриспины с задержкой для просмотра выигрыша
-              if (freeSpinTimerRef.current) {
-                clearTimeout(freeSpinTimerRef.current);
-              }
-              freeSpinTimerRef.current = window.setTimeout(() => {
-                if (!isMountedRef.current) return;
-                if (isSpinningRef.current) return;
-                freeSpinTimerRef.current = null;
-                freeSpinsRemainingRef.current = result.free_spins_remaining;
-                handleSpin(false);
-              }, delay);
-            } else if (autoSpinRef.current && !freeSpinsTriggerPendingRef.current) {
-              setAutoSpinCount(prev => {
-                const newCount = prev - 1;
-                if (newCount <= 0 || spinResult.balance < betRef.current) {
-                  stopAutoSpin();
-                  scheduleMusicFade();
-                  return 0;
+            // Расчёт множителя для определения уровня выигрыша
+            const totalWinAmount = spinResult.win_amount * (freeSpinsMultiplierRef.current || 1);
+            const winMultiplier = betRef.current > 0 ? totalWinAmount / betRef.current : 0;
+
+            // Функция продолжения после тостов/модалки
+            const continueAfterWinDisplay = () => {
+              // Продолжаем фриспины/автоспин после показа выигрыша
+              if (result.free_spins_remaining > 0 && !freeSpinsTriggerPendingRef.current) {
+                const hasWin = true;
+                const delay = 2500; // Фриспины с задержкой для просмотра выигрыша
+                if (freeSpinTimerRef.current) {
+                  clearTimeout(freeSpinTimerRef.current);
                 }
-                const delay = 2500;
-                if (autoSpinTimerRef.current) {
-                  clearTimeout(autoSpinTimerRef.current);
-                }
-                autoSpinTimerRef.current = window.setTimeout(() => {
+                freeSpinTimerRef.current = window.setTimeout(() => {
                   if (!isMountedRef.current) return;
-                  autoSpinTimerRef.current = null;
-                  if (autoSpinRef.current) {
-                    handleSpin(true);
-                  }
+                  if (isSpinningRef.current) return;
+                  freeSpinTimerRef.current = null;
+                  freeSpinsRemainingRef.current = result.free_spins_remaining;
+                  handleSpin(false);
                 }, delay);
-                return newCount;
+              } else if (autoSpinRef.current && !freeSpinsTriggerPendingRef.current) {
+                setAutoSpinCount(prev => {
+                  const newCount = prev - 1;
+                  if (newCount <= 0 || spinResult.balance < betRef.current) {
+                    stopAutoSpin();
+                    scheduleMusicFade();
+                    return 0;
+                  }
+                  const delay = 2500;
+                  if (autoSpinTimerRef.current) {
+                    clearTimeout(autoSpinTimerRef.current);
+                  }
+                  autoSpinTimerRef.current = window.setTimeout(() => {
+                    if (!isMountedRef.current) return;
+                    autoSpinTimerRef.current = null;
+                    if (autoSpinRef.current) {
+                      handleSpin(true);
+                    }
+                  }, delay);
+                  return newCount;
+                });
+              } else if (result.is_free_spin && result.free_spins_remaining <= 0) {
+                setIsFreeSpin(false);
+                setFreeSpinsTotal(0);
+                setFreeSpinsMultiplier(1);
+                freeSpinsMultiplierRef.current = 1;
+                setFreeSpinsTotalWin(freeSpinsTotalWinRef.current);
+                setShowFreeSpinsResult(true);
+                freeSpinsResultRef.current = true;
+                scheduleMusicFade();
+              } else {
+                scheduleMusicFade();
+              }
+            };
+
+            // Если значительный выигрыш (>= 5x от ставки) — показываем WinModal
+            if (winMultiplier >= 5) {
+              winModalCollectRef.current = continueAfterWinDisplay;
+              setWinModalData({
+                totalWin: totalWinAmount,
+                bet: betRef.current || 0,
+                symbols: spinResult.wins && spinResult.wins.length > 0
+                ? spinResult.wins.map(w => ({
+                    symbol: w.symbol,
+                    count: w.count,
+                    amount: w.win * (betRef.current || 1) * (freeSpinsMultiplierRef.current || 1),
+                  }))
+                : [{ symbol: '?', count: 0, amount: totalWinAmount }],
               });
-            } else if (result.is_free_spin && result.free_spins_remaining <= 0) {
-              setIsFreeSpin(false);
-              setFreeSpinsTotal(0);
-              setFreeSpinsMultiplier(1);
-              freeSpinsMultiplierRef.current = 1;
-              setFreeSpinsTotalWin(freeSpinsTotalWinRef.current);
-              setShowFreeSpinsResult(true);
-              freeSpinsResultRef.current = true;
-              scheduleMusicFade();
+              setShowWinModal(true);
             } else {
-              scheduleMusicFade();
+              // Обычный выигрыш — продолжаем сразу
+              continueAfterWinDisplay();
             }
             }, 500);
         } else if (result.free_spins_remaining > 0 && !freeSpinsTriggerPendingRef.current) {
@@ -1160,9 +1193,16 @@ const SlotGame: React.FC<SlotGameProps> = ({
       stopAutoSpin();
     } else {
       // Если не активен - показываем меню
+      setShowBetMenu(false); // закрываем меню ставки, если открыто
       setShowAutoSpinMenu(prev => !prev);
     }
   }, [isAutoSpin, stopAutoSpin]);
+
+  // Переключение меню выбора ставки
+  const toggleBetMenu = useCallback(() => {
+    setShowAutoSpinMenu(false); // закрываем меню автоспина, если открыто
+    setShowBetMenu(prev => !prev);
+  }, []);
 
   // Обработчик 1000 спинов
   const handleMultiSpin = useCallback(async () => {
@@ -1427,8 +1467,12 @@ const SlotGame: React.FC<SlotGameProps> = ({
         {/* Кнопка уменьшения ставки */}
         <button 
           className="control-btn minus-btn"
-          onClick={() => setBet(Math.max(1, bet - 10))}
-          disabled={isSpinning || isAutoSpin || isFreeSpin || bet <= 1}
+          onClick={() => {
+            const idx = BET_OPTIONS.indexOf(bet);
+            const prevIdx = idx <= 0 ? BET_OPTIONS.length - 1 : idx - 1;
+            setBet(BET_OPTIONS[prevIdx]);
+          }}
+          disabled={isSpinning || isAutoSpin || isFreeSpin}
         >
           −
         </button>
@@ -1465,13 +1509,32 @@ const SlotGame: React.FC<SlotGameProps> = ({
         </div>
 
         {/* Кнопка увеличения ставки */}
-        <button 
-          className="control-btn plus-btn"
-          onClick={() => setBet(Math.min(500, bet + 10))}
-          disabled={isSpinning || isAutoSpin || isFreeSpin || bet >= 500}
-        >
-          +
-        </button>
+        <div className="bet-menu-wrapper">
+          <button 
+            className="control-btn plus-btn"
+            onClick={toggleBetMenu}
+            disabled={isSpinning || isAutoSpin || isFreeSpin}
+          >
+            +
+          </button>
+          {showBetMenu && !isAutoSpin && (
+            <div className="bet-menu">
+              {BET_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  className={`bet-option ${bet === option ? 'bet-option-active' : ''}`}
+                  onClick={() => {
+                    setBet(option);
+                    setShowBetMenu(false);
+                  }}
+                  disabled={balance < option}
+                >
+                  ◎{option}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Панель выигрыша (десктоп) */}
         <div className="win-panel">
@@ -1482,7 +1545,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         {/* Макс. ставка */}
         <button 
           className="control-btn max-bet-btn"
-          onClick={() => setBet(Math.min(500, balance))}
+          onClick={() => setBet(Math.min(2000, balance))}
           disabled={isSpinning || isAutoSpin}
           title="Максимальная ставка"
         >
@@ -1663,6 +1726,25 @@ const SlotGame: React.FC<SlotGameProps> = ({
         onRewardReceived={handleAdReward}
         currentBalance={balance}
       />
+
+      {/**** Модальное окно уровня выигрыша ****/}
+      {showWinModal && winModalData && (
+        <WinModal
+          isOpen={showWinModal}
+          totalWin={winModalData.totalWin}
+          bet={winModalData.bet}
+          winningSymbols={winModalData.symbols}
+          onCollect={() => {
+            setShowWinModal(false);
+            setWinModalData(null);
+            // Вызываем сохранённый колбэк продолжения
+            if (winModalCollectRef.current) {
+              winModalCollectRef.current();
+              winModalCollectRef.current = null;
+            }
+          }}
+        />
+      )}
 
       {/* Оверлей поворота экрана для мобильных устройств в портретном режиме */}
       {isPortrait && isMobileRef.current && theme.id === 'classic' && (

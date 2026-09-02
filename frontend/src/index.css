@@ -282,6 +282,65 @@ body.in-lobby {
   cursor: not-allowed;
 }
 
+/* Меню выбора ставки */
+.bet-menu-wrapper {
+  position: relative;
+}
+
+.bet-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.5rem;
+  background-color: #374151;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  z-index: 50;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  min-width: 100px;
+}
+
+.bet-menu::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 8px;
+  border-style: solid;
+  border-color: #374151 transparent transparent transparent;
+}
+
+.bet-option {
+  padding: 0.5rem 1rem;
+  background-color: #4b5563;
+  color: white;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  text-align: center;
+  border: none;
+}
+
+.bet-option:hover:not(:disabled) {
+  background-color: #f59e0b;
+}
+
+.bet-option-active {
+  background-color: #f59e0b;
+  color: #1f2937;
+}
+
+.bet-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Р СћР В°Р В±Р В»Р С‘РЎвЂ Р В° Р С‘РЎРѓРЎвЂљР С•РЎР‚Р С‘Р С‘ РЎРѓР С—Р С‘Р Р…Р С•Р Р† */
 .spin-history-container {
   background-color: #1f2937;
@@ -3564,3 +3623,222 @@ body.in-lobby {
 /* Mobile adjustments for 3D dice - РАЗМЕР КУБА НЕ МЕНЯЕМ! (200x200) */
 /* .dice-ladder-3d-wrapper сохраняет свои размеры на всех устройствах */
 
+/* ===== WIN MODAL — МОДАЛЬНОЕ ОКНО УРОВНЕЙ ВЫИГРЫША ===== */
+
+.win-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.win-modal-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.win-modal-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: float-up 2s ease-out forwards;
+  opacity: 0;
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(-30px) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-60px) scale(0.5);
+  }
+}
+
+.win-modal-container {
+  position: relative;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 20px;
+  padding: 2.5rem 2rem 2rem;
+  min-width: 320px;
+  max-width: 440px;
+  width: 90%;
+  text-align: center;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.win-modal-border {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 20px 20px 0 0;
+}
+
+.win-modal-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.75rem;
+  font-size: 2rem;
+}
+
+.win-modal-title {
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+  font-family: inherit;
+}
+
+.win-modal-amount {
+  margin-bottom: 0.5rem;
+}
+
+.win-modal-amount-value {
+  font-size: 2.5rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  font-family: 'Arial Black', 'Impact', sans-serif;
+}
+
+.win-modal-amount-currency {
+  font-size: 1.75rem;
+  margin-left: 0.25rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.win-modal-multiplier {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 1rem;
+  letter-spacing: 0.03em;
+}
+
+.win-modal-symbols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.win-modal-symbol-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.win-modal-symbol-name {
+  font-weight: 800;
+  color: #ffd700;
+  min-width: 1.2rem;
+}
+
+.win-modal-symbol-count {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.win-modal-symbol-amount {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.win-modal-collect-btn {
+  display: inline-block;
+  padding: 0.75rem 2rem;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  text-transform: uppercase;
+}
+
+.win-modal-collect-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+}
+
+.win-modal-collect-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* Адаптация под мобильные */
+@media (max-width: 480px) {
+  .win-modal-container {
+    padding: 2rem 1.25rem 1.5rem;
+    min-width: 280px;
+    max-width: 360px;
+  }
+
+  .win-modal-icon {
+    width: 52px;
+    height: 52px;
+    font-size: 1.6rem;
+  }
+
+  .win-modal-title {
+    font-size: 1.1rem;
+  }
+
+  .win-modal-amount-value {
+    font-size: 2rem;
+  }
+}
+
+/* Адаптация под очень маленькие экраны */
+@media (max-width: 360px) {
+  .win-modal-container {
+    padding: 1.5rem 1rem 1.25rem;
+    min-width: 240px;
+  }
+
+  .win-modal-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 1.3rem;
+  }
+
+  .win-modal-title {
+    font-size: 0.95rem;
+  }
+
+  .win-modal-amount-value {
+    font-size: 1.6rem;
+  }
+
+  .win-modal-collect-btn {
+    padding: 0.6rem 1.5rem;
+    font-size: 0.95rem;
+  }
+}

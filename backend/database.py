@@ -3,6 +3,7 @@
 """
 import sqlite3
 import os
+import threading
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional, Dict, Any
@@ -11,7 +12,10 @@ from typing import Optional, Dict, Any
 DB_PATH = os.path.join(os.path.dirname(__file__), 'game.db')
 
 # Начальный баланс для новых игроков
-INITIAL_BALANCE = 10000000
+INITIAL_BALANCE = 10000
+
+# Блокировка для потокобезопасного доступа к БД
+_db_lock = threading.Lock()
 
 
 def init_db():
@@ -39,15 +43,16 @@ def init_db():
 
 @contextmanager
 def get_db():
-    """Контекстный менеджер для подключения к БД"""
-    conn = get_connection()
-    try:
-        yield conn
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        pass  # НЕ закрываем соединение
+    """Контекстный менеджер для подключения к БД (потокобезопасный)"""
+    with _db_lock:
+        conn = get_connection()
+        try:
+            yield conn
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            pass  # НЕ закрываем соединение
 
 
 def get_connection():
@@ -116,8 +121,59 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
         return dict(user) if user else None
 
 
+def get_user_balance(user_id: int) -> Optional[int]:
+    """Получить текущий баланс пользователя"""
+    with get_db() as db:
+        cursor = db.execute(
+            'SELECT balance FROM users WHERE id = ?',
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row)['balance'] if row else None
+
+
+def deduct_balance(user_id: int, amount: int) -> Optional[int]:
+    """
+    Атомарно списать баланс.
+    Возвращает новый баланс или None если недостаточно средств.
+    SQLite гарантирует атомарность UPDATE с условием.
+    """
+    with get_db() as db:
+        # Атомарная операция: уменьшаем только если хватает
+        cursor = db.execute(
+            'UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?',
+            (amount, user_id, amount)
+        )
+        db.commit()
+        if cursor.rowcount == 0:
+            return None  # Недостаточно средств
+        # Возвращаем новый баланс
+        cursor = db.execute(
+            'SELECT balance FROM users WHERE id = ?',
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row)['balance']
+
+
+def add_balance(user_id: int, amount: int) -> Optional[int]:
+    """Атомарно добавить баланс (пополнение, награда за рекламу)"""
+    with get_db() as db:
+        db.execute(
+            'UPDATE users SET balance = balance + ? WHERE id = ?',
+            (amount, user_id)
+        )
+        db.commit()
+        cursor = db.execute(
+            'SELECT balance FROM users WHERE id = ?',
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row)['balance'] if row else None
+
+
 def update_user_balance(user_id: int, new_balance: int) -> bool:
-    """Обновить баланс пользователя"""
+    """Обновить баланс пользователя (прямая установка)"""
     with get_db() as db:
         db.execute(
             'UPDATE users SET balance = ? WHERE id = ?',
