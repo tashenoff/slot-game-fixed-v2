@@ -1,18 +1,18 @@
 {
   "symbols": {
-    "A": {"weight": 1, "payout": {"3": 5, "4": 10, "5": 20}},
-    "B": {"weight": 2, "payout": {"3": 4, "4": 8, "5": 15}},
-    "C": {"weight": 3, "payout": {"3": 3, "4": 6, "5": 10}},
-    "D": {"weight": 4, "payout": {"3": 2, "4": 4, "5": 8}},
-    "E": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}},
-    "F": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}},
-    "S": {"weight": 1, "payout": {"3": 3, "4": 8, "5": 15}},
-    "G": {"weight": 1, "payout": {}}
+    "A": {"weight": 1, "payout": {"3": 3, "4": 5, "5": 10}},
+    "B": {"weight": 2, "payout": {"3": 2, "4": 5, "5": 6}},
+    "C": {"weight": 3, "payout": {"3": 2, "4": 3, "5": 5}},
+    "D": {"weight": 4, "payout": {"3": 2, "4": 2, "5": 5}},
+    "E": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 4}},
+    "F": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 4}},
+    "S": {"weight": 1, "payout": {"3": 2, "4": 5, "5": 8}},
+    "G": {"weight": 0.2, "payout": {}}
   },
   "scatter_symbol": "S",
   "free_spins": {
     "trigger_count": 3,
-    "free_spins_count": 10,
+    "free_spins_count": 8,
     "multiplier": 3,
     "retrigger_count": 3,
     "retrigger_free_spins": 10
@@ -31,15 +31,15 @@
     "trigger_count": 3,
     "levels": [
       {"level": 1, "multiplier": 2},
-      {"level": 2, "multiplier": 4},
-      {"level": 3, "multiplier": 6},
-      {"level": 4, "multiplier": 10},
-      {"level": 5, "multiplier": 15},
-      {"level": 6, "multiplier": 20},
-      {"level": 7, "multiplier": 30},
-      {"level": 8, "multiplier": 40},
-      {"level": 9, "multiplier": 60},
-      {"level": 10, "multiplier": 100}
+      {"level": 2, "multiplier": 2},
+      {"level": 3, "multiplier": 2},
+      {"level": 4, "multiplier": 2},
+      {"level": 5, "multiplier": 3},
+      {"level": 6, "multiplier": 4},
+      {"level": 7, "multiplier": 5},
+      {"level": 8, "multiplier": 6},
+      {"level": 9, "multiplier": 7},
+      {"level": 10, "multiplier": 8}
     ],
     "dice": [
       {"level": 1, "faces": {"coin": 2, "diamond": 2, "fire": 1, "skull": 1}},
@@ -59,7 +59,17 @@
     [{"row": 0, "col": 0}, {"row": 0, "col": 1}, {"row": 0, "col": 2}, {"row": 0, "col": 3}, {"row": 0, "col": 4}],
     [{"row": 2, "col": 0}, {"row": 2, "col": 1}, {"row": 2, "col": 2}, {"row": 2, "col": 3}, {"row": 2, "col": 4}],
     [{"row": 0, "col": 0}, {"row": 1, "col": 1}, {"row": 2, "col": 2}, {"row": 1, "col": 3}, {"row": 0, "col": 4}],
-    [{"row": 2, "col": 0}, {"row": 1, "col": 1}, {"row": 0, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 4}]
+    [{"row": 2, "col": 0}, {"row": 1, "col": 1}, {"row": 0, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 4}],
+    [{"row": 1, "col": 0}, {"row": 0, "col": 1}, {"row": 0, "col": 2}, {"row": 0, "col": 3}, {"row": 1, "col": 4}],
+    [{"row": 1, "col": 0}, {"row": 2, "col": 1}, {"row": 2, "col": 2}, {"row": 2, "col": 3}, {"row": 1, "col": 4}],
+    [{"row": 0, "col": 0}, {"row": 0, "col": 1}, {"row": 1, "col": 2}, {"row": 2, "col": 3}, {"row": 2, "col": 4}],
+    [{"row": 2, "col": 0}, {"row": 2, "col": 1}, {"row": 1, "col": 2}, {"row": 0, "col": 3}, {"row": 0, "col": 4}],
+    [{"row": 0, "col": 0}, {"row": 1, "col": 1}, {"row": 1, "col": 2}, {"row": 1, "col": 3}, {"row": 0, "col": 4}],
+    [{"row": 2, "col": 0}, {"row": 1, "col": 1}, {"row": 1, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 4}],
+    [{"row": 1, "col": 0}, {"row": 0, "col": 1}, {"row": 1, "col": 2}, {"row": 0, "col": 3}, {"row": 1, "col": 4}],
+    [{"row": 1, "col": 0}, {"row": 2, "col": 1}, {"row": 1, "col": 2}, {"row": 2, "col": 3}, {"row": 1, "col": 4}],
+    [{"row": 0, "col": 0}, {"row": 1, "col": 1}, {"row": 0, "col": 2}, {"row": 1, "col": 3}, {"row": 0, "col": 4}],
+    [{"row": 2, "col": 0}, {"row": 1, "col": 1}, {"row": 2, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 4}]
   ],
   "rtp_target": 0.95
 }

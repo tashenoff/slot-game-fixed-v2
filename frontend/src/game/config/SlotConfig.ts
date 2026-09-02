@@ -186,6 +186,56 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
       { row: 2, col: 0 }, { row: 1, col: 1 }, { row: 0, col: 2 },
       { row: 1, col: 3 }, { row: 2, col: 4 }
     ]},
+    // Линия 5: Волнистая верхняя (центр → верх → верх → верх → центр)
+    { positions: [
+      { row: 1, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 },
+      { row: 0, col: 3 }, { row: 1, col: 4 }
+    ]},
+    // Линия 6: Волнистая нижняя (центр → низ → низ → низ → центр)
+    { positions: [
+      { row: 1, col: 0 }, { row: 2, col: 1 }, { row: 2, col: 2 },
+      { row: 2, col: 3 }, { row: 1, col: 4 }
+    ]},
+    // Линия 7: Диагональ вниз (верх → верх → центр → низ → низ)
+    { positions: [
+      { row: 0, col: 0 }, { row: 0, col: 1 }, { row: 1, col: 2 },
+      { row: 2, col: 3 }, { row: 2, col: 4 }
+    ]},
+    // Линия 8: Диагональ вверх (низ → низ → центр → верх → верх)
+    { positions: [
+      { row: 2, col: 0 }, { row: 2, col: 1 }, { row: 1, col: 2 },
+      { row: 0, col: 3 }, { row: 0, col: 4 }
+    ]},
+    // Линия 9: Малая V (верх → центр → центр → центр → верх)
+    { positions: [
+      { row: 0, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 },
+      { row: 1, col: 3 }, { row: 0, col: 4 }
+    ]},
+    // Линия 10: Малая Λ (низ → центр → центр → центр → низ)
+    { positions: [
+      { row: 2, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 },
+      { row: 1, col: 3 }, { row: 2, col: 4 }
+    ]},
+    // Линия 11: Зигзаг верх (центр → верх → центр → верх → центр)
+    { positions: [
+      { row: 1, col: 0 }, { row: 0, col: 1 }, { row: 1, col: 2 },
+      { row: 0, col: 3 }, { row: 1, col: 4 }
+    ]},
+    // Линия 12: Зигзаг низ (центр → низ → центр → низ → центр)
+    { positions: [
+      { row: 1, col: 0 }, { row: 2, col: 1 }, { row: 1, col: 2 },
+      { row: 2, col: 3 }, { row: 1, col: 4 }
+    ]},
+    // Линия 13: Двойная V (верх → центр → верх → центр → верх)
+    { positions: [
+      { row: 0, col: 0 }, { row: 1, col: 1 }, { row: 0, col: 2 },
+      { row: 1, col: 3 }, { row: 0, col: 4 }
+    ]},
+    // Линия 14: Двойная Λ (низ → центр → низ → центр → низ)
+    { positions: [
+      { row: 2, col: 0 }, { row: 1, col: 1 }, { row: 2, col: 2 },
+      { row: 1, col: 3 }, { row: 2, col: 4 }
+    ]},
   ],
 };
 

@@ -203,12 +203,12 @@ export class SlotMachine {
 
   private buildPaylines() { 
     // Создаём менеджер анимированных линий выигрыша
-    this.winLineManager = new WinLineManager(this.app.stage, this.app.ticker, 5);
+    this.winLineManager = new WinLineManager(this.app.stage, this.app.ticker, 15);
     // Создаём менеджер эффектов блика для выигрышных символов
     this.shineManager = new ShineEffectManager(this.app.ticker, 15);
     
     // Оставляем старые graphics как fallback
-    for (let i = 0; i < 5; i++) { 
+    for (let i = 0; i < 15; i++) { 
       const g = new PIXI.Graphics(); 
       g.visible = false; 
       this.app.stage.addChild(g); 
@@ -545,11 +545,24 @@ export class SlotMachine {
   }
 
   private linePos(l: number): PaylinePosition[] {
-    if (l===0) return [0,1,2,3,4].map(c=>({row:1,col:c}));
-    if (l===1) return [0,1,2,3,4].map(c=>({row:0,col:c}));
-    if (l===2) return [0,1,2,3,4].map(c=>({row:2,col:c}));
-    if (l===3) return [{row:0,col:0},{row:1,col:1},{row:2,col:2},{row:1,col:3},{row:0,col:4}];
-    return [{row:2,col:0},{row:1,col:1},{row:0,col:2},{row:1,col:3},{row:2,col:4}];
+    const lines: PaylinePosition[][] = [
+      [0,1,2,3,4].map(c=>({row:1,col:c})),  // 0: средняя
+      [0,1,2,3,4].map(c=>({row:0,col:c})),  // 1: верхняя
+      [0,1,2,3,4].map(c=>({row:2,col:c})),  // 2: нижняя
+      [{row:0,col:0},{row:1,col:1},{row:2,col:2},{row:1,col:3},{row:0,col:4}],  // 3: V
+      [{row:2,col:0},{row:1,col:1},{row:0,col:2},{row:1,col:3},{row:2,col:4}],  // 4: Λ
+      [{row:1,col:0},{row:0,col:1},{row:0,col:2},{row:0,col:3},{row:1,col:4}],  // 5: волнистая верх
+      [{row:1,col:0},{row:2,col:1},{row:2,col:2},{row:2,col:3},{row:1,col:4}],  // 6: волнистая низ
+      [{row:0,col:0},{row:0,col:1},{row:1,col:2},{row:2,col:3},{row:2,col:4}],  // 7: диагональ вниз
+      [{row:2,col:0},{row:2,col:1},{row:1,col:2},{row:0,col:3},{row:0,col:4}],  // 8: диагональ вверх
+      [{row:0,col:0},{row:1,col:1},{row:1,col:2},{row:1,col:3},{row:0,col:4}],  // 9: малая V
+      [{row:2,col:0},{row:1,col:1},{row:1,col:2},{row:1,col:3},{row:2,col:4}],  // 10: малая Λ
+      [{row:1,col:0},{row:0,col:1},{row:1,col:2},{row:0,col:3},{row:1,col:4}],  // 11: зигзаг верх
+      [{row:1,col:0},{row:2,col:1},{row:1,col:2},{row:2,col:3},{row:1,col:4}],  // 12: зигзаг низ
+      [{row:0,col:0},{row:1,col:1},{row:0,col:2},{row:1,col:3},{row:0,col:4}],  // 13: двойная V
+      [{row:2,col:0},{row:1,col:1},{row:2,col:2},{row:1,col:3},{row:2,col:4}],  // 14: двойная Λ
+    ];
+    return lines[l] || lines[0];
   }
 
   private hideLines() { 

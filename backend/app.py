@@ -6,6 +6,7 @@ import os
 
 from database import init_db, get_or_create_user, get_user_by_id, update_user_balance, update_user_stats
 from auth import create_token, require_auth
+from journal import log_spin, get_recent, get_summary
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}})
@@ -20,12 +21,12 @@ def load_config():
         # Создаем конфигурацию по умолчанию, если файл не существует
         default_config = {
             "symbols": {
-                "A": {"weight": 1, "payout": {"3": 5, "4": 10, "5": 20}},
-                "B": {"weight": 2, "payout": {"3": 4, "4": 8, "5": 15}},
-                "C": {"weight": 3, "payout": {"3": 3, "4": 6, "5": 10}},
-                "D": {"weight": 4, "payout": {"3": 2, "4": 4, "5": 8}},
-                "E": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}},
-                "F": {"weight": 5, "payout": {"3": 1, "4": 2, "5": 5}},
+                "A": {"weight": 1, "payout": {"3": 3, "4": 5, "5": 12}},
+                "B": {"weight": 2, "payout": {"3": 2, "4": 5, "5": 8}},
+                "C": {"weight": 3, "payout": {"3": 2, "4": 3, "5": 5}},
+                "D": {"weight": 4, "payout": {"3": 2, "4": 2, "5": 5}},
+                "E": {"weight": 5, "payout": {"3": 2, "4": 2, "5": 3}},
+                "F": {"weight": 5, "payout": {"3": 2, "4": 2, "5": 3}},
                 "G": {"weight": 1, "payout": {}}
             },
             "paylines": [
@@ -36,7 +37,27 @@ def load_config():
                 # V-образная линия
                 [{"row": 0, "col": 0}, {"row": 1, "col": 1}, {"row": 2, "col": 2}, {"row": 1, "col": 3}, {"row": 0, "col": 4}],
                 # Λ-образная линия
-                [{"row": 2, "col": 0}, {"row": 1, "col": 1}, {"row": 0, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 4}]
+                [{"row": 2, "col": 0}, {"row": 1, "col": 1}, {"row": 0, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 4}],
+                # Волнистая верхняя
+                [{"row": 1, "col": 0}, {"row": 0, "col": 1}, {"row": 0, "col": 2}, {"row": 0, "col": 3}, {"row": 1, "col": 4}],
+                # Волнистая нижняя
+                [{"row": 1, "col": 0}, {"row": 2, "col": 1}, {"row": 2, "col": 2}, {"row": 2, "col": 3}, {"row": 1, "col": 4}],
+                # Диагональ вниз
+                [{"row": 0, "col": 0}, {"row": 0, "col": 1}, {"row": 1, "col": 2}, {"row": 2, "col": 3}, {"row": 2, "col": 4}],
+                # Диагональ вверх
+                [{"row": 2, "col": 0}, {"row": 2, "col": 1}, {"row": 1, "col": 2}, {"row": 0, "col": 3}, {"row": 0, "col": 4}],
+                # Малая V
+                [{"row": 0, "col": 0}, {"row": 1, "col": 1}, {"row": 1, "col": 2}, {"row": 1, "col": 3}, {"row": 0, "col": 4}],
+                # Малая Λ
+                [{"row": 2, "col": 0}, {"row": 1, "col": 1}, {"row": 1, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 4}],
+                # Зигзаг верх
+                [{"row": 1, "col": 0}, {"row": 0, "col": 1}, {"row": 1, "col": 2}, {"row": 0, "col": 3}, {"row": 1, "col": 4}],
+                # Зигзаг низ
+                [{"row": 1, "col": 0}, {"row": 2, "col": 1}, {"row": 1, "col": 2}, {"row": 2, "col": 3}, {"row": 1, "col": 4}],
+                # Двойная V
+                [{"row": 0, "col": 0}, {"row": 1, "col": 1}, {"row": 0, "col": 2}, {"row": 1, "col": 3}, {"row": 0, "col": 4}],
+                # Двойная Λ
+                [{"row": 2, "col": 0}, {"row": 1, "col": 1}, {"row": 2, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 4}]
             ],
             "rtp_target": 0.95,  # Целевой RTP (Return to Player)
             "bonus_dice": {
@@ -420,6 +441,22 @@ def spin(user_id: int):
         ''', (bet if not is_free_spin else 0, win_amount, win_amount, user_id))
         db.commit()
     
+    # Логируем спин в журнал
+    log_spin(
+        user_id=user_id,
+        platform=user.get('platform', ''),
+        player_id=user.get('player_id', ''),
+        bet=bet,
+        is_free_spin=is_free_spin,
+        matrix=matrix,
+        win_amount=win_amount,
+        balance=new_balance,
+        scatter_triggered=scatter_result['triggered'],
+        bonus_triggered=bonus_result['triggered'],
+        free_spins_remaining=free_spins_remaining_new,
+        wins=win_result['wins']
+    )
+    
     return jsonify({
         'matrix': matrix,
         'wins': win_result['wins'],
@@ -457,78 +494,154 @@ def reset_balance(user_id: int):
 @app.route('/api/multi_spin', methods=['POST'])
 @require_auth
 def multi_spin(user_id: int):
-    """Множественный спин для тестирования"""
+    """Множественный спин для тестирования (симуляция, без изменения реального баланса)"""
     user = get_user_by_id(user_id)
     if not user:
         return jsonify({'error': 'Пользователь не найден'}), 404
     
-    balance = user['balance']
-    
-    # Получаем ставку из запроса
     data = request.get_json() or {}
     bet = data.get('bet', 1)
     spins = data.get('spins', 1000)
     
     # Ограничиваем количество спинов
-    if spins > 1000:
-        spins = 1000
+    if spins > 100000:
+        spins = 100000
     
-    # Проверяем, достаточно ли баланса для одного спина
-    if balance < bet:
+    # Проверяем, достаточно ли баланса для одного обычного спина
+    if user['balance'] < bet:
         return jsonify({'error': 'Недостаточно средств'}), 400
+    
+    start_balance = user['balance']
+    virtual_balance = start_balance  # Виртуальный баланс — реальный НЕ ТРОГАЕМ
+    
+    free_spins_config = config.get("free_spins", {})
+    fs_trigger_count = free_spins_config.get("trigger_count", 3)
+    fs_count = free_spins_config.get("free_spins_count", 10)
+    fs_multiplier = free_spins_config.get("multiplier", 3)
+    fs_retrigger_free_spins = free_spins_config.get("retrigger_free_spins", 10)
+    
+    bonus_config = config.get("bonus_dice", {})
+    bonus_symbol = bonus_config.get("symbol", "G")
+    bonus_trigger_count = bonus_config.get("trigger_count", 3)
     
     # Статистика
     stats = {
+        'start_balance': start_balance,
         'total_bet': 0,
         'total_win': 0,
         'spins': 0,
+        'free_spins_played': 0,
         'symbol_frequency': {s: 0 for s in config['symbols']},
         'win_frequency': 0,
         'biggest_win': 0,
+        'scatter_triggers': 0,
+        'bonus_triggers': 0,
         'rtp': 0,
-        'balance': balance
+        'balance': virtual_balance,
+        'win_breakdown': {
+            'regular_spins': 0,      # выигрыши от обычных спинов
+            'free_spins': 0,          # выигрыши от фриспинов
+            'dice_bonus': 0           # выигрыши от Dice-бонуса
+        }
     }
     
-    # Выполняем спины
+    free_spins_remaining = 0
+    
+    # Симуляция спинов (реальный баланс в БД не меняется)
     for _ in range(spins):
-        # Проверяем, достаточно ли баланса для текущего спина
-        if balance < bet:
+        # Если обычный спин и не хватает виртуального баланса — останавливаемся
+        if free_spins_remaining <= 0 and virtual_balance < bet:
             break
-            
-        # Списываем ставку
-        balance -= bet
-        stats['total_bet'] += bet
+        
+        is_free_spin = free_spins_remaining > 0
+        
+        # Списываем ставку только для обычных спинов
+        if not is_free_spin:
+            virtual_balance -= bet
+            stats['total_bet'] += bet
+        else:
+            free_spins_remaining -= 1
+            stats['free_spins_played'] += 1
+        
         stats['spins'] += 1
         
-        # Генерируем результат спина
-        matrix = generate_spin_result()
+        # Генерируем результат спина (с улучшенными весами для фриспинов)
+        matrix = generate_spin_result(is_free_spin=is_free_spin)
         
         # Подсчитываем частоту символов
         for row in matrix:
             for symbol in row:
                 stats['symbol_frequency'][symbol] += 1
         
-        # Проверяем выигрыш
+        # Проверяем выигрыш по линиям
         win_result = check_winlines(matrix)
         win_amount = win_result['total_win'] * bet
         
-        # Обновляем статистику
+        # Если фриспин — применяем множитель
+        if is_free_spin and win_amount > 0:
+            win_amount *= fs_multiplier
+            stats['win_breakdown']['free_spins'] += win_amount
+        else:
+            stats['win_breakdown']['regular_spins'] += win_amount
+        
+        # Проверяем Scatter (триггер фриспинов)
+        scatter_result = check_scatter(matrix)
+        if scatter_result["triggered"]:
+            stats['scatter_triggers'] += 1
+            if is_free_spin:
+                free_spins_remaining += fs_retrigger_free_spins  # ре-триггер
+            else:
+                free_spins_remaining += fs_count
+        
+        # Проверяем бонус Dice Ladder
+        bonus_result = check_bonus(matrix)
+        if bonus_result["triggered"]:
+            stats['bonus_triggers'] += 1
+            # Симуляция Dice-бонуса: играем лестницу
+            dice_level = 1
+            while True:
+                face = random.choice(get_dice_faces(dice_level))
+                steps = DICE_FACE_STEPS.get(face, 0)
+                dice_level = min(dice_level + steps, get_bonus_max_level())
+                if face == "skull":
+                    break  # проигрыш — 0
+                if dice_level >= get_bonus_max_level():
+                    # Достиг вершины — выигрыш с множителем
+                    mult = get_bonus_multiplier(dice_level)
+                    bonus_win = bet * mult
+                    stats['win_breakdown']['dice_bonus'] += bonus_win
+                    stats['total_win'] += bonus_win
+                    virtual_balance += bonus_win
+                    if bonus_win > stats['biggest_win']:
+                        stats['biggest_win'] = bonus_win
+                    break
+                # Решаем: cashout или продолжить? (50% шанс забрать, 50% рискнуть)
+                cashout_chance = 0.4  # 40% шанс что игрок заберёт на каждой ступени
+                mult = get_bonus_multiplier(dice_level)
+                if random.random() < cashout_chance:
+                    bonus_win = bet * mult
+                    stats['win_breakdown']['dice_bonus'] += bonus_win
+                    stats['total_win'] += bonus_win
+                    virtual_balance += bonus_win
+                    if bonus_win > stats['biggest_win']:
+                        stats['biggest_win'] = bonus_win
+                    break
+        
+        # Обновляем статистику выигрышей
         stats['total_win'] += win_amount
         if win_amount > 0:
             stats['win_frequency'] += 1
         if win_amount > stats['biggest_win']:
             stats['biggest_win'] = win_amount
         
-        # Добавляем выигрыш к балансу
-        balance += win_amount
+        # Добавляем выигрыш к виртуальному балансу
+        virtual_balance += win_amount
     
-    # Сохраняем баланс в БД
-    update_user_balance(user_id, balance)
+    # Баланс в статистике = виртуальный (реальный в БД НЕ МЕНЯЕТСЯ)
+    stats['balance'] = virtual_balance
+    stats['balance_change'] = virtual_balance - start_balance
     
-    # Обновляем баланс в статистике
-    stats['balance'] = balance
-    
-    # Рассчитываем RTP
+    # Рассчитываем RTP (только по обычным спинам, т.к. total_bet = 0 для фриспинов)
     stats['rtp'] = stats['total_win'] / stats['total_bet'] if stats['total_bet'] > 0 else 0
     stats['win_frequency'] = stats['win_frequency'] / stats['spins'] if stats['spins'] > 0 else 0
     
@@ -539,12 +652,34 @@ def multi_spin(user_id: int):
     
     return jsonify({
         'stats': stats,
-        'balance': balance
+        'balance': virtual_balance
     })
 
 @app.route('/api/config', methods=['GET'])
 def get_config():
     return jsonify(config)
+
+
+@app.route('/api/journal/recent', methods=['GET'])
+@require_auth
+def journal_recent(user_id: int):
+    """Последние записи журнала для текущего пользователя."""
+    limit = request.args.get('limit', 50, type=int)
+    entries = get_recent(limit)
+    # Фильтруем только записи текущего пользователя
+    entries = [e for e in entries if e.get('user_id') == user_id]
+    return jsonify({'entries': entries})
+
+
+@app.route('/api/journal/summary', methods=['GET'])
+@require_auth
+def journal_summary(user_id: int):
+    """Сводка по последним спинам из журнала."""
+    limit = request.args.get('limit', 1000, type=int)
+    summary = get_summary(user_id=user_id, limit=limit)
+    if summary:
+        return jsonify(summary)
+    return jsonify({'error': 'Нет данных в журнале'}), 404
 
 
 # Награда за просмотр рекламы

@@ -261,7 +261,7 @@ export class LightningManager {
   private stage: PIXI.Container;
   private ticker: PIXI.Ticker;
 
-  constructor(stage: PIXI.Container, ticker: PIXI.Ticker, poolSize: number = 5) {
+  constructor(stage: PIXI.Container, ticker: PIXI.Ticker, poolSize: number = 15) {
     this.stage = stage;
     this.ticker = ticker;
 

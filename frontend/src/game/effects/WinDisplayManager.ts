@@ -16,6 +16,7 @@ export interface WinDisplayOptions {
   disableWinLines?: boolean;  // Отключить анимацию линий
   disableShine?: boolean;     // Отключить эффект блика
   cascadeWinHighlight?: boolean;  // Каскадная подсветка символов (поочередно)
+  themeId?: string;           // ID темы — для проверки нужно ли показывать молнию (только для aztec)
 }
 
 /**
@@ -40,14 +41,16 @@ export class WinDisplayManager {
   init(stage: PIXI.Container, ticker: PIXI.Ticker): void {
     // Создаём менеджеры только если эффекты не отключены
     if (!this.options.disableWinLines) {
-      this.winLineManager = new WinLineManager(stage, ticker, 5);
+      this.winLineManager = new WinLineManager(stage, ticker, 15);
     }
     // ShineManager не нужен при каскадной подсветке
     if (!this.options.disableShine && !this.options.cascadeWinHighlight) {
       this.shineManager = new ShineEffectManager(ticker, 15);
     }
-    // LightningManager для эффекта молнии на символах-камнях
-    this.lightningManager = new LightningManager(stage, ticker, 5);
+    // LightningManager для эффекта молнии на символах-камнях (только для темы ацтеков)
+    if (this.options.themeId === 'aztec') {
+      this.lightningManager = new LightningManager(stage, ticker, 15);
+    }
   }
 
   showWins(wins: Win[]): void {
@@ -127,8 +130,8 @@ export class WinDisplayManager {
     const theme = LINE_THEMES[w.line % LINE_THEMES.length];
     const animatedSymbols = new Set<number>();
 
-    // Проверяем, является ли символ камнем (A, B, C, F) — для них показываем молнию
-    const isStone = STONE_SYMBOLS.has(w.symbol);
+    // Проверяем, является ли символ камнем (A, B, C, F) — для них показываем молнию (только для темы ацтеков)
+    const isStone = this.options.themeId === 'aztec' && STONE_SYMBOLS.has(w.symbol);
 
     setTimeout(() => {
       if (isStone && this.lightningManager) {

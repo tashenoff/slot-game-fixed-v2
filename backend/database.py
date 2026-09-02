@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any
 DB_PATH = os.path.join(os.path.dirname(__file__), 'game.db')
 
 # Начальный баланс для новых игроков
-INITIAL_BALANCE = 10000
+INITIAL_BALANCE = 10000000
 
 
 def init_db():

@@ -525,7 +525,7 @@ export class WinLineManager {
   private stage: PIXI.Container;
   private ticker: PIXI.Ticker;
 
-  constructor(stage: PIXI.Container, ticker: PIXI.Ticker, maxLines: number = 10) {
+  constructor(stage: PIXI.Container, ticker: PIXI.Ticker, maxLines: number = 15) {
     this.stage = stage;
     this.ticker = ticker;
     for (let i = 0; i < maxLines; i++) {

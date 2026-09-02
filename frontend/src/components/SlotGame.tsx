@@ -87,6 +87,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
   const freeSpinsTriggerPendingRef = useRef<boolean>(false); // Для отслеживания ожидания нотификации
   const freeSpinsResultRef = useRef<boolean>(false); // Блокировка спинов во время модалки результатов
   const freeSpinsRemainingRef = useRef<number>(0); // Для хранения фриспинов в колбэках
+  const freeSpinsMultiplierRef = useRef<number>(1); // Для хранения множителя фриспинов в колбэках
   // Состояния бонусной игры Dice Ladder
   const [showBonusNotification, setShowBonusNotification] = useState<boolean>(false);
   const [bonusTriggeredCount, setBonusTriggeredCount] = useState<number>(3);
@@ -97,9 +98,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
     levels: DiceLevel[];
   } | null>(null);
   const bonusPausedFreeSpinsRef = useRef<number>(0); // Сколько фриспинов осталось при входе в бонус
-  const [showMobileWinModal, setShowMobileWinModal] = useState<boolean>(false);
-  const [mobileWinData, setMobileWinData] = useState<{ symbol: string; amount: number; count: number; rarity: string; rarityColor: string } | null>(null);
-  const mobileWinModalBlockRef = useRef<boolean>(false); // Блокировка автоспина/фриспинов пока висит модалка
+  const [mobileWinData, setMobileWinData] = useState<{ symbol: string; amount: number; count: number; rarity: string; rarityColor: string }[]>([]);
   const balanceRef = useRef<number>(balance); // Для хранения актуального баланса
   const isSpinningRef = useRef<boolean>(false); // Для защиты от двойного вызова
   const isMountedRef = useRef<boolean>(true); // Для отслеживания размонтирования компонента
@@ -752,11 +751,6 @@ const SlotGame: React.FC<SlotGameProps> = ({
       console.log('[Spin] Модалка результатов фриспинов активна, спин заблокирован');
       return;
     }
-    // Если висит модалка выигрыша на мобильном
-    if (mobileWinModalBlockRef.current) {
-      console.log('[Spin] Модалка выигрыша активна, спин заблокирован');
-      return;
-    }
     // Если активна бонусная игра Dice Ladder
     if (showBonusNotification || showDiceLadder) {
       console.log('[Spin] Бонусная игра активна, спин заблокирован');
@@ -882,6 +876,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
           setFreeSpinsTriggeredCount(result.free_spins_triggered);
           setFreeSpinsTotal(result.free_spins_remaining);
           setFreeSpinsMultiplier(result.free_spins_multiplier);
+          freeSpinsMultiplierRef.current = result.free_spins_multiplier;
           setIsFreeSpin(true);
           setFreeSpinsRemaining(result.free_spins_remaining);
           setShowFreeSpinsNotification(true);
@@ -960,13 +955,11 @@ const SlotGame: React.FC<SlotGameProps> = ({
         // Приоритет: мобильная модалка выигрыша > фриспины > автоспин
         
         // Показываем модалку с выигрышем (только если нет других модалок)
-        if (spinResult.wins && spinResult.wins.length > 0 && !showFreeSpinsResult && !showFreeSpinsNotification && !showMobileWinModal) {
+        if (spinResult.wins && spinResult.wins.length > 0 && !showFreeSpinsResult && !showFreeSpinsNotification) {
           // Задержка 500мс — даём WinDisplayManager подсветить символы
           setTimeout(() => {
             if (!isMountedRef.current) return;
-            // Берём первый (самый ценный) выигрыш для отображения
-            const topWin = spinResult.wins.reduce((max, w) => w.win > max.win ? w : max, spinResult.wins[0]);
-            // Определяем редкость комбинации (по символу)
+            // Создаём тост для КАЖДОГО выигрыша
             const rarityMap: Record<string, { label: string; color: string }> = {
               A: { label: 'ЛЕГЕНДАРНАЯ', color: '#FF1744' },
               B: { label: 'ЭПИЧЕСКАЯ', color: '#E91E63' },
@@ -976,38 +969,51 @@ const SlotGame: React.FC<SlotGameProps> = ({
               F: { label: 'ОБЫЧНАЯ', color: '#94a3b8' },
               S: { label: 'SCATTER', color: '#ffd700' },
             };
-            const r = rarityMap[topWin.symbol] || { label: 'ОБЫЧНАЯ', color: '#94a3b8' };
-            setMobileWinData({
-              symbol: topWin.symbol,
-              amount: spinResult.win_amount,
-              count: topWin.count,
-              rarity: r.label,
-              rarityColor: r.color,
+            
+            // Каждый выигрыш -> свой тост
+            const newToasts = spinResult.wins.map(w => {
+              const r = rarityMap[w.symbol] || { label: 'ОБЫЧНАЯ', color: '#94a3b8' };
+              return {
+                symbol: w.symbol,
+                amount: w.win * (betRef.current || 1) * (freeSpinsMultiplierRef.current || 1),
+                count: w.count,
+                rarity: r.label,
+                rarityColor: r.color,
+              };
             });
-            setShowMobileWinModal(true);
-            mobileWinModalBlockRef.current = true;
-            // Автоматически закрываем через 2 секунды, затем продолжаем
-            setTimeout(() => {
-            if (!isMountedRef.current) return;
-            setShowMobileWinModal(false);
-            setMobileWinData(null);
-            mobileWinModalBlockRef.current = false;
-            // После закрытия модалки — продолжаем фриспины/автоспин
-            if (result.free_spins_remaining > 0 && !freeSpinsTriggerPendingRef.current) {
-              const hasWin = spinResult.wins && spinResult.wins.length > 0;
-              const delay = hasWin ? 2500 : 1200;
+            
+            // Добавляем тосты поочередно с задержкой 600ms между ними
+            newToasts.forEach((toast, i) => {
               setTimeout(() => {
+                if (!isMountedRef.current) return;
+                setMobileWinData(prev => [...prev, toast]);
+                
+                // Удаляем этот тост через 2 секунды после его появления
+                setTimeout(() => {
+                  if (!isMountedRef.current) return;
+                  setMobileWinData(prev => {
+                    const next = [...prev];
+                    next.shift();
+                    return next;
+                  });
+                }, 2000);
+              }, i * 600);
+            });
+
+            // Продолжаем фриспины/автоспин после показа тостов
+            if (result.free_spins_remaining > 0 && !freeSpinsTriggerPendingRef.current) {
+              const hasWin = true;
+              const delay = 2500; // Фриспины с задержкой для просмотра выигрыша
+              if (freeSpinTimerRef.current) {
+                clearTimeout(freeSpinTimerRef.current);
+              }
+              freeSpinTimerRef.current = window.setTimeout(() => {
+                if (!isMountedRef.current) return;
                 if (isSpinningRef.current) return;
+                freeSpinTimerRef.current = null;
+                freeSpinsRemainingRef.current = result.free_spins_remaining;
                 handleSpin(false);
               }, delay);
-            } else if (result.is_free_spin && result.free_spins_remaining <= 0) {
-              setIsFreeSpin(false);
-              setFreeSpinsTotal(0);
-              setFreeSpinsMultiplier(1);
-              setFreeSpinsTotalWin(freeSpinsTotalWinRef.current);
-              setShowFreeSpinsResult(true);
-              freeSpinsResultRef.current = true;
-              scheduleMusicFade();
             } else if (autoSpinRef.current && !freeSpinsTriggerPendingRef.current) {
               setAutoSpinCount(prev => {
                 const newCount = prev - 1;
@@ -1016,20 +1022,32 @@ const SlotGame: React.FC<SlotGameProps> = ({
                   scheduleMusicFade();
                   return 0;
                 }
-                const hasWin = spinResult.wins && spinResult.wins.length > 0;
-                const delay = hasWin ? 2500 : 500;
-                setTimeout(() => {
+                const delay = 2500;
+                if (autoSpinTimerRef.current) {
+                  clearTimeout(autoSpinTimerRef.current);
+                }
+                autoSpinTimerRef.current = window.setTimeout(() => {
+                  if (!isMountedRef.current) return;
+                  autoSpinTimerRef.current = null;
                   if (autoSpinRef.current) {
                     handleSpin(true);
                   }
                 }, delay);
                 return newCount;
               });
+            } else if (result.is_free_spin && result.free_spins_remaining <= 0) {
+              setIsFreeSpin(false);
+              setFreeSpinsTotal(0);
+              setFreeSpinsMultiplier(1);
+              freeSpinsMultiplierRef.current = 1;
+              setFreeSpinsTotalWin(freeSpinsTotalWinRef.current);
+              setShowFreeSpinsResult(true);
+              freeSpinsResultRef.current = true;
+              scheduleMusicFade();
             } else {
               scheduleMusicFade();
             }
-          }, 2000);
-          }, 500);
+            }, 500);
         } else if (result.free_spins_remaining > 0 && !freeSpinsTriggerPendingRef.current) {
           // Есть ещё фриспины — запускаем следующий автоматически
           const hasWin = spinResult.wins && spinResult.wins.length > 0;
@@ -1051,6 +1069,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
           setIsFreeSpin(false);
           setFreeSpinsTotal(0);
           setFreeSpinsMultiplier(1);
+          freeSpinsMultiplierRef.current = 1;
           // Показываем модалку с итоговым выигрышем
           setFreeSpinsTotalWin(freeSpinsTotalWinRef.current);
           setShowFreeSpinsResult(true);
@@ -1158,8 +1177,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
       // Запрашиваем результат 1000 спинов с сервера
       const result = await API.multiSpin(bet);
       
-      // Обновляем баланс и статистику
-      updateBalance(result.balance);
+      // Обновляем статистику (баланс НЕ МЕНЯЕТСЯ — симуляция на виртуальном балансе)
       setStats(result.stats);
       setShowStatsModal(true);
       
@@ -1340,42 +1358,39 @@ const SlotGame: React.FC<SlotGameProps> = ({
           </div>
         )}
 
-        {/* Мобильная модалка выигрыша */}
-        {showMobileWinModal && mobileWinData && (
-          <div className="mobile-win-overlay">
-            <div className="mobile-win-modal">
-              <div className="mobile-win-symbol">
-                <img 
-                  src={`${theme.assetsPath}/symbols/${mobileWinData.symbol.toLowerCase()}.svg`}
-                  alt={mobileWinData.symbol}
-                  className="mobile-win-symbol-img"
-                  onError={(e) => {
-                    // Если SVG не загрузился — пробуем PNG, затем показываем букву
-                    const img = e.target as HTMLImageElement;
-                    if (img.src.endsWith('.svg')) {
-                      img.src = `${theme.assetsPath}/symbols/${mobileWinData.symbol.toLowerCase()}.png`;
-                    } else {
-                      // Если и PNG нет — показываем fallback с буквой
-                      img.style.display = 'none';
-                      const parent = img.parentElement;
-                      if (parent) {
-                        parent.textContent = mobileWinData.symbol;
-                      }
+        {/* Toast-уведомления о выигрышах — в правом верхнем углу, не блокируют экран */}
+        {mobileWinData.map((toast, i) => (
+          <div key={`${toast.symbol}-${toast.amount}-${i}`} className="win-toast" style={{ top: `${60 + i * 72}px` }}>
+            <div className="win-toast-icon" style={{ borderColor: toast.rarityColor }}>
+              <img 
+                src={`${theme.assetsPath}/symbols/${toast.symbol.toLowerCase()}.svg`}
+                alt={toast.symbol}
+                className="win-toast-symbol-img"
+                onError={(e) => {
+                  const img = e.target as HTMLImageElement;
+                  if (img.src.endsWith('.svg')) {
+                    img.src = `${theme.assetsPath}/symbols/${toast.symbol.toLowerCase()}.png`;
+                  } else {
+                    img.style.display = 'none';
+                    const parent = img.parentElement;
+                    if (parent) {
+                      parent.textContent = toast.symbol;
                     }
-                  }}
-                />
+                  }
+                }}
+              />
+            </div>
+            <div className="win-toast-info">
+              <div className="win-toast-rarity" style={{ color: toast.rarityColor }}>
+                {toast.rarity}
               </div>
-              <div className="mobile-win-rarity" style={{ color: mobileWinData.rarityColor }}>
-                {mobileWinData.rarity}
-              </div>
-              {mobileWinData.count >= 3 && (
-                <div className="mobile-win-combo">{mobileWinData.symbol} x{mobileWinData.count}</div>
+              {toast.count >= 3 && (
+                <div className="win-toast-combo">{toast.symbol} x{toast.count}</div>
               )}
-              <div className="mobile-win-label">ВЫИГРЫШ!</div>
-              <div className="mobile-win-amount">+{mobileWinData.amount.toLocaleString()}</div>
+              <div className="win-toast-amount">+{toast.amount.toLocaleString()} ◎</div>
             </div>
           </div>
-        )}
+        ))}
 
         {/* Модалка результатов фриспинов */}
         {showFreeSpinsResult && (
@@ -1614,12 +1629,18 @@ const SlotGame: React.FC<SlotGameProps> = ({
                 <p><span className="font-bold">Всего ставок:</span> {stats.total_bet}</p>
                 <p><span className="font-bold">Всего выигрышей:</span> {stats.total_win}</p>
                 <p><span className="font-bold">Количество спинов:</span> {stats.spins}</p>
+                <p><span className="font-bold">Фриспинов сыграно:</span> {stats.free_spins_played ?? 0}</p>
                 <p><span className="font-bold">Частота выигрышей:</span> {(stats.win_frequency * 100).toFixed(2)}%</p>
               </div>
               <div>
                 <p><span className="font-bold">Самый большой выигрыш:</span> {stats.biggest_win}</p>
                 <p><span className="font-bold">RTP:</span> {(stats.rtp * 100).toFixed(2)}%</p>
-                <p><span className="font-bold">Баланс после тестов:</span> {stats.balance}</p>
+                <p><span className="font-bold">Триггеров Scatter:</span> {stats.scatter_triggers ?? 0}</p>
+                <p><span className="font-bold">Триггеров Dice-бонуса:</span> {stats.bonus_triggers ?? 0}</p>
+                <p><span className="font-bold">Виртуальный баланс:</span> {stats.balance}</p>
+                <p className={stats.balance_change !== undefined && stats.balance_change >= 0 ? 'text-green-400' : 'text-red-400'}>
+                  <span className="font-bold">Изменение:</span> {stats.balance_change !== undefined ? (stats.balance_change >= 0 ? '+' : '') + stats.balance_change : '—'}
+                </p>
               </div>
             </div>
 

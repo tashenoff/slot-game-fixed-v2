@@ -66,12 +66,17 @@ export interface DiceCashoutResult {
 }
 
 export interface Stats {
+  start_balance?: number;
   total_bet: number;
   total_win: number;
   spins: number;
+  free_spins_played?: number;
   symbol_frequency: Record<string, number>;
   win_frequency: number;
   biggest_win: number;
+  scatter_triggers?: number;
+  bonus_triggers?: number;
   rtp: number;
   balance: number;
+  balance_change?: number;
 }

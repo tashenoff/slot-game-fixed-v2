@@ -234,6 +234,7 @@ export class SlotMachine {
       disableWinLines: this.mobileConfig?.disableWinLines,
       disableShine: this.mobileConfig?.disableShine || iosDisableShine,
       cascadeWinHighlight: this.mobileConfig?.cascadeWinHighlight,
+      themeId: this.theme.id,
     });
   }
 
