@@ -47,7 +47,7 @@ export class ReelAnimator {
     const { rows, cols, isMobileLayout } = this.config.dimensions;
     this.visualCols = isMobileLayout ? rows : cols;
 
-    // Инициализируем состояние
+    // Инициализируем состояние (position не сбрасываем — он накапливается между спинами)
     const state = this.reelManager.getState();
     for (let c = 0; c < this.visualCols; c++) {
       state[c].phase = 'spinning';
@@ -85,6 +85,29 @@ export class ReelAnimator {
         s.position += spinSpeed;
         s.pos = s.position;
         this.reelManager.updateReelDisplay(c);
+      } else if (s.phase === 'stopping') {
+        // Плавное торможение с учётом оставшегося расстояния
+        const remaining = s.targetPosition - s.position;
+        if (remaining <= 0.5) {
+          // Достигли target — финиш
+          s.position = s.targetPosition;
+          s.pos = s.position;
+          s.velocity = 0;
+          this.reelManager.updateReelDisplay(c);
+          this.reelManager.finishReel(c);
+          this.bounceReelWithGSAP(c, s);
+        } else {
+          // Скорость не должна быть меньше чем remaining / ожидаемыеКадры
+          // Чтобы не ползти бесконечно при большом remaining
+          const desiredVelocity = Math.min(spinSpeed, Math.max(1.0, remaining / 20));
+          // Плавно снижаем скорость до desiredVelocity
+          s.velocity += (desiredVelocity - s.velocity) * 0.15;
+          if (s.velocity < 0.5) s.velocity = 0.5;
+          
+          s.position += s.velocity;
+          s.pos = s.position;
+          this.reelManager.updateReelDisplay(c);
+        }
       } else if (s.phase === 'bouncing') {
         const bElapsed = now - s.bounceStart;
         const bProgress = Math.min(bElapsed / bounceTime, 1);
@@ -144,6 +167,7 @@ export class ReelAnimator {
     const stepHeight = cellHeight + rowGap;
     const stripHeightPx = reelStripLength * stepHeight;
 
+    // Захватываем текущие позиции и рассчитываем targets
     const capturedPositions: number[] = [];
     const baseTargets: number[] = [];
     for (let c = 0; c < visualCols; c++) {
@@ -151,10 +175,8 @@ export class ReelAnimator {
       baseTargets[c] = this.reelManager.recalculateTargetPosition(c, capturedPositions[c], cellHeight);
     }
 
-    // Каждый следующий барабан должен пролететь дальше
-    // чтобы создать эффект последовательной остановки
-    // Используем stopDelay для создания минимального разрыва
-    const minGapFrames = (stopDelay / 1000) * 60; // stopDelay в кадрах (при 60fps)
+    // Разрыв между барабанами
+    const minGapFrames = (stopDelay / 1000) * 60;
     const minGapPixels = spinSpeed * minGapFrames;
     
     for (let c = 1; c < visualCols; c++) {
@@ -164,66 +186,42 @@ export class ReelAnimator {
       }
     }
 
-    // GSAP: плавная остановка с задержкой между барабанами
+    // Рассчитываем итоговые adjustedTarget для каждого барабана с учётом его задержки
+    const adjustedTargets: number[] = [];
     for (let c = 0; c < visualCols; c++) {
-      // Добавляем задержку для каждого следующего барабана
-      const delay = c * stopDelay;
-      const capturedTarget = baseTargets[c];
-      window.setTimeout(() => {
-        // К моменту срабатывания timeout позиция могла убежать вперёд.
-        // Добавляем полные обороты, чтобы target был строго ВПЕРЕДИ текущей позиции
-        let adjustedTarget = capturedTarget;
-        while (adjustedTarget <= state[c].position) {
-          adjustedTarget += stripHeightPx;
-        }
-        this.stopReelWithGSAP(c, state[c], adjustedTarget);
-      }, delay);
-    }
-  }
-
-  /**
-   * GSAP-анимация остановки одного барабана
-   * Вместо ручного position += velocity + distanceToTarget в tick
-   */
-  private stopReelWithGSAP(col: number, s: ReelState, targetPosition: number): void {
-    const blurFilters = this.reelManager.getBlurFilters();
-    const { spinSpeed } = this.config.animation;
-
-    s.phase = 'stopping';
-    s.targetPosition = targetPosition;
-    s.targetRecalculated = true;
-
-    const distance = targetPosition - s.position;
-    // power2.out: производная в начале = 2, значит v_initial = 2 * distance / duration
-    // Хотим чтобы начальная скорость совпала с текущей: spinSpeed * 60 пикселей/сек
-    // duration = 2 * distance / (spinSpeed * 60)
-    const duration = Math.max(0.2, Math.min(0.5, (distance / spinSpeed / 60) * 2.0));
-
-    // Плавно убираем motion blur
-    gsap.killTweensOf(blurFilters[col]);
-    gsap.to(blurFilters[col], {
-      blurY: 0,
-      duration: duration * 0.5,
-      ease: 'power2.out'
-    });
-
-    // GSAP: position → target с плавным замедлением (без ускорения в середине)
-    gsap.to(s, {
-      position: targetPosition,
-      duration: duration,
-      ease: 'power2.out',
-      onUpdate: () => {
-        s.pos = s.position;
-        this.reelManager.updateReelDisplay(col);
-      },
-      onComplete: () => {
-        s.position = targetPosition;
-        s.pos = s.position;
-        s.velocity = 0;
-        this.reelManager.updateReelDisplay(col);
-        this.reelManager.finishReel(col);
-        this.bounceReelWithGSAP(col, s);
+      const delaySec = (c * stopDelay) / 1000;
+      const extraDistance = spinSpeed * delaySec * 60;
+      const estimatedPosition = capturedPositions[c] + extraDistance;
+      
+      let finalTarget = baseTargets[c];
+      while (finalTarget <= estimatedPosition) {
+        finalTarget += stripHeightPx;
       }
+      
+      adjustedTargets[c] = finalTarget;
+
+      // Ставим setTimeout для staggered остановки
+      window.setTimeout(() => {
+        const s = state[c];
+        s.phase = 'stopping';
+        s.targetPosition = adjustedTargets[c];
+        s.targetRecalculated = true;
+
+        // Начальная скорость для торможения = текущая скорость вращения
+        s.velocity = spinSpeed;
+      }, c * stopDelay);
+    }
+
+    // Плавно убираем motion blur у всех барабанов (через GSAP — он не трогает position)
+    const blurFilters = this.reelManager.getBlurFilters();
+    blurFilters.forEach((blur, c) => {
+      gsap.killTweensOf(blur);
+      gsap.to(blur, {
+        blurY: 0,
+        duration: 0.3,
+        delay: (c * stopDelay) / 1000,
+        ease: 'power2.out'
+      });
     });
   }
 
@@ -312,6 +310,7 @@ export class ReelAnimator {
       if (sp) gsap.killTweensOf(sp.tilePosition);
     });
 
+    // Убиваем все GSAP таймлайны
     this.timers.forEach(clearTimeout);
     this.timers = [];
     this.bounceOrigY = [];
