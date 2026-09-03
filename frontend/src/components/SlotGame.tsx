@@ -6,6 +6,7 @@ import Modal from './Modal';
 import LowBalanceModal from './LowBalanceModal';
 import DiceLadder from './DiceLadder';
 import WinModal from './WinModal';
+import AnimatedNumber from './AnimatedNumber';
 import * as API from '../api';
 import { Stats, DiceLevel } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
@@ -1438,7 +1439,9 @@ const SlotGame: React.FC<SlotGameProps> = ({
             <div className="free-spins-notification">
               <div className="free-spins-icon">💰</div>
               <h2 className="free-spins-title">ФРИСПИНЫ ЗАВЕРШЕНЫ!</h2>
-              <div className="free-spins-result-amount">+{freeSpinsTotalWin.toLocaleString()}</div>
+              <div className="free-spins-result-amount">
+                <AnimatedNumber value={freeSpinsTotalWin} />
+              </div>
               <p className="free-spins-subtitle">Выигрыш за все фриспины</p>
               <button 
                 className="free-spins-start-btn"

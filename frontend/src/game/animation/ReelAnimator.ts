@@ -26,6 +26,8 @@ export class ReelAnimator {
   private isRunning = false;
   private visualCols = 0;
   private stoppedCount = 0;
+  private bounceOrigY: (number[] | undefined)[] = [];   // [col] -> origY для bounce
+  private barabanOrigY: (number | undefined)[] = [];    // [col] -> tilePosition.x для bounce
 
   constructor(config: SlotConfig, reelManager: ReelManager, ticker: PIXI.Ticker) {
     this.config = config;
@@ -74,13 +76,49 @@ export class ReelAnimator {
 
   private tick(): void {
     const state = this.reelManager.getState();
-    const { spinSpeed } = this.config.animation;
+    const { spinSpeed, bounceHeight, bounceTime } = this.config.animation;
+    const now = Date.now();
     for (let c = 0; c < this.visualCols; c++) {
       const s = state[c];
       if (s.phase === 'spinning') {
         s.position += spinSpeed;
         s.pos = s.position;
         this.reelManager.updateReelDisplay(c);
+      } else if (s.phase === 'bouncing') {
+        const bElapsed = now - s.bounceStart;
+        const bProgress = Math.min(bElapsed / bounceTime, 1);
+        // Синусоидальный отскок с затуханием — как в ацтеках
+        const offset = Math.sin(bProgress * Math.PI) * bounceHeight * (1 - bProgress);
+        
+        const allSprites = this.reelManager.getSymbols()[c];
+        if (allSprites && this.bounceOrigY[c]) {
+          for (let i = 0; i < allSprites.length; i++) {
+            if (this.bounceOrigY[c][i] !== undefined) {
+              allSprites[i].y = this.bounceOrigY[c][i] + offset;
+            }
+          }
+        }
+        
+        // Барабан TilingSprite (горизонтальное смещение для классики)
+        const barabanSprites = this.reelManager.getBarabanSprites();
+        if (barabanSprites[c] && this.barabanOrigY[c] !== undefined) {
+          barabanSprites[c].tilePosition.x = this.barabanOrigY[c] + offset;
+        }
+        
+        if (bProgress >= 1) {
+          // Восстанавливаем финальные позиции
+          if (allSprites && this.bounceOrigY[c]) {
+            for (let i = 0; i < allSprites.length; i++) {
+              if (this.bounceOrigY[c][i] !== undefined) {
+                allSprites[i].y = this.bounceOrigY[c][i];
+              }
+            }
+          }
+          if (barabanSprites[c] && this.barabanOrigY[c] !== undefined) {
+            barabanSprites[c].tilePosition.x = this.barabanOrigY[c];
+          }
+          this.onBounceComplete(c, s);
+        }
       }
     }
   }
@@ -95,32 +133,50 @@ export class ReelAnimator {
 
   /**
    * Рассчитать дистанции для всех барабанов так, чтобы они останавливались слева направо
+   * с задержкой stopDelay между барабанами
    */
   private calculateOrderedStops(): void {
     const state = this.reelManager.getState();
     const { cellHeight, rowGap, cols, rows, isMobileLayout } = this.config.dimensions;
-    const { reelStripLength, spinSpeed } = this.config.animation;
+    const { reelStripLength, spinSpeed, stopDelay } = this.config.animation;
     const visualCols = isMobileLayout ? rows : cols;
     const stepHeight = cellHeight + rowGap;
     const stripHeightPx = reelStripLength * stepHeight;
-    const minGap = spinSpeed * 2;
 
-    const distances: number[] = [];
+    const capturedPositions: number[] = [];
+    const baseTargets: number[] = [];
     for (let c = 0; c < visualCols; c++) {
-      const baseTarget = this.reelManager.recalculateTargetPosition(c, state[c].position, cellHeight);
-      distances[c] = baseTarget - state[c].position;
+      capturedPositions[c] = state[c].position;
+      baseTargets[c] = this.reelManager.recalculateTargetPosition(c, capturedPositions[c], cellHeight);
     }
 
+    // Каждый следующий барабан должен пролететь дальше
+    // чтобы создать эффект последовательной остановки
+    // Используем stopDelay для создания минимального разрыва
+    const minGapFrames = (stopDelay / 1000) * 60; // stopDelay в кадрах (при 60fps)
+    const minGapPixels = spinSpeed * minGapFrames;
+    
     for (let c = 1; c < visualCols; c++) {
-      const minRequired = distances[c - 1] + minGap;
-      if (distances[c] < minRequired) {
-        while (distances[c] < minRequired) distances[c] += stripHeightPx;
+      const minRequired = baseTargets[c - 1] + minGapPixels;
+      if (baseTargets[c] < minRequired) {
+        while (baseTargets[c] < minRequired) baseTargets[c] += stripHeightPx;
       }
     }
 
-    // GSAP: плавная остановка вместо ручного distanceToTarget
+    // GSAP: плавная остановка с задержкой между барабанами
     for (let c = 0; c < visualCols; c++) {
-      this.stopReelWithGSAP(c, state[c], state[c].position + distances[c]);
+      // Добавляем задержку для каждого следующего барабана
+      const delay = c * stopDelay;
+      const capturedTarget = baseTargets[c];
+      window.setTimeout(() => {
+        // К моменту срабатывания timeout позиция могла убежать вперёд.
+        // Добавляем полные обороты, чтобы target был строго ВПЕРЕДИ текущей позиции
+        let adjustedTarget = capturedTarget;
+        while (adjustedTarget <= state[c].position) {
+          adjustedTarget += stripHeightPx;
+        }
+        this.stopReelWithGSAP(c, state[c], adjustedTarget);
+      }, delay);
     }
   }
 
@@ -137,21 +193,24 @@ export class ReelAnimator {
     s.targetRecalculated = true;
 
     const distance = targetPosition - s.position;
-    const duration = Math.max(0.15, (distance / spinSpeed / 60) * 1.2);
+    // power2.out: производная в начале = 2, значит v_initial = 2 * distance / duration
+    // Хотим чтобы начальная скорость совпала с текущей: spinSpeed * 60 пикселей/сек
+    // duration = 2 * distance / (spinSpeed * 60)
+    const duration = Math.max(0.2, Math.min(0.5, (distance / spinSpeed / 60) * 2.0));
 
     // Плавно убираем motion blur
     gsap.killTweensOf(blurFilters[col]);
     gsap.to(blurFilters[col], {
       blurY: 0,
-      duration: duration * 0.6,
-      ease: 'power2.in'
+      duration: duration * 0.5,
+      ease: 'power2.out'
     });
 
-    // GSAP: position → target с замедлением
+    // GSAP: position → target с плавным замедлением (без ускорения в середине)
     gsap.to(s, {
       position: targetPosition,
       duration: duration,
-      ease: 'power2.inOut',
+      ease: 'power2.out',
       onUpdate: () => {
         s.pos = s.position;
         this.reelManager.updateReelDisplay(col);
@@ -173,50 +232,30 @@ export class ReelAnimator {
    */
   private bounceReelWithGSAP(col: number, s: ReelState): void {
     const { dimensions, animation } = this.config;
-    const { cellHeight, rowGap, rows } = dimensions;
-    const stepHeight = cellHeight + rowGap;
-    const barabanSprites = this.reelManager.getBarabanSprites();
-    const symbols: PIXI.Sprite[] = [];
-
-    for (let r = 0; r < rows; r++) {
-      const sprite = this.reelManager.getSymbol(col, r);
-      if (sprite) symbols.push(sprite);
-    }
-
-    if (symbols.length === 0) {
+    const { cellHeight, rowGap, rows, cols, isMobileLayout } = dimensions;
+    
+    const allSymbols = this.reelManager.getSymbols();
+    const allSprites = allSymbols[col];
+    
+    if (!allSprites || allSprites.length === 0) {
       this.onBounceComplete(col, s);
       return;
     }
-
-    const origY = symbols.map(sp => sp.y);
+    
+    // Сохраняем origY для ВСЕХ спрайтов — tick сам обновит их Y
+    this.bounceOrigY[col] = allSprites.map(sp => sp.y);
+    
+    // Сохраняем позицию барабана TilingSprite
+    const barabanSprites = this.reelManager.getBarabanSprites();
+    if (barabanSprites[col]) {
+      this.barabanOrigY[col] = barabanSprites[col].tilePosition.x;
+    } else {
+      this.barabanOrigY[col] = undefined;
+    }
+    
     s.phase = 'bouncing';
     s.bouncing = true;
     s.bounceStart = Date.now();
-
-    // GSAP: подбрасываем символы вверх с отскоком (вместо ручного синуса)
-    symbols.forEach((sp, i) => {
-      gsap.killTweensOf(sp);
-      gsap.to(sp, {
-        y: origY[i] - animation.bounceHeight,
-        duration: animation.bounceTime / 1000,
-        ease: 'bounce.out',
-        onComplete: () => { sp.y = origY[i]; }
-      });
-    });
-
-    // Анимация барабана TilingSprite
-    if (barabanSprites[col]) {
-      gsap.killTweensOf(barabanSprites[col].tilePosition);
-      gsap.to(barabanSprites[col].tilePosition, {
-        x: -animation.bounceHeight,
-        duration: animation.bounceTime / 1000,
-        ease: 'bounce.out',
-        onComplete: () => { barabanSprites[col].tilePosition.x = 0; }
-      });
-    }
-
-    const timer = window.setTimeout(() => this.onBounceComplete(col, s), animation.bounceTime);
-    this.timers.push(timer);
   }
 
   private onBounceComplete(col: number, s: ReelState): void {
@@ -249,6 +288,24 @@ export class ReelAnimator {
       }
     }
 
+    // Восстанавливаем позиции спрайтов, если bounce прерван
+    for (let c = 0; c < state.length; c++) {
+      if (state[c].phase === 'bouncing' && this.bounceOrigY[c]) {
+        const allSprites = this.reelManager.getSymbols()[c];
+        if (allSprites) {
+          for (let i = 0; i < allSprites.length; i++) {
+            if (this.bounceOrigY[c][i] !== undefined) {
+              allSprites[i].y = this.bounceOrigY[c][i];
+            }
+          }
+        }
+        const barabanSprites = this.reelManager.getBarabanSprites();
+        if (barabanSprites[c] && this.barabanOrigY[c] !== undefined) {
+          barabanSprites[c].tilePosition.x = this.barabanOrigY[c];
+        }
+      }
+    }
+
     this.reelManager.getBlurFilters().forEach(blur => gsap.killTweensOf(blur));
     this.reelManager.getBarabanSprites().forEach(sp => {
       if (sp) gsap.killTweensOf(sp.tilePosition);
@@ -256,6 +313,8 @@ export class ReelAnimator {
 
     this.timers.forEach(clearTimeout);
     this.timers = [];
+    this.bounceOrigY = [];
+    this.barabanOrigY = [];
     this.isRunning = false;
   }
 

@@ -54,6 +54,12 @@
       {"level": 10, "faces": {"coin": 0, "diamond": 0, "fire": 0, "skull": 0}}
     ]
   },
+  "bet_limits": {
+    "min": 100,
+    "max": 5000,
+    "default": 500,
+    "presets": [100, 200, 500, 1000, 2000, 5000]
+  },
   "paylines": [
     [{"row": 1, "col": 0}, {"row": 1, "col": 1}, {"row": 1, "col": 2}, {"row": 1, "col": 3}, {"row": 1, "col": 4}],
     [{"row": 0, "col": 0}, {"row": 0, "col": 1}, {"row": 0, "col": 2}, {"row": 0, "col": 3}, {"row": 0, "col": 4}],

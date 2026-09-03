@@ -77,6 +77,31 @@ def load_config():
 # Глобальная переменная для хранения конфигурации
 config = load_config()
 
+# Получение лимитов ставок из конфига
+def get_bet_limits():
+    """Вернуть словарь с лимитами ставок (с значениями по умолчанию)."""
+    bl = config.get("bet_limits", {})
+    return {
+        "min": bl.get("min", 100),
+        "max": bl.get("max", 5000),
+        "default": bl.get("default", 500),
+        "presets": bl.get("presets", [100, 200, 500, 1000, 2000, 5000])
+    }
+
+def validate_bet(bet: int) -> tuple:
+    """
+    Проверить, что ставка в допустимых пределах.
+    Возвращает (is_valid: bool, error_message: str или None).
+    """
+    limits = get_bet_limits()
+    if bet <= 0:
+        return False, "Ставка должна быть положительным числом"
+    if bet < limits["min"]:
+        return False, f"Минимальная ставка: {limits['min']}"
+    if bet > limits["max"]:
+        return False, f"Максимальная ставка: {limits['max']}"
+    return True, None
+
 # Генерация случайного символа с учетом весов
 def generate_random_symbol(col=None, is_free_spin=False):
     symbols = config["symbols"]
@@ -247,8 +272,10 @@ def bonus_dice_roll(user_id: int):
     force_face = data.get('force_face')  # для тестирования
 
     max_level = get_bonus_max_level()
-    if bet <= 0:
-        return jsonify({'error': 'Неверная ставка'}), 400
+    # Валидируем ставку (диапазон из конфига, защита от отрицательных ставок)
+    is_valid, error_msg = validate_bet(bet)
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
     if level < 0 or level > max_level:
         return jsonify({'error': 'Неверный уровень'}), 400
 
@@ -366,6 +393,12 @@ def spin(user_id: int):
     # Получаем ставку и статус фриспинов из запроса
     data = request.get_json() or {}
     bet = data.get('bet', 1)
+    
+    # Валидируем ставку (диапазон из конфига, защита от отрицательных ставок)
+    is_valid, error_msg = validate_bet(bet)
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
+    
     is_free_spin = data.get('is_free_spin', False)
     free_spins_remaining = data.get('free_spins_remaining', 0)
     test_mode = data.get('test_free_spins', False)  # Тестовый режим для гарантированного фриспина
@@ -500,6 +533,11 @@ def multi_spin(user_id: int):
     data = request.get_json() or {}
     bet = data.get('bet', 1)
     spins = data.get('spins', 1000)
+    
+    # Валидируем ставку (диапазон из конфига, защита от отрицательных ставок)
+    is_valid, error_msg = validate_bet(bet)
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
     
     # Ограничиваем количество спинов
     if spins > 100000:

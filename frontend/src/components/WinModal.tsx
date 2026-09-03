@@ -1,5 +1,6 @@
 ﻿import React, { useLayoutEffect, useRef, useCallback, memo } from 'react';
 import gsap from 'gsap';
+import AnimatedNumber from './AnimatedNumber';
 
 /**
  * Уровни выигрышей на основе множителя (win / bet)
@@ -63,11 +64,7 @@ const WinModal: React.FC<WinModalProps> = memo(({
   const titleRef = useRef<HTMLHeadingElement>(null);
   const amountRef = useRef<HTMLDivElement>(null);
   const particlesContainerRef = useRef<HTMLDivElement>(null);
-  // amountValueRef — для прямой записи бегущих цифр в DOM (минуя React)
-  const amountValueRef = useRef<HTMLSpanElement>(null);
   const animTimelineRef = useRef<gsap.core.Timeline | null>(null);
-  const countAnimRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
 
   const multiplier = bet > 0 ? totalWin / bet : 0;
   const level = getWinLevelByMultiplier(multiplier);
@@ -75,18 +72,10 @@ const WinModal: React.FC<WinModalProps> = memo(({
 
   useLayoutEffect(() => {
     if (!isOpen) {
-      if (countAnimRef.current !== null) {
-        cancelAnimationFrame(countAnimRef.current);
-        countAnimRef.current = null;
-      }
       return;
     }
 
     if (animTimelineRef.current) animTimelineRef.current.kill();
-    if (countAnimRef.current !== null) {
-      cancelAnimationFrame(countAnimRef.current);
-      countAnimRef.current = null;
-    }
 
     const tl = gsap.timeline();
 
@@ -121,60 +110,13 @@ const WinModal: React.FC<WinModalProps> = memo(({
 
     animTimelineRef.current = tl;
 
-    // ===== Эффект счётчика от 0 до суммы =====
-    const targetValue = totalWin;
-    const duration = Math.min(6, Math.max(3, targetValue / 10000));
-    startTimeRef.current = performance.now();
-
-    // Начинаем с нуля
-    if (amountValueRef.current) {
-      amountValueRef.current.textContent = '+0';
-    }
-
-    const animateCount = (now: number) => {
-      const elapsed = (now - startTimeRef.current) / 1000;
-      const progress = Math.min(elapsed / duration, 1);
-
-      // Easing: cubic ease-out
-      const eased = 1 - Math.pow(1 - progress, 2.5);
-
-      // Текущее значение от 0 до targetValue
-      const currentValue = Math.round(targetValue * eased);
-
-      // Прямая запись в DOM — минуя React
-      if (amountValueRef.current) {
-        amountValueRef.current.textContent = '+' + currentValue.toLocaleString();
-      }
-
-      if (progress < 1) {
-        countAnimRef.current = requestAnimationFrame(animateCount);
-      } else {
-        // Финальное значение — точно
-        if (amountValueRef.current) {
-          amountValueRef.current.textContent = '+' + targetValue.toLocaleString();
-        }
-        countAnimRef.current = null;
-      }
-    };
-
-// Запускаем сразу
-    countAnimRef.current = requestAnimationFrame(animateCount);
-
     return () => {
       if (animTimelineRef.current) animTimelineRef.current.kill();
-      if (countAnimRef.current !== null) {
-        cancelAnimationFrame(countAnimRef.current);
-        countAnimRef.current = null;
-      }
     };
   }, [isOpen, totalWin, bet, isSignificant]);
 
   const handleCollect = useCallback(() => {
     if (animTimelineRef.current) animTimelineRef.current.kill();
-    if (countAnimRef.current !== null) {
-      cancelAnimationFrame(countAnimRef.current);
-      countAnimRef.current = null;
-    }
 
     if (overlayRef.current && modalRef.current) {
       gsap.to(overlayRef.current, {
@@ -264,10 +206,8 @@ const WinModal: React.FC<WinModalProps> = memo(({
         </h2>
 
         <div className="win-modal-amount" ref={amountRef}>
-          <span className="win-modal-amount-value gold-text" ref={amountValueRef} style={{ color: '#FFD700' }}>
-            +{totalWin.toLocaleString()}
-          </span>
-          <span className="win-modal-amount-currency">◎</span>
+            <AnimatedNumber value={totalWin} className="win-modal-amount-value gold-text" />
+            <span className="win-modal-amount-currency">◎</span>
         </div>
 
         {isSignificant && (

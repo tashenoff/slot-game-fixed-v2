@@ -1,0 +1,63 @@
+{
+  "id": "mafia",
+  "name": "Итальянская мафия",
+  "description": "Коза ностра, сицилийские кланы и криминальные авторитеты",
+  "symbols": ["A", "B", "C", "D", "E", "F", "S", "G"],
+  "fallbackColors": {
+    "A": "#8b0000",
+    "B": "#1a1a2e",
+    "C": "#d4af37",
+    "D": "#c0c0c0",
+    "E": "#006400",
+    "F": "#4a0000",
+    "S": "#ffd700",
+    "G": "#ff4500"
+  },
+  "glowColors": {
+    "A": "#FF0000",
+    "B": "#0D0D0D",
+    "C": "#FFD700",
+    "D": "#C0C0C0",
+    "E": "#00AA00",
+    "F": "#800000",
+    "S": "#FFD700",
+    "G": "#FF4500"
+  },
+  "glowIntensity": {
+    "A": 1.0,
+    "B": 0.8,
+    "C": 0.6,
+    "D": 0.4,
+    "E": 0.15,
+    "F": 0.15,
+    "S": 1.0,
+    "G": 1.0
+  },
+  "isNew": true,
+  "isHot": true,
+  "borderWidth": 1600,
+  "borderHeight": 1073,
+  "symbolSizeRatio": 1.0,
+  "symbolFillCell": true,
+  "reelsAutoCenter": true,
+  "reelsCenterYOffset": 5,
+  "reelGap": 5,
+  "rowGap": 5,
+  "reelsAreaWidth": 1070,
+  "reelsAreaHeight": 642,
+  "mobile": {
+    "borderWidth": 1696,
+    "borderHeight": 2528,
+    "reelsAutoCenter": true,
+    "reelsCenterYOffset": 10,
+    "reelGap": 4,
+    "rowGap": 4,
+    "reelsAreaWidth": 1024,
+    "reelsAreaHeight": 1200,
+    "disableBlur": true,
+    "disableDust": true,
+    "disableWinLines": true,
+    "disableShine": false,
+    "cascadeWinHighlight": true
+  }
+}

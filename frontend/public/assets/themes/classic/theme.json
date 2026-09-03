@@ -23,5 +23,12 @@
   "reelGap": 5,
   "rowGap": 5,
   "reelsAreaWidth": 1070,
-  "reelsAreaHeight": 642
+  "reelsAreaHeight": 642,
+  "reelAnimation": {
+    "type": "spin",
+    "direction": "top-to-bottom",
+    "bounceHeight": 35,
+    "bounceTime": 500,
+    "staggerDelay": 100
+  }
 }
