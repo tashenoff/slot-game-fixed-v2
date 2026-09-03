@@ -47,14 +47,15 @@ export class ReelAnimator {
     const { rows, cols, isMobileLayout } = this.config.dimensions;
     this.visualCols = isMobileLayout ? rows : cols;
 
-    this.reelManager.resetSymbolPositions();
-
     // Инициализируем состояние
     const state = this.reelManager.getState();
     for (let c = 0; c < this.visualCols; c++) {
       state[c].phase = 'spinning';
       state[c].on = true;
     }
+
+    // Сбрасываем blur фильтры и отображение
+    this.reelManager.resetSymbolPositions();
 
     // GSAP: разгон motion blur
     const blurFilters = this.reelManager.getBlurFilters();
