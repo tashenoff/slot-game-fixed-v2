@@ -2,6 +2,8 @@
  * SlotConfig - централизованная конфигурация слот-машины
  * Все магические числа и настройки в одном месте
  */
+import { ThemeSymbolVisuals } from '../symbols/symbolVisual';
+
 
 export interface SlotDimensions {
   borderWidth: number;
@@ -65,6 +67,8 @@ export interface SymbolConfig {
   rarityGlowColors: Record<string, string>;
   /** Интенсивность свечения (0-1), чем реже символ — тем ярче */
   rarityGlowIntensity?: Record<string, number>;
+  /** Визуал символов темы (слои / animated). Опционально. */
+  visuals?: ThemeSymbolVisuals;
 }
 
 export interface ReelStripConfig {

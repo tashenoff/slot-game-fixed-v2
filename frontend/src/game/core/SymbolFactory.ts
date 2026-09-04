@@ -1,6 +1,9 @@
 import * as PIXI from 'pixi.js';
 import { SlotConfig } from '../config/SlotConfig';
 import { AssetLoader } from './AssetLoader';
+import { SYMBOL_CONTENT_CHILD, SYMBOL_SHINE_CHILD } from '../symbols/symbolVisual';
+import { createSymbolAnimations, destroySymbolAnimations, SymbolAnimationInstance } from '../symbols/animations';
+
 
 /**
  * SymbolFactory - создание и переиспользование спрайтов символов
@@ -8,6 +11,8 @@ import { AssetLoader } from './AssetLoader';
 export class SymbolFactory {
   private config: SlotConfig;
   private assetLoader: AssetLoader;
+  private animBySprite: WeakMap<PIXI.Sprite, SymbolAnimationInstance[]> = new WeakMap();
+
 
   constructor(config: SlotConfig, assetLoader: AssetLoader) {
     this.config = config;
@@ -15,7 +20,8 @@ export class SymbolFactory {
   }
 
   /**
-   * Создать спрайт символа с эффектом свечения (glow) по редкости
+   * Создать спрайт символа. Если у символа есть слои — фон на корне,
+   * content — дочерний спрайт (его можно скейлить отдельно).
    */
   createSymbol(symbolId: string): PIXI.Sprite {
     const texture = this.assetLoader.getSymbolTexture(symbolId);
@@ -25,21 +31,73 @@ export class SymbolFactory {
 
     const sprite = new PIXI.Sprite(texture);
     sprite.anchor.set(0.5);
-    
-    const { cellWidth, cellHeight, dimensions } = this.config;
-    
-    if (dimensions.symbolFillCell) {
-      const maxSize = Math.min(cellWidth, cellHeight);
-      const symbolSize = maxSize * dimensions.symbolSizeRatio;
-      sprite.width = sprite.height = symbolSize;
-    } else {
-      const symbolSize = Math.min(cellWidth, cellHeight) * dimensions.symbolSizeRatio;
-      sprite.width = sprite.height = symbolSize;
-    }
+    this.applySymbolSize(sprite);
     sprite.name = symbolId;
-
-    // Рамка не добавляется при создании — будет добавлена только на выигрышные символы
+    this.attachContentLayer(sprite, symbolId);
+    this.attachAnimations(sprite, symbolId);
     return sprite;
+  }
+
+  private applySymbolSize(sprite: PIXI.Sprite): void {
+    const { cellWidth, cellHeight, dimensions } = this.config;
+    const maxSize = Math.min(cellWidth, cellHeight);
+    const symbolSize = maxSize * dimensions.symbolSizeRatio;
+    sprite.width = sprite.height = symbolSize;
+  }
+
+  private attachContentLayer(sprite: PIXI.Sprite, symbolId: string): void {
+    this.clearContentLayer(sprite);
+    const layered = this.assetLoader.getLayeredTextures(symbolId);
+    if (!layered) return;
+
+    const content = new PIXI.Sprite(layered.content);
+    content.anchor.set(0.5);
+    content.name = SYMBOL_CONTENT_CHILD;
+    content.width = sprite.texture.width * layered.contentScale;
+    content.height = sprite.texture.height * layered.contentScale;
+    sprite.addChild(content);
+  }
+
+  private clearContentLayer(sprite: PIXI.Sprite): void {
+    this.clearAnimations(sprite);
+    const existing = sprite.getChildByName(SYMBOL_CONTENT_CHILD);
+    if (existing) {
+      sprite.removeChild(existing);
+      existing.destroy({ children: true });
+    }
+  }
+
+  private attachAnimations(sprite: PIXI.Sprite, symbolId: string): void {
+    this.clearAnimations(sprite);
+    const visual = this.config.symbols.visuals?.[symbolId];
+    if (!visual?.animations?.length) return;
+    const content = sprite.getChildByName(SYMBOL_CONTENT_CHILD) as PIXI.Sprite | null;
+    const instances = createSymbolAnimations(
+      { root: sprite, content },
+      visual.animations
+    );
+    if (instances.length) this.animBySprite.set(sprite, instances);
+  }
+
+  private clearAnimations(sprite: PIXI.Sprite): void {
+    const list = this.animBySprite.get(sprite);
+    if (list) {
+      destroySymbolAnimations(list);
+      this.animBySprite.delete(sprite);
+    }
+    const shineOnRoot = sprite.getChildByName(SYMBOL_SHINE_CHILD);
+    if (shineOnRoot) {
+      sprite.removeChild(shineOnRoot);
+      shineOnRoot.destroy({ children: true });
+    }
+    const content = sprite.getChildByName(SYMBOL_CONTENT_CHILD) as PIXI.Container | null;
+    if (content) {
+      const shineOnContent = content.getChildByName(SYMBOL_SHINE_CHILD);
+      if (shineOnContent) {
+        content.removeChild(shineOnContent);
+        shineOnContent.destroy({ children: true });
+      }
+    }
   }
 
   /**
@@ -132,6 +190,9 @@ export class SymbolFactory {
     if (texture) {
       sprite.texture = texture;
       sprite.name = symbolId;
+      this.applySymbolSize(sprite);
+      this.attachContentLayer(sprite, symbolId);
+      this.attachAnimations(sprite, symbolId);
     }
   }
 
@@ -140,6 +201,14 @@ export class SymbolFactory {
    */
   addSymbolBorder(sprite: PIXI.Sprite, symbolId: string): void {
     this.addRarityGlow(sprite, symbolId);
+  }
+
+  playWinAnimations(sprite: PIXI.Sprite): void {
+    this.animBySprite.get(sprite)?.forEach(a => a.start());
+  }
+
+  stopWinAnimations(sprite: PIXI.Sprite): void {
+    this.animBySprite.get(sprite)?.forEach(a => a.stop());
   }
 
   /**
@@ -174,5 +243,10 @@ export class SymbolFactory {
    */
   getTexture(symbolId: string): PIXI.Texture | undefined {
     return this.assetLoader.getSymbolTexture(symbolId);
+  }
+
+  /** Текстура анимации, если указана в теме и загрузилась; иначе undefined */
+  getAnimatedTexture(symbolId: string): PIXI.Texture | undefined {
+    return this.assetLoader.getAnimatedTexture(symbolId);
   }
 }

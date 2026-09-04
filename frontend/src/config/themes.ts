@@ -81,6 +81,24 @@ export interface ThemeData {
   glowColors?: Record<string, string>;
   // Интенсивность свечения (0-1), чем реже символ — тем ярче
   glowIntensity?: Record<string, number>;
+  /**
+   * Визуал символов (слои, анимированные версии).
+   * Ключ — ID символа (E, S, ...). Если не указан — грузится symbols/{id}.svg
+   */
+  symbolVisuals?: Record<string, {
+    layers?: { bg: string; content: string; contentScale?: number };
+    animated?: string;
+    animations?: Array<{
+      type: 'shine' | 'dim';
+      target: 'bg' | 'content';
+      color?: string | number;
+      alpha?: number;
+      duration?: number;
+      pause?: number;
+      width?: number;
+      angle?: number;
+    }>;
+  }>;
   // Мобильные настройки (используются при isMobileLayout = true)
   mobile?: ThemeMobileConfig;
 }
@@ -309,10 +327,19 @@ export async function preloadThemeAssets(
   
   // Символы (пробуем SVG и PNG)
   for (const symbolId of theme.symbols) {
-    assetsToLoad.push({ 
-      url: `${theme.assetsPath}/symbols/${symbolId.toLowerCase()}.svg`, 
-      type: 'image' 
-    });
+    const visual = theme.symbolVisuals?.[symbolId];
+    if (visual?.layers) {
+      assetsToLoad.push({ url: `${theme.assetsPath}/symbols/${visual.layers.bg}`, type: 'image' });
+      assetsToLoad.push({ url: `${theme.assetsPath}/symbols/${visual.layers.content}`, type: 'image' });
+    } else {
+      assetsToLoad.push({
+        url: `${theme.assetsPath}/symbols/${symbolId.toLowerCase()}.svg`,
+        type: 'image'
+      });
+    }
+    if (visual?.animated) {
+      assetsToLoad.push({ url: `${theme.assetsPath}/symbols/${visual.animated}`, type: 'image' });
+    }
   }
   
   // Музыка темы

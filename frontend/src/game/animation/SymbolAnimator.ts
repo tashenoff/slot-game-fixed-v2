@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { SlotConfig } from '../config/SlotConfig';
 import { ReelManager } from '../core/ReelManager';
 import { SymbolFactory } from '../core/SymbolFactory';
+import { SYMBOL_CONTENT_CHILD } from '../symbols/symbolVisual';
 
 /**
  * SymbolAnimator - анимация символов (масштабирование, затемнение, рамки редкости)
@@ -40,19 +41,21 @@ export class SymbolAnimator {
     const sprite = this.reelManager.getSymbol(col, row);
     if (!sprite) return;
 
-    if (!this.originalScales.has(sprite)) {
-      this.originalScales.set(sprite, sprite.scale.x);
+    const content = sprite.getChildByName(SYMBOL_CONTENT_CHILD) as PIXI.Sprite | null;
+    const target = content ?? sprite;
+    const scaleObj = target.scale;
+
+    if (!this.originalScales.has(target as unknown as PIXI.Sprite)) {
+      this.originalScales.set(target as unknown as PIXI.Sprite, scaleObj.x);
     }
 
-    const originalScale = this.originalScales.get(sprite)!;
+    const originalScale = this.originalScales.get(target as unknown as PIXI.Sprite)!;
     const targetScale = originalScale * this.config.animation.winSymbolScale;
-    const duration = this.config.animation.winAnimationDuration / 1000; // ms → seconds для GSAP
+    const duration = this.config.animation.winAnimationDuration / 1000;
 
-    // Убиваем предыдущую анимацию на этом scale, если была
-    gsap.killTweensOf(sprite.scale);
+    gsap.killTweensOf(scaleObj);
 
-    // GSAP: scale → target → обратно с power2.out (плавный старт/финиш)
-    gsap.to(sprite.scale, {
+    gsap.to(scaleObj, {
       x: targetScale,
       y: targetScale,
       duration: duration / 2,
@@ -60,9 +63,11 @@ export class SymbolAnimator {
       yoyo: true,
       repeat: 1,
       onComplete: () => {
-        sprite.scale.set(originalScale);
+        scaleObj.set(originalScale);
       }
     });
+
+    this.symbolFactory.playWinAnimations(sprite);
   }
 
   /**
@@ -219,6 +224,17 @@ export class SymbolAnimator {
 
     this.resetSymbolsAlpha();
     this.clearAllBorders();
+    this.stopAllWinAnimations();
+  }
+
+  private stopAllWinAnimations(): void {
+    const { cols, rows } = this.config.dimensions;
+    for (let col = 0; col < cols; col++) {
+      for (let row = 0; row < rows; row++) {
+        const sprite = this.reelManager.getSymbol(col, row);
+        if (sprite) this.symbolFactory.stopWinAnimations(sprite);
+      }
+    }
   }
 
   destroy(): void {

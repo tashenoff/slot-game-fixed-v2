@@ -7,7 +7,7 @@ import { ReelAnimator } from './animation/ReelAnimator';
 import { DropReelAnimator } from './animation/DropReelAnimator';
 import { CascadeDropAnimator } from './animation/CascadeDropAnimator';
 import { SymbolAnimator } from './animation/SymbolAnimator';
-import { WinDisplayManager, TorchFireEffect } from './effects';
+import { WinDisplayManager, TorchFireEffect, RevolverSmokeEffect } from './effects';
 import { SlotTheme, isMobileDevice, isAppleMobileDevice } from '../config/themes';
 
 // Общий интерфейс для всех аниматоров барабанов
@@ -34,6 +34,7 @@ export class SlotMachine {
   private winDisplayManager: WinDisplayManager;
   private borderSprite: PIXI.Sprite | null = null;
   private torchFireEffect: TorchFireEffect | null = null;
+  private revolverSmokeEffect: RevolverSmokeEffect | null = null;
   private theme: SlotTheme;
   private animationType: ReelAnimationType;
 
@@ -186,6 +187,7 @@ export class SlotMachine {
           E: 0.15,
           F: 0.15,
         },
+        visuals: theme.symbolVisuals,
       },
       // Применяем настройки dimensions если они есть
       ...(Object.keys(dimensionsOverrides).length > 0 && {
@@ -350,6 +352,26 @@ export class SlotMachine {
       );
       console.log('[TorchFireEffect] Огонь факелов инициализирован для темы ацтеков (mobile)');
     }
+
+    // Эффект дымка из дула револьвера для темы мафии (на рамке внизу)
+    // Только для desktop — на мобильной рамке (bg_mini.png) револьвера нет
+    if (this.theme.id === 'mafia' && !this.mobileConfig) {
+      const { borderWidth, borderHeight } = this.config.dimensions;
+      // Револьвер находится на столике внизу рамки.
+      // Координаты подобраны по изображению border.png (1600x1073):
+      // дуло револьвера направлено влево, центр дула ~752px
+      // Смещаемся левее на половину длины ствола, чтобы дым выходил из дула
+      const barrelLengthOffset = 105; // длина ствола в display-пикселях
+      const revolverX = Math.round(borderWidth * 0.47 - barrelLengthOffset); // ~647px
+      const revolverY = Math.round(borderHeight * 0.912); // ~979px
+      this.revolverSmokeEffect = new RevolverSmokeEffect(
+        this.app.stage,
+        revolverX,
+        revolverY,
+        this.app.ticker
+      );
+      console.log(`[RevolverSmokeEffect] Дымок револьвера инициализирован для темы мафии в позиции (${revolverX}, ${revolverY})`);
+    }
   }
 
   private resize(): void {
@@ -422,6 +444,11 @@ export class SlotMachine {
     if (this.torchFireEffect) {
       this.torchFireEffect.destroy();
       this.torchFireEffect = null;
+    }
+    // Уничтожаем эффект дымка револьвера
+    if (this.revolverSmokeEffect) {
+      this.revolverSmokeEffect.destroy();
+      this.revolverSmokeEffect = null;
     }
     this.reelManager.destroy();
     this.assetLoader.destroy();

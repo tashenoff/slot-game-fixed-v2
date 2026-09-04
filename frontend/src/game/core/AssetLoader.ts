@@ -1,6 +1,13 @@
 import * as PIXI from 'pixi.js';
 import { SlotConfig } from '../config/SlotConfig';
 import { SlotTheme, getBorderAssetPath, isMobileDevice } from '../../config/themes';
+import { DEFAULT_CONTENT_SCALE, ThemeSymbolVisuals } from '../symbols/symbolVisual';
+
+export interface LayeredSymbolTextures {
+  bg: PIXI.Texture;
+  content: PIXI.Texture;
+  contentScale: number;
+}
 
 /**
  * AssetLoader - загрузка и управление игровыми ресурсами
@@ -11,6 +18,9 @@ export class AssetLoader {
   private assetsPath: string;
   private theme: SlotTheme | null = null;
   private symbolTextures: Map<string, PIXI.Texture> = new Map();
+  private layeredTextures: Map<string, LayeredSymbolTextures> = new Map();
+  private animatedTextures: Map<string, PIXI.Texture> = new Map();
+  private extraTextures: PIXI.Texture[] = [];
   private borderTexture: PIXI.Texture | null = null;
   private barabanTexture: PIXI.Texture | null = null;
   private isLoaded: boolean = false;
@@ -92,33 +102,75 @@ export class AssetLoader {
    * Загрузка текстур символов с fallback-генерацией
    */
   private async loadSymbolTextures(): Promise<void> {
-    const { ids, fallbackColors } = this.config.symbols;
+    const { ids, fallbackColors, visuals } = this.config.symbols;
+    const themeVisuals: ThemeSymbolVisuals = visuals || {};
     console.log(`AssetLoader: Loading symbols from ${this.assetsPath}/symbols/ (resolution: ${this.resolution})`, ids);
 
     for (const sym of ids) {
-      try {
-        // Пробуем загрузить SVG, затем PNG
-        let texture: PIXI.Texture;
+      const visual = themeVisuals[sym];
+      let baseTexture: PIXI.Texture | null = null;
+
+      if (visual?.layers) {
+        const bg = await this.tryLoadTexture(`${this.assetsPath}/symbols/${visual.layers.bg}`);
+        const content = await this.tryLoadTexture(`${this.assetsPath}/symbols/${visual.layers.content}`);
+        if (bg && content) {
+          this.layeredTextures.set(sym, {
+            bg,
+            content,
+            contentScale: visual.layers.contentScale ?? DEFAULT_CONTENT_SCALE,
+          });
+          this.extraTextures.push(bg, content);
+          baseTexture = bg;
+          console.log(`AssetLoader: Loaded layered symbol ${sym}`);
+        } else {
+          console.warn(`AssetLoader: Incomplete layers for ${sym}, falling back to single file`);
+        }
+      }
+
+      if (!baseTexture) {
         const svgUrl = `${this.assetsPath}/symbols/${sym.toLowerCase()}.svg`;
         const pngUrl = `${this.assetsPath}/symbols/${sym.toLowerCase()}.png`;
-        
-        try {
-          texture = await PIXI.Texture.fromURL(svgUrl);
-          console.log(`AssetLoader: Loaded ${sym} from SVG`);
-        } catch {
-          texture = await PIXI.Texture.fromURL(pngUrl);
-          console.log(`AssetLoader: Loaded ${sym} from PNG`);
-        }
-        // Устанавливаем resolution для чёткого отображения на Retina
-        texture.baseTexture.resolution = this.resolution;
-        texture.baseTexture.update();
-        this.symbolTextures.set(sym, texture);
-      } catch (e) {
-        // Генерируем fallback текстуру
-        console.warn(`AssetLoader: Using fallback for symbol ${sym}`, e);
-        const texture = this.generateFallbackTexture(sym, fallbackColors[sym] || '#888');
-        this.symbolTextures.set(sym, texture);
+        baseTexture = (await this.tryLoadTexture(svgUrl)) || (await this.tryLoadTexture(pngUrl));
       }
+
+      if (baseTexture) {
+        this.symbolTextures.set(sym, baseTexture);
+      } else {
+        console.warn(`AssetLoader: Using fallback for symbol ${sym}`);
+        this.symbolTextures.set(sym, this.generateFallbackTexture(sym, fallbackColors[sym] || '#888'));
+      }
+
+      if (visual?.animated) {
+        const animTex = await this.tryLoadTexture(`${this.assetsPath}/symbols/${visual.animated}`);
+        if (animTex) {
+          this.animatedTextures.set(sym, animTex);
+          this.extraTextures.push(animTex);
+          console.log(`AssetLoader: Loaded animated version for ${sym}`);
+        } else {
+          console.warn(`AssetLoader: Animated asset missing for ${sym}, using static`);
+        }
+      }
+    }
+  }
+
+  private async tryLoadTexture(url: string): Promise<PIXI.Texture | null> {
+    try {
+      const texture = await PIXI.Texture.fromURL(url);
+      texture.baseTexture.resolution = this.resolution;
+      texture.baseTexture.update();
+      return texture;
+    } catch {
+      if (url.endsWith('.svg')) {
+        try {
+          const texture = await PIXI.Texture.fromURL(url.replace('.svg', '.png'));
+          texture.baseTexture.resolution = this.resolution;
+          texture.baseTexture.update();
+          return texture;
+        } catch {
+          return null;
+        }
+      }
+      return null;
     }
   }
 
@@ -150,6 +202,18 @@ export class AssetLoader {
     return this.symbolTextures.get(symbolId);
   }
 
+  getLayeredTextures(symbolId: string): LayeredSymbolTextures | undefined {
+    return this.layeredTextures.get(symbolId);
+  }
+
+  hasLayers(symbolId: string): boolean {
+    return this.layeredTextures.has(symbolId);
+  }
+
+  getAnimatedTexture(symbolId: string): PIXI.Texture | undefined {
+    return this.animatedTextures.get(symbolId);
+  }
+
   getSymbolTextures(): Map<string, PIXI.Texture> {
     return this.symbolTextures;
   }
@@ -176,6 +240,9 @@ export class AssetLoader {
   destroy(): void {
     this.symbolTextures.forEach(texture => texture.destroy(true));
     this.symbolTextures.clear();
+    this.layeredTextures.clear();
+    this.animatedTextures.clear();
+    this.extraTextures = [];
     this.borderTexture?.destroy(true);
     this.barabanTexture?.destroy(true);
     this.borderTexture = null;
