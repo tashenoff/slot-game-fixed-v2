@@ -134,7 +134,7 @@ export const DEFAULT_SLOT_CONFIG: SlotConfigData = {
     reelAnimationDirection: 'top-to-bottom' as const,
   },
   visual: {
-    nonWinAlpha: 0.5,
+    nonWinAlpha: 1.0,
     separatorColor: 0x445544,
     separatorAlpha: 0.35,
     separatorWidth: 2,

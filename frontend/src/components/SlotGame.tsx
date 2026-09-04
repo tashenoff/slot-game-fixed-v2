@@ -10,7 +10,7 @@ import AnimatedNumber from './AnimatedNumber';
 import * as API from '../api';
 import { Stats, DiceLevel } from '../types';
 import { useAnimatedNumber } from '../hooks/useAnimatedNumber';
-import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath, isMobileDevice, isAppleMobileDevice, isRunningStandalone } from '../config/themes';
+import { SlotTheme, getBackgroundAssetPath, getMusicAssetPath, getDefaultMusicPath, isMobileDevice } from '../config/themes';
 import { SharedPixiApp } from '../game/core';
 import { SandEffect } from '../game/SandEffect';
 import { StarEffect, FireflyEffect } from '../game/effects';
@@ -334,175 +334,6 @@ const SlotGame: React.FC<SlotGameProps> = ({
     };
   }, [theme]);
 
-  // Состояние и эффект принудительной альбомной ориентации на мобильных
-  // Только для классической темы
-  const [isPortrait, setIsPortrait] = useState<boolean>(false);
-  const isMobileRef = useRef<boolean>(false);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const isIOSRef = useRef<boolean>(false);
-  const isStandaloneRef = useRef<boolean>(false);
-
-  // Функция входа в полноэкранный режим и блокировки ориентации
-  const enterFullscreenAndLockOrientation = useCallback(async () => {
-    // На iOS (iPhone/iPad) стандартный Fullscreen API не работает для DOM-элементов
-    if (isIOSRef.current) {
-      if (isStandaloneRef.current) {
-        // Уже в PWA-режиме на iOS — экран и так в fullscreen
-        // Просто проверяем и скрываем оверлей
-        const portrait = window.innerHeight > window.innerWidth;
-        setIsPortrait(portrait);
-      } else {
-        // На iOS без PWA — показываем инструкцию пользователю
-        setIsPortrait(true); // Оставляем оверлей с инструкцией
-      }
-      return;
-    }
-
-    const docEl = document.documentElement;
-    
-    try {
-      // Пытаемся войти в полноэкранный режим
-      if (docEl.requestFullscreen) {
-        await docEl.requestFullscreen();
-      } else if ((docEl as any).webkitRequestFullscreen) {
-        await (docEl as any).webkitRequestFullscreen();
-      } else if ((docEl as any).mozRequestFullScreen) {
-        await (docEl as any).mozRequestFullScreen();
-      } else if ((docEl as any).msRequestFullscreen) {
-        await (docEl as any).msRequestFullscreen();
-      }
-      
-      setIsFullscreen(true);
-      
-      // После входа в полноэкранный режим пытаемся заблокировать ориентацию
-      // Небольшая задержка чтобы fullscreen успел активироваться
-      setTimeout(async () => {
-        try {
-          if (screen.orientation && typeof screen.orientation.lock === 'function') {
-            await screen.orientation.lock('landscape');
-            // После успешной блокировки проверяем ориентацию
-            const portrait = window.innerHeight > window.innerWidth;
-            setIsPortrait(portrait);
-          }
-        } catch (e) {
-          console.log('Не удалось заблокировать ориентацию:', e);
-        }
-      }, 100);
-      
-    } catch (e) {
-      console.log('Не удалось войти в полноэкранный режим:', e);
-    }
-  }, []);
-
-  // Функция выхода из fullscreen
-  const exitFullscreen = useCallback(async () => {
-    try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
-      } else if ((document as any).webkitExitFullscreen) {
-        await (document as any).webkitExitFullscreen();
-      } else if ((document as any).mozCancelFullScreen) {
-        await (document as any).mozCancelFullScreen();
-      } else if ((document as any).msExitFullscreen) {
-        await (document as any).msExitFullscreen();
-      }
-      setIsFullscreen(false);
-      
-      // Разблокируем ориентацию
-      try {
-        if (screen.orientation && typeof screen.orientation.unlock === 'function') {
-          screen.orientation.unlock();
-        }
-      } catch (e) {}
-    } catch (e) {
-      console.log('Не удалось выйти из полноэкранного режима:', e);
-    }
-  }, []);
-
-  // Обёртка для onBackToLobby — для классической темы сначала выходим из fullscreen
-  const handleBackToLobbyWithFullscreenExit = useCallback(async () => {
-    if (theme.id === 'classic' && isFullscreen) {
-      await exitFullscreen();
-    }
-    onBackToLobby?.();
-  }, [theme.id, isFullscreen, exitFullscreen, onBackToLobby]);
-
-  // Принудительная альбомная ориентация на мобильных устройствах
-  // Только для классической темы
-  useEffect(() => {
-    if (theme.id !== 'classic') return;
-    
-    // Проверяем текущую ориентацию
-    const checkOrientation = () => {
-      const portrait = window.innerHeight > window.innerWidth;
-      setIsPortrait(portrait);
-    };
-    
-    // Обработчик изменения fullscreen
-    const handleFullscreenChange = () => {
-      const isFs = !!(document.fullscreenElement || 
-        (document as any).webkitFullscreenElement || 
-        (document as any).mozFullScreenElement || 
-        (document as any).msFullscreenElement);
-      setIsFullscreen(isFs);
-      
-      // Если вышли из fullscreen, проверяем ориентацию
-      if (!isFs) {
-        setTimeout(checkOrientation, 300);
-      }
-    };
-    
-    const checkMobile = () => {
-      isMobileRef.current = isMobileDevice();
-      isIOSRef.current = isAppleMobileDevice();
-      isStandaloneRef.current = isRunningStandalone();
-      if (isMobileRef.current) {
-        checkOrientation();
-        
-        // Пытаемся заблокировать ориентацию на альбомную (работает только в fullscreen)
-        try {
-          if (screen.orientation && typeof screen.orientation.lock === 'function') {
-            screen.orientation.lock('landscape').catch(() => {
-              // Браузер блокирует API без fullscreen — это нормально
-            });
-          }
-        } catch (e) {
-          // API может быть недоступен
-        }
-        
-        // Слушаем изменения ориентации
-        const orientationHandler = () => {
-          setTimeout(checkOrientation, 300);
-        };
-        window.addEventListener('orientationchange', orientationHandler);
-        window.addEventListener('resize', checkOrientation);
-        
-        // Слушаем изменения fullscreen
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-        
-        return () => {
-          window.removeEventListener('orientationchange', orientationHandler);
-          window.removeEventListener('resize', checkOrientation);
-          document.removeEventListener('fullscreenchange', handleFullscreenChange);
-          document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-          document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-          document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-          
-          // Разблокируем ориентацию при выходе
-          try {
-            if (screen.orientation && typeof screen.orientation.unlock === 'function') {
-              screen.orientation.unlock();
-            }
-          } catch (e) {}
-        };
-      }
-    };
-    
-    checkMobile();
-  }, [theme.id]);
   // Единый эффект для всех фоновых визуальных эффектов
   // Использует SharedPixiApp — один PIXI.Application для всех эффектов,
   // вместо того чтобы каждый эффект создавал свой WebGL контекст.
@@ -1317,7 +1148,7 @@ const SlotGame: React.FC<SlotGameProps> = ({
         onToggleMusic={handleToggleMusic}
         player={player}
         themeName={theme.name}
-        onBackToLobby={handleBackToLobbyWithFullscreenExit}
+        onBackToLobby={onBackToLobby}
         fps={fps}
       />
       
@@ -1747,51 +1578,6 @@ const SlotGame: React.FC<SlotGameProps> = ({
             }
           }}
         />
-      )}
-
-      {/* Оверлей поворота экрана для мобильных устройств в портретном режиме */}
-      {isPortrait && isMobileRef.current && theme.id === 'classic' && (
-        <div className="orientation-overlay">
-          <div className="orientation-overlay-content">
-            <div className="orientation-icon">📱</div>
-            <div className="orientation-arrow">↻</div>
-            <p className="orientation-text">Поверните устройство</p>
-            <p className="orientation-subtext">Для игры используйте альбомную ориентацию</p>
-            
-            {isIOSRef.current && !isStandaloneRef.current ? (
-              <>
-                {/* iOS без PWA — fullscreen API не работает, показываем инструкцию */}
-                <div className="orientation-ios-info">
-                  <p className="orientation-ios-text">
-                    На iPhone полноэкранный режим доступен после добавления на главный экран:
-                  </p>
-                  <ol className="orientation-ios-steps">
-                    <li>Нажмите <strong>Share</strong> (квадрат со стрелкой)</li>
-                    <li>Выберите <strong>На экран «Домой»</strong></li>
-                    <li>Запускайте игру с главного экрана</li>
-                  </ol>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Кнопка для автоматического переключения в landscape через fullscreen (Android) */}
-                <button 
-                  className="orientation-fullscreen-btn"
-                  onClick={enterFullscreenAndLockOrientation}
-                >
-                  <span className="fullscreen-btn-icon">⛶</span>
-                  <span>Полноэкранный режим</span>
-                </button>
-              </>
-            )}
-            <p className="orientation-hint">
-              {isIOSRef.current && !isStandaloneRef.current
-                ? 'Или включите автоповорот в настройках телефона'
-                : 'Или включите автоповорот в настройках телефона'
-              }
-            </p>
-          </div>
-        </div>
       )}
 
       {/* Оверлей загрузки слот-машины — через portal в body, поверх всего экрана */}

@@ -36,7 +36,7 @@
   "symbolVisuals": {
     "E": {
       "layers": {
-        "bg": "e/bg.svg",
+        "bg": "e/bg.png",
         "content": "e/content.svg",
         "contentScale": 1.12
       },
@@ -48,7 +48,7 @@
     },
     "F": {
       "layers": {
-        "bg": "f/bg.svg",
+        "bg": "f/bg.png",
         "content": "f/content.svg",
         "contentScale": 1.12
       },
@@ -65,25 +65,11 @@
   "borderHeight": 1073,
   "symbolSizeRatio": 1.0,
   "symbolFillCell": true,
-  "reelsAutoCenter": true,
-  "reelsCenterYOffset": 5,
+  "reelsAutoCenter": false,
+  "reelsOffsetX": 120,
+  "reelsOffsetY": 142,
   "reelGap": 5,
   "rowGap": 5,
-  "reelsAreaWidth": 1070,
-  "reelsAreaHeight": 642,
-  "mobile": {
-    "borderWidth": 1696,
-    "borderHeight": 2528,
-    "reelsAutoCenter": true,
-    "reelsCenterYOffset": 10,
-    "reelGap": 4,
-    "rowGap": 4,
-    "reelsAreaWidth": 1024,
-    "reelsAreaHeight": 1200,
-    "disableBlur": true,
-    "disableDust": true,
-    "disableWinLines": true,
-    "disableShine": false,
-    "cascadeWinHighlight": true
-  }
+  "reelsAreaWidth": 1363,
+  "reelsAreaHeight": 806
 }
