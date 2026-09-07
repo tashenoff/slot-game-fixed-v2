@@ -6,6 +6,7 @@ const useLobbyBodyClass = () => {
   useEffect(() => {
     document.body.classList.add('in-lobby');
     document.body.classList.remove('in-game');
+    document.documentElement.classList.remove('in-game');
     return () => {
       document.body.classList.remove('in-lobby');
     };
