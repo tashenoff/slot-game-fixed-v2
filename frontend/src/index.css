@@ -18,8 +18,14 @@ button, a, input, select, textarea, [role="button"] {
 }
 
 html, body {
+  height: 100%;
+  margin: 0;
   overscroll-behavior: none;
   background-color: #0f0f23;
+}
+
+#root {
+  height: 100%;
 }
 
 body {
@@ -87,9 +93,8 @@ body.in-lobby {
 .game-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh; /* dynamic viewport height Р Т‘Р В»РЎРЏ Р СР С•Р В±Р С‘Р В»РЎРЉР Р…РЎвЂ№РЎвЂ¦ Р В±РЎР‚Р В°РЎС“Р В·Р ВµРЎР‚Р С•Р Р† */
-  overflow: clip;
+  height: 100%;
+  overflow: hidden;
   overflow-anchor: none;
   position: relative;
   box-sizing: border-box;
@@ -1408,8 +1413,7 @@ body.in-lobby {
 /* Р вЂќР С•Р С—Р С•Р В»Р Р…Р С‘РЎвЂљР ВµР В»РЎРЉР Р…Р В°РЎРЏ Р В°Р Т‘Р В°Р С—РЎвЂљР С‘Р Р†Р Р…Р С•РЎРѓРЎвЂљРЎРЉ Р Т‘Р В»РЎРЏ Р С•РЎвЂЎР ВµР Р…РЎРЉ Р СР В°Р В»Р ВµР Р…РЎРЉР С”Р С‘РЎвЂ¦ РЎРЊР С”РЎР‚Р В°Р Р…Р С•Р Р† */
 @media (max-width: 600px) {
   .game-container {
-    height: 100vh;
-    height: 100dvh;
+    height: 100%;
     display: flex;
     flex-direction: column;
   }
@@ -1738,8 +1742,7 @@ body.in-lobby {
 /* Р вЂєР В°Р Р…Р Т‘РЎв‚¬Р В°РЎвЂћРЎвЂљР Р…Р В°РЎРЏ Р С•РЎР‚Р С‘Р ВµР Р…РЎвЂљР В°РЎвЂ Р С‘РЎРЏ Р Р…Р В° Р СР С•Р В±Р С‘Р В»РЎРЉР Р…РЎвЂ№РЎвЂ¦ */
 @media (max-width: 900px) and (orientation: landscape) {
   .game-container {
-    height: 100vh;
-    height: 100dvh; /* dynamic viewport height Р Т‘Р В»РЎРЏ Р СР С•Р В±Р С‘Р В»РЎРЉР Р…РЎвЂ№РЎвЂ¦ Р В±РЎР‚Р В°РЎС“Р В·Р ВµРЎР‚Р С•Р Р† */
+    height: 100%;
     overflow: clip;
   }
   
@@ -1936,7 +1939,7 @@ body.in-lobby {
 /* Р С›РЎвЂЎР ВµР Р…РЎРЉ Р СР В°Р В»Р ВµР Р…РЎРЉР С”Р В°РЎРЏ Р Р†РЎвЂ№РЎРѓР С•РЎвЂљР В° РЎРЊР С”РЎР‚Р В°Р Р…Р В° (Р СР С•Р В±Р С‘Р В»РЎРЉР Р…РЎвЂ№Р Вµ Р Р† Р В»Р В°Р Р…Р Т‘РЎв‚¬Р В°РЎвЂћРЎвЂљР Вµ) */
 @media (max-height: 450px) and (orientation: landscape) {
   .game-container {
-    height: 100vh;
+    height: 100%;
     overflow: clip;
   }
   
