@@ -195,7 +195,7 @@ function App({ initialBalance = 10000, player }: AppProps) {
   };
 
   return (
-    <div className="App min-h-screen text-white">
+    <div className="App h-full text-white">
       {renderCurrentView()}
 
       {/* Прелоадер поверх всего — показывается поверх игры или лобби */}

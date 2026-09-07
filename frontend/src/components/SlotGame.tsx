@@ -313,9 +313,11 @@ const SlotGame: React.FC<SlotGameProps> = ({
 
   // Устанавливаем класс in-game для body (блокируем скролл)
   useEffect(() => {
+    document.documentElement.classList.add('in-game');
     document.body.classList.add('in-game');
     document.body.classList.remove('in-lobby');
     return () => {
+      document.documentElement.classList.remove('in-game');
       document.body.classList.remove('in-game');
     };
   }, []);

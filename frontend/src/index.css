@@ -19,13 +19,17 @@ button, a, input, select, textarea, [role="button"] {
 
 html, body {
   height: 100%;
+  max-height: 100%;
   margin: 0;
+  overflow: hidden;
   overscroll-behavior: none;
   background-color: #0f0f23;
 }
 
 #root {
   height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -39,12 +43,16 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  min-height: 100%;
+  min-height: 0;
+  max-height: 100%;
 }
 
 /* Р РЋР С”РЎР‚Р С•Р В»Р В» РЎРѓР С”РЎР‚РЎвЂ№РЎвЂљ Р С—Р С• РЎС“Р СР С•Р В»РЎвЂЎР В°Р Р…Р С‘РЎР‹, Р Р…Р С• РЎР‚Р В°Р В·РЎР‚Р ВµРЎв‚¬РЎвЂР Р… Р Т‘Р В»РЎРЏ Р В»Р С•Р В±Р В±Р С‘ */
+html.in-game,
 body.in-game {
   overflow: hidden;
+  height: 100%;
+  overscroll-behavior: none;
 }
 
 body.in-lobby {
@@ -105,7 +113,7 @@ body.in-lobby {
   flex: 1 1 0;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: stretch;
   width: 100%;
   min-height: 0;
   overflow: hidden;
@@ -117,7 +125,7 @@ body.in-lobby {
 .slot-container {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -385,8 +393,7 @@ body.in-lobby {
 
 .navbar {
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 100;
   display: flex;
   align-items: center;
@@ -1420,7 +1427,7 @@ body.in-lobby {
   
   /* Р РЋР В»Р С•РЎвЂљ-Р С”Р С•Р Р…РЎвЂљР ВµР в„–Р Р…Р ВµРЎР‚ Р В·Р В°Р Р…Р С‘Р СР В°Р ВµРЎвЂљ Р Р†РЎРѓРЎвЂ Р Т‘Р С•РЎРѓРЎвЂљРЎС“Р С—Р Р…Р С•Р Вµ Р СР ВµРЎРѓРЎвЂљР С•, Р С—РЎР‚Р С‘Р В¶Р С‘Р СР В°РЎРЏ main-controls Р С” Р Р…Р С‘Р В·РЎС“ */
   .slot-container-wrapper {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
   }
   
