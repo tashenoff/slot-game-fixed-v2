@@ -69,7 +69,10 @@ export class PushDropAnimator {
     if (anim.stopDelay) this.columnDelay = anim.stopDelay;
 
     if (anim.spinTime) {
-      this.extraRows = Math.min(6, Math.max(3, Math.round(anim.spinTime / 120)));
+      const isMobile = !!this.config.dimensions.isMobileLayout;
+      this.extraRows = isMobile
+        ? Math.min(6, Math.max(3, Math.round(anim.spinTime / 120)))
+        : Math.max(3, Math.round(anim.spinTime / 80));
     }
 
     if (anim.spinSpeed && anim.spinSpeed !== 45) {
@@ -117,9 +120,9 @@ export class PushDropAnimator {
     this.extraCount = this.extraRows + visualRows;
     this.travelDistance = this.extraCount * this.stepHeight;
 
-    const heightScale = Math.max(1, Math.min(1.5, gridHeight / 504));
+    const heightScale = Math.max(1, gridHeight / 504);
     this.gravity = 1.8 * heightScale;
-    this.maxVelocity = 42 * heightScale;
+    this.maxVelocity = 45 * heightScale;
     this.initialVelocity = 8 * heightScale;
     const anim = this.config.animation;
     if (anim.spinSpeed && anim.spinSpeed !== 45) {
@@ -159,6 +162,7 @@ export class PushDropAnimator {
         }
       }
 
+      const speedFalloff = isMobileLayout ? (1 - vCol * 0.14) : 1;
       this.columnStates[vCol] = {
         col: vCol,
         offset: 0,
@@ -167,9 +171,9 @@ export class PushDropAnimator {
         bounceStart: 0,
         delay: this.initialDelay + vCol * this.columnDelay,
         extras,
-        gravity: this.gravity * (1 - vCol * 0.14),
-        maxVelocity: this.maxVelocity * (1 - vCol * 0.12),
-        initialVelocity: this.initialVelocity * (1 - vCol * 0.1),
+        gravity: this.gravity * speedFalloff,
+        maxVelocity: this.maxVelocity * speedFalloff,
+        initialVelocity: this.initialVelocity * speedFalloff,
         travelDistance: this.travelDistance,
       };
     }
