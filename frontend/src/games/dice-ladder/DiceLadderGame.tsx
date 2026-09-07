@@ -62,9 +62,12 @@ const DiceLadderGame: React.FC<DiceLadderGameProps> = ({
   };
 
   useEffect(() => {
+    document.documentElement.classList.add('in-game');
     document.body.classList.add('in-game');
     document.body.classList.remove('in-lobby');
+    window.scrollTo(0, 0);
     return () => {
+      document.documentElement.classList.remove('in-game');
       document.body.classList.remove('in-game');
     };
   }, []);
