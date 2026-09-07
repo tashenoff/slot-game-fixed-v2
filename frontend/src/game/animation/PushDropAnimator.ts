@@ -57,6 +57,8 @@ export class PushDropAnimator {
   private stepHeight = 0;
   private extraRows = 3;
   private extraCount = 0;
+  private motionFade: PIXI.Sprite | null = null;
+  private static motionFadeTexture: PIXI.Texture | null = null;
 
   constructor(config: SlotConfig, reelManager: ReelManager, ticker: PIXI.Ticker, options?: PushDropAnimatorOptions) {
     this.config = config;
@@ -87,6 +89,7 @@ export class PushDropAnimator {
     if (this.dustEnabled && reelsContainer) {
       this.dustEffect = new LandingDustEffect(reelsContainer, this.ticker, options);
     }
+    this.showMotionFade();
   }
 
   setCallbacks(callbacks: PushDropAnimatorCallbacks): void {
@@ -319,6 +322,52 @@ export class PushDropAnimator {
     this.dustEffect.burst(x, y, cellWidth);
   }
 
+  private static getMotionFadeTexture(): PIXI.Texture {
+    if (PushDropAnimator.motionFadeTexture) return PushDropAnimator.motionFadeTexture;
+    const canvas = document.createElement('canvas');
+    canvas.width = 4;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+    const g = ctx.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0, 'rgba(0,0,0,0.72)');
+    g.addColorStop(0.18, 'rgba(0,0,0,0)');
+    g.addColorStop(0.82, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.72)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 4, 128);
+    PushDropAnimator.motionFadeTexture = PIXI.Texture.from(canvas);
+    return PushDropAnimator.motionFadeTexture;
+  }
+
+  private showMotionFade(): void {
+    this.hideMotionFade();
+    if (!this.config.dimensions.isMobileLayout) return;
+    const parent = this.reelsContainer || this.reelManager.getContainer();
+    if (!parent) return;
+    const { rows, cols, cellWidth, cellHeight, reelGap, rowGap } = this.config.dimensions;
+    const visualCols = rows;
+    const visualRows = cols;
+    const width = visualCols * cellWidth + (visualCols - 1) * reelGap;
+    const height = visualRows * cellHeight + (visualRows - 1) * rowGap;
+    const sprite = new PIXI.Sprite(PushDropAnimator.getMotionFadeTexture());
+    sprite.x = 0;
+    sprite.y = 0;
+    sprite.width = width;
+    sprite.height = height;
+    sprite.alpha = 0.85;
+    sprite.zIndex = 20;
+    parent.sortableChildren = true;
+    parent.addChild(sprite);
+    this.motionFade = sprite;
+  }
+
+  private hideMotionFade(): void {
+    if (!this.motionFade) return;
+    this.motionFade.parent?.removeChild(this.motionFade);
+    this.motionFade.destroy();
+    this.motionFade = null;
+  }
+
   private finish(): void {
     this.stop();
     this.callbacks.onAllReelsStopped?.();
@@ -360,6 +409,7 @@ export class PushDropAnimator {
   }
 
   destroy(): void {
+    this.hideMotionFade();
     this.stop();
     this.dustEffect?.destroy();
     this.dustEffect = null;

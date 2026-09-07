@@ -83,7 +83,7 @@ export class ReelManager {
    */
   private buildMobileReels(): void {
     const { dimensions } = this.config;
-    const { cellWidth, cellHeight, cols, rows, reelGap, rowGap, disableBlur } = dimensions;
+    const { cellWidth, cellHeight, cols, rows, reelGap, rowGap } = dimensions;
     
     // В мобильном режиме: визуальные колонки = логические ряды (3)
     // визуальные ряды = логические колонки (5)
@@ -110,12 +110,12 @@ export class ReelManager {
       reel.mask = mask as any;
       this.masks.push(mask);
       
-      // Blur фильтр (отключаем на мобильных для производительности)
+      // Blur на мобильных выключен — GPU-фильтр убивает FPS
       const blur = new PIXI.filters.BlurFilter();
       blur.blurX = 0;
       blur.blurY = 0;
-      blur.quality = disableBlur ? 1 : 4;
-      blur.enabled = !disableBlur;
+      blur.quality = 1;
+      blur.enabled = false;
       this.blurFilters.push(blur);
 
       // Фон барабана — TilingSprite для бесшовного вращения (горизонтальный барабан)
@@ -151,10 +151,6 @@ export class ReelManager {
         const symbolId = this.reelStrips[logicalCol][logicalRow % this.reelStrips[logicalCol].length];
         const sp = this.symbolFactory.createSymbol(symbolId);
         sp.y = visualRow * (cellHeight + rowGap) + cellHeight / 2;
-        // На мобильных без blur фильтров для лучшей производительности
-        if (!disableBlur) {
-          sp.filters = [blur];
-        }
         reel.addChild(sp);
         this.symbols[visualCol].push(sp);
       }
