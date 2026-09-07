@@ -34,6 +34,54 @@
     "G": 1.0
   },
   "symbolVisuals": {
+    "A": {
+      "layers": {
+        "bg": "a/bg.png",
+        "content": "a/content.svg",
+        "contentScale": 1.12
+      },
+      "animated": "a.svg",
+      "animations": [
+        { "type": "dim", "target": "bg", "alpha": 0.55, "duration": 0.35 },
+        { "type": "shine", "target": "content", "alpha": 0.65, "duration": 1.5, "pause": 1.4 }
+      ]
+    },
+    "B": {
+      "layers": {
+        "bg": "b/bg.png",
+        "content": "b/content.svg",
+        "contentScale": 1.12
+      },
+      "animated": "b.svg",
+      "animations": [
+        { "type": "dim", "target": "bg", "alpha": 0.55, "duration": 0.35 },
+        { "type": "shine", "target": "content", "alpha": 0.65, "duration": 1.5, "pause": 1.4 }
+      ]
+    },
+    "C": {
+      "layers": {
+        "bg": "c/bg.png",
+        "content": "c/content.svg",
+        "contentScale": 1.12
+      },
+      "animated": "c.svg",
+      "animations": [
+        { "type": "dim", "target": "bg", "alpha": 0.55, "duration": 0.35 },
+        { "type": "shine", "target": "content", "alpha": 0.65, "duration": 1.5, "pause": 1.4 }
+      ]
+    },
+    "D": {
+      "layers": {
+        "bg": "d/bg.png",
+        "content": "d/content.svg",
+        "contentScale": 1.12
+      },
+      "animated": "d.svg",
+      "animations": [
+        { "type": "dim", "target": "bg", "alpha": 0.55, "duration": 0.35 },
+        { "type": "shine", "target": "content", "alpha": 0.65, "duration": 1.5, "pause": 1.4 }
+      ]
+    },
     "E": {
       "layers": {
         "bg": "e/bg.png",
@@ -57,19 +105,74 @@
         { "type": "dim", "target": "bg", "alpha": 0.55, "duration": 0.35 },
         { "type": "shine", "target": "content", "alpha": 0.55, "duration": 1.6, "pause": 1.6 }
       ]
+    },
+    "S": {
+      "layers": {
+        "bg": "s/bg.png",
+        "content": "s/content.svg",
+        "contentScale": 1.12
+      },
+      "animated": "s.svg",
+      "animations": [
+        { "type": "dim", "target": "bg", "alpha": 0.55, "duration": 0.35 },
+        { "type": "shine", "target": "content", "alpha": 0.65, "duration": 1.5, "pause": 1.4 }
+      ]
+    },
+    "G": {
+      "layers": {
+        "bg": "g/bg.png",
+        "content": "g/content.svg",
+        "contentScale": 1.12
+      },
+      "animated": "g.svg",
+      "animations": [
+        { "type": "dim", "target": "bg", "alpha": 0.55, "duration": 0.35 },
+        { "type": "shine", "target": "content", "alpha": 0.65, "duration": 1.5, "pause": 1.4 }
+      ]
     }
   },
   "isNew": true,
   "isHot": true,
-  "borderWidth": 1600,
-  "borderHeight": 1073,
+  "borderWidth": 2528,
+  "borderHeight": 1696,
   "symbolSizeRatio": 1.0,
   "symbolFillCell": true,
   "reelsAutoCenter": false,
-  "reelsOffsetX": 120,
-  "reelsOffsetY": 142,
+  "reelsOffsetX": 369,
+  "reelsOffsetY": 369,
   "reelGap": 5,
   "rowGap": 5,
-  "reelsAreaWidth": 1363,
-  "reelsAreaHeight": 806
+  "reelsAreaWidth": 1790,
+  "reelsAreaHeight": 1034,
+  "reelAnimation": {
+    "type": "push",
+    "bounceHeight": 20,
+    "bounceTime": 160,
+    "staggerDelay": 80,
+    "spinTime": 900
+  },
+  "mobile": {
+    "borderWidth": 1696,
+    "borderHeight": 2528,
+    "reelsAutoCenter": false,
+    "reelsOffsetX": 336,
+    "reelsOffsetY": 442,
+    "reelsAreaWidth": 1044,
+    "reelsAreaHeight": 1743,
+    "reelGap": 4,
+    "rowGap": 5,
+    "disableBlur": true,
+    "disableDust": true,
+    "disableWinLines": true,
+    "disableShine": false,
+    "cascadeWinHighlight": true,
+    "reelAnimation": {
+      "type": "push",
+      "bounceHeight": 12,
+      "bounceTime": 110,
+      "staggerDelay": 140,
+      "spinTime": 400,
+      "speed": 1.8
+    }
+  }
 }

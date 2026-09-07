@@ -2,7 +2,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import SlotGame from './components/SlotGame';
 import SlotPreloader from './components/SlotPreloader';
 import Lobby from './components/Lobby';
-import { SlotTheme, loadTheme } from './config/themes';
+import DiceLadderGame from './games/dice-ladder';
+import { SlotTheme, loadTheme, isMobileDevice } from './config/themes';
 
 interface PlayerInfo {
   name?: string;
@@ -14,13 +15,30 @@ interface AppProps {
   player?: PlayerInfo;
 }
 
-type AppView = 'lobby' | 'loading' | 'game';
+type AppView = 'lobby' | 'loading' | 'game' | 'dice';
 
 function App({ initialBalance = 10000, player }: AppProps) {
   const [currentView, setCurrentView] = useState<AppView>('lobby'); // Начинаем с лобби
   const [selectedTheme, setSelectedTheme] = useState<SlotTheme | null>(null);
   const [pendingTheme, setPendingTheme] = useState<SlotTheme | null>(null); // Тема в процессе загрузки
   const [balance, setBalance] = useState<number>(initialBalance);
+
+  useEffect(() => {
+    const syncMobileClass = () => {
+      document.documentElement.classList.toggle('is-mobile', isMobileDevice());
+    };
+    syncMobileClass();
+    window.addEventListener('resize', syncMobileClass);
+    window.addEventListener('orientationchange', syncMobileClass);
+    return () => {
+      window.removeEventListener('resize', syncMobileClass);
+      window.removeEventListener('orientationchange', syncMobileClass);
+    };
+  }, []);
+
+  const handleSelectDiceGame = useCallback(() => {
+    setCurrentView('dice');
+  }, []);
 
   // Обработчик выбора темы в лобби
   const handleSelectTheme = useCallback((theme: SlotTheme) => {
@@ -96,14 +114,14 @@ function App({ initialBalance = 10000, player }: AppProps) {
   // Обработка кнопки "назад" браузера и телефона - возврат в лобби
   useEffect(() => {
     // Добавляем запись в историю при входе в игру
-    if (currentView === 'game') {
-      window.history.pushState({ view: 'game' }, '');
+    if (currentView === 'game' || currentView === 'dice') {
+      window.history.pushState({ view: currentView }, '');
     }
 
     // Обработчик события "назад" браузера (работает и для Android back button в WebView)
     const handlePopState = async (event: PopStateEvent) => {
       // Если мы в игре, возвращаемся в лобби
-      if (currentView === 'game') {
+      if (currentView === 'game' || currentView === 'dice') {
         event.preventDefault();
         await exitFullscreenAndUnlockOrientation();
         setCurrentView('lobby');
@@ -112,7 +130,7 @@ function App({ initialBalance = 10000, player }: AppProps) {
 
     // Обработчик для Cordova/Capacitor backbutton (Android hardware back button)
     const handleBackButton = async (event: Event) => {
-      if (currentView === 'game') {
+      if (currentView === 'game' || currentView === 'dice') {
         event.preventDefault();
         await exitFullscreenAndUnlockOrientation();
         setCurrentView('lobby');
@@ -122,7 +140,7 @@ function App({ initialBalance = 10000, player }: AppProps) {
     // Обработчик клавиши Escape (для десктопа) и Back (KeyCode 27 на некоторых устройствах)
     const handleKeyDown = async (event: KeyboardEvent) => {
       // Escape или Android Back (код 4 в некоторых WebView)
-      if ((event.key === 'Escape' || event.keyCode === 27 || event.keyCode === 4) && currentView === 'game') {
+      if ((event.key === 'Escape' || event.keyCode === 27 || event.keyCode === 4) && (currentView === 'game' || currentView === 'dice')) {
         event.preventDefault();
         await exitFullscreenAndUnlockOrientation();
         setCurrentView('lobby');
@@ -155,12 +173,23 @@ function App({ initialBalance = 10000, player }: AppProps) {
       );
     }
 
-    // По умолчанию показываем лобби
+    if (currentView === 'dice') {
+      return (
+        <DiceLadderGame
+          initialBalance={balance}
+          player={player}
+          onBackToLobby={handleBackToLobby}
+          onBalanceChange={handleBalanceChange}
+        />
+      );
+    }
+
     return (
       <Lobby 
         player={player} 
         balance={balance}
-        onSelectTheme={handleSelectTheme} 
+        onSelectTheme={handleSelectTheme}
+        onSelectDiceGame={handleSelectDiceGame}
       />
     );
   };

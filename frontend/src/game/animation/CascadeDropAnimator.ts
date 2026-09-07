@@ -56,6 +56,7 @@ export class CascadeDropAnimator {
   private symbolStaggerDelay = 30;
   private initialDelay = 30;
   private exitDelay = 40;
+  private speedMultiplier = 1;
 
   constructor(config: SlotConfig, reelManager: ReelManager, ticker: PIXI.Ticker, options?: CascadeAnimatorOptions) {
     this.config = config;
@@ -67,9 +68,7 @@ export class CascadeDropAnimator {
     if (anim.stopDelay) this.rowDelay = anim.stopDelay;
     if (anim.spinSpeed && anim.spinSpeed !== 45) {
       const sm = anim.spinSpeed;
-      this.gravity *= sm; this.maxVelocity *= sm; this.exitVelocity *= sm;
-      this.exitDistance = Math.round(this.exitDistance * sm);
-      this.enterStartDistance = Math.round(this.enterStartDistance * sm);
+      this.speedMultiplier = sm;
       this.rowDelay = Math.round(this.rowDelay / sm);
       this.symbolStaggerDelay = Math.round(this.symbolStaggerDelay / sm);
       this.initialDelay = Math.round(this.initialDelay / sm);
@@ -96,6 +95,16 @@ export class CascadeDropAnimator {
     const visualCols = isMobileLayout ? rows : cols;
     const visualRows = isMobileLayout ? cols : rows;
     const stepHeight = cellHeight + rowGap;
+    const gridHeight = visualRows * cellHeight + (visualRows - 1) * rowGap;
+    // Каскад изначально калибровался под ацтеков (~504px). На более высоких
+    // барабанах (мафия ~1034px) фиксированные 600px оставляли новые символы
+    // внутри поля — они «проявлялись» при падении.
+    const heightScale = Math.max(1, gridHeight / 504);
+    this.exitDistance = gridHeight + stepHeight;
+    this.enterStartDistance = gridHeight + stepHeight;
+    this.gravity = 2.0 * heightScale * this.speedMultiplier;
+    this.maxVelocity = 50 * heightScale * this.speedMultiplier;
+    this.exitVelocity = 30 * heightScale * this.speedMultiplier;
 
     // Включаем sortableChildren для всех рилов
     for (let vCol = 0; vCol < visualCols; vCol++) {
@@ -144,15 +153,17 @@ export class CascadeDropAnimator {
         state.offset += state.velocity;
         state.velocity = Math.min(state.velocity + 0.5, this.maxVelocity);
         if (state.offset > this.exitDistance) {
+          // Сначала уводим спрайт вверх за маску, потом меняем текстуру —
+          // иначе новый символ один кадр виден внизу поля.
+          state.offset = -this.enterStartDistance;
+          state.velocity = 0;
+          state.phase = 'enter-waiting';
           if (this.pendingMatrix) {
             const { isMobileLayout } = this.config.dimensions;
             const lCol = isMobileLayout ? state.visualRow : state.visualCol;
             const lRow = isMobileLayout ? state.visualCol : state.visualRow;
             this.reelManager.updateSymbolTexture(state.visualCol, state.visualRow, this.pendingMatrix[lRow][lCol]);
           }
-          state.offset = -this.enterStartDistance;
-          state.velocity = 0;
-          state.phase = 'enter-waiting';
         }
         break;
       case 'enter-waiting':
@@ -197,15 +208,9 @@ export class CascadeDropAnimator {
       case 'entering':
       case 'bouncing':
         sprite.zIndex = 1;
-        // Fade in: прозрачность увеличивается по мере падения
-        if (state.phase === 'entering') {
-          const enterProgress = Math.min(1.0, (this.enterStartDistance + state.offset) / this.enterStartDistance);
-          sprite.alpha = Math.min(1.0, Math.max(0.2, enterProgress + 0.1));
-        } else if (state.phase === 'bouncing') {
-          sprite.alpha = 1.0;
-        } else { // enter-waiting
-          sprite.alpha = 0.3;
-        }
+        // Новые символы полностью непрозрачны и влетают сверху,
+        // а не проявляются в поле (на высоких барабанах это было заметно).
+        sprite.alpha = state.phase === 'enter-waiting' ? 0 : 1.0;
         break;
       default:
         sprite.zIndex = 0;

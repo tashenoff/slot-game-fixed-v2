@@ -4,7 +4,7 @@
  */
 
 // Типы анимации барабанов
-export type ReelAnimationType = 'spin' | 'drop' | 'rise' | 'cascade';
+export type ReelAnimationType = 'spin' | 'drop' | 'rise' | 'cascade' | 'push';
 export type ReelAnimationDirection = 'top-to-bottom' | 'bottom-to-top';
 
 // Интерфейс для отслеживания прогресса загрузки
@@ -123,7 +123,7 @@ async function loadThemeData(themeId: string): Promise<SlotTheme | null> {
   const assetsPath = `${THEMES_BASE_PATH}/${themeId}`;
   
   try {
-    const response = await fetch(`${assetsPath}/theme.json`);
+    const response = await fetch(`${assetsPath}/theme.json?v=${Date.now()}`);
     if (!response.ok) {
       console.warn(`Theme ${themeId}: theme.json not found`);
       return null;
@@ -184,18 +184,16 @@ export function getBarabanAssetPath(theme: SlotTheme): string {
  */
 export function isMobileDevice(): boolean {
   if (typeof window === 'undefined') return false;
-  
-  // Проверка по User Agent
+
   const userAgent = navigator.userAgent || navigator.vendor || (window as unknown as { opera?: string }).opera || '';
   const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-  
-  // Проверка по размеру экрана (ширина меньше 768px считается мобильным)
-  const isSmallScreen = window.innerWidth < 768;
-  
-  // Проверка по touch capabilities
-  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  
-  return mobileRegex.test(userAgent) || (isSmallScreen && isTouchDevice);
+
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const isNarrow = Math.min(width, height) < 768;
+  const isPortraitPhone = height > width && width < 900;
+
+  return mobileRegex.test(userAgent) || isNarrow || isPortraitPhone;
 }
 
 /**

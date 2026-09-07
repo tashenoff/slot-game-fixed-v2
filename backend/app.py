@@ -1,12 +1,29 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import json
 import random
 import os
 
-from database import init_db, get_or_create_user, get_user_by_id, update_user_balance, update_user_stats, deduct_balance, add_balance, get_user_balance
+from database import init_db, get_or_create_user, get_user_by_id, update_user_balance, update_user_stats, deduct_balance, add_balance, get_user_balance, save_dice_session, get_dice_session, close_dice_session
 from auth import create_token, require_auth
 from journal import log_spin, get_recent, get_summary
+from dice_game import (
+    create_session as dg_create,
+    get_session as dg_get,
+    update_session as dg_update,
+    close_session as dg_close,
+    restore_session as dg_restore,
+    roll_face as dg_roll_face,
+    get_multiplier as dg_mult,
+    visible_levels as dg_levels,
+    DICE_FACE_STEPS as DG_STEPS,
+    is_checkpoint as dg_is_checkpoint,
+    next_checkpoint as dg_next_checkpoint,
+    checkpoint_every as dg_checkpoint_every,
+    step_payout as dg_step_payout,
+    step_payout_rate as dg_step_rate,
+)
+
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}})
@@ -346,7 +363,236 @@ def bonus_dice_cashout(user_id: int):
         'multiplier': multiplier,
     })
 
+
+# ============== DICE GAME (лобби, отдельная игра) ==============
+
+def _dice_next_prize_level(level: int, paid_checkpoint: int) -> int:
+    every = dg_checkpoint_every(config)
+    nxt = dg_next_checkpoint(level, config)
+    paid = int(paid_checkpoint or 0)
+    if nxt <= paid:
+        nxt = paid + every
+    return nxt
+
+
+def _dice_state_payload(sess, user_balance):
+    level = int(sess['level'])
+    bet = int(sess['bet'])
+    paid = int(sess.get('paid_checkpoint') or 0)
+    nxt = _dice_next_prize_level(level, paid)
+    return {
+        'session_id': sess['id'] if 'id' in sess else sess.get('session_id'),
+        'bet': bet,
+        'level': level,
+        'multiplier': dg_mult(level, config),
+        'win_amount': 0,
+        'station_payout': 0,
+        'can_cashout': False,
+        'next_checkpoint': nxt,
+        'next_multiplier': dg_mult(nxt, config),
+        'step_payout_rate': dg_step_rate(config),
+        'balance': user_balance,
+        'levels': dg_levels(level, config),
+        'resumed': True,
+        'paid_checkpoint': paid,
+    }
+
+
+@app.route('/api/dice_game/state', methods=['GET'])
+@require_auth
+def dice_game_state(user_id: int):
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'Пользователь не найден'}), 404
+    row = get_dice_session(user_id)
+    if not row:
+        return jsonify({'active': False, 'balance': user['balance']})
+    sess = {
+        'id': row['session_id'],
+        'session_id': row['session_id'],
+        'user_id': user_id,
+        'bet': row['bet'],
+        'level': row['level'],
+        'paid_checkpoint': int(row.get('paid_checkpoint') or 0),
+        'active': True,
+    }
+    # подтянуть в память для последующих roll
+    existing = dg_get(row['session_id'], user_id)
+    if not existing:
+        dg_restore(user_id, row['session_id'], int(row['bet']), int(row['level']), int(row.get('paid_checkpoint') or 0))
+    else:
+        dg_update(row['session_id'], level=int(row['level']), bet=int(row['bet']), paid_checkpoint=int(row.get('paid_checkpoint') or 0))
+    payload = _dice_state_payload(sess, user['balance'])
+    payload['active'] = True
+    return jsonify(payload)
+
+
+@app.route('/api/dice_game/start', methods=['POST'])
+@require_auth
+def dice_game_start(user_id: int):
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'Пользователь не найден'}), 404
+
+    data = request.get_json() or {}
+    bet = int(data.get('bet', 0))
+    is_valid, error_msg = validate_bet(bet)
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
+
+    # Если уже есть активный забег — не сбрасываем, возвращаем его
+    row = get_dice_session(user_id)
+    if row:
+        existing = dg_get(row['session_id'], user_id)
+        if not existing:
+            dg_restore(user_id, row['session_id'], int(row['bet']), int(row['level']), int(row.get('paid_checkpoint') or 0))
+        sess = {
+            'id': row['session_id'],
+            'bet': row['bet'],
+            'level': row['level'],
+            'paid_checkpoint': int(row.get('paid_checkpoint') or 0),
+        }
+        payload = _dice_state_payload(sess, user['balance'])
+        payload['resumed'] = True
+        return jsonify(payload)
+
+    # Старт бесплатный: ставка списывается на каждый бросок
+    sess = dg_create(user_id, bet)
+    save_dice_session(user_id, sess['id'], bet, 0, True, 0)
+    print(f"[DICE_GAME] start user={user_id} bet={bet} session={sess['id']}")
+    nxt = _dice_next_prize_level(0, 0)
+    return jsonify({
+        'session_id': sess['id'],
+        'bet': bet,
+        'level': 0,
+        'multiplier': 0,
+        'win_amount': 0,
+        'station_payout': 0,
+        'can_cashout': False,
+        'next_checkpoint': nxt,
+        'next_multiplier': dg_mult(nxt, config),
+        'step_payout_rate': dg_step_rate(config),
+        'balance': user['balance'],
+        'levels': dg_levels(0, config),
+        'resumed': False,
+        'paid_checkpoint': 0,
+    })
+
+
+@app.route('/api/dice_game/roll', methods=['POST'])
+@require_auth
+def dice_game_roll(user_id: int):
+    data = request.get_json() or {}
+    session_id = data.get('session_id')
+    force_face = data.get('force_face')
+    sess = dg_get(session_id, user_id) if session_id else None
+    if not sess or not sess.get('active'):
+        return jsonify({'error': 'Сессия не найдена'}), 400
+
+    bet = int(sess['bet'])
+    is_valid, error_msg = validate_bet(bet)
+    if not is_valid:
+        return jsonify({'error': error_msg}), 400
+
+    level = int(sess['level'])
+    face = dg_roll_face(level, config, force_face)
+    charge = 0 if face == 'diamond' else bet
+    new_balance = get_user_balance(user_id)
+    if charge > 0:
+        new_balance = deduct_balance(user_id, charge)
+        if new_balance is None:
+            return jsonify({'error': 'Недостаточно средств'}), 400
+
+    steps = DG_STEPS.get(face, 0)
+    new_level = max(0, level + steps)
+    paid = int(sess.get('paid_checkpoint') or 0)
+    # Монета/огонь всегда платят за грани, даже если это повтор высоты после черепа
+    climbed = max(0, steps)
+    step_pay = dg_step_payout(bet, climbed, config) if face in ('coin', 'fire') else 0
+    station_payout = 0
+    if new_level > paid:
+        for n in range(paid + 1, new_level + 1):
+            if dg_is_checkpoint(n, config):
+                station_payout += bet * dg_mult(n, config)
+    total_payout = step_pay + station_payout
+    bet_returned = 0
+    if face in ('coin', 'fire') and charge > 0:
+        bet_returned = charge
+        total_payout += bet_returned
+    if total_payout > 0:
+        credited = add_balance(user_id, total_payout)
+        if credited is None:
+            user = get_user_by_id(user_id)
+            credited = (user['balance'] if user else 0) + total_payout
+            update_user_balance(user_id, credited)
+        new_balance = credited
+        print(f"[DICE_GAME] payout user={user_id} face={face} bet_back={bet_returned} step={step_pay} station={station_payout} total={total_payout} bal={new_balance} lvl={new_level}")
+    if new_level > paid:
+        paid = new_level
+
+    dg_update(session_id, level=new_level, paid_checkpoint=paid)
+    save_dice_session(user_id, session_id, bet, new_level, True, paid)
+
+    nxt = _dice_next_prize_level(new_level, paid)
+
+    return jsonify({
+        'face': face,
+        'new_level': new_level,
+        'win_amount': total_payout,
+        'step_payout': step_pay,
+        'station_payout': station_payout,
+        'bet_returned': bet_returned,
+        'game_over': False,
+        'can_cashout': False,
+        'next_checkpoint': nxt,
+        'next_multiplier': dg_mult(nxt, config),
+        'step_payout_rate': dg_step_rate(config),
+        'balance': new_balance,
+        'levels': dg_levels(new_level, config),
+        'multiplier': dg_mult(new_level, config),
+        'session_id': session_id,
+        'paid_checkpoint': paid,
+    })
+
+
+@app.route('/api/dice_game/cashout', methods=['POST'])
+@require_auth
+def dice_game_cashout(user_id: int):
+    data = request.get_json() or {}
+    session_id = data.get('session_id')
+    sess = dg_get(session_id, user_id) if session_id else None
+    if not sess or not sess.get('active'):
+        return jsonify({'error': 'Сессия не найдена'}), 400
+
+    level = int(sess['level'])
+    bet = int(sess['bet'])
+    if not dg_is_checkpoint(level, config):
+        return jsonify({'error': 'Забрать можно только на станции'}), 400
+
+    multiplier = dg_mult(level, config)
+    win_amount = bet * multiplier
+    if win_amount <= 0:
+        return jsonify({'error': 'Нет выигрыша для забора'}), 400
+
+    balance = add_balance(user_id, win_amount)
+    if balance is None:
+        user = get_user_by_id(user_id)
+        balance = (user['balance'] if user else 0) + win_amount
+        update_user_balance(user_id, balance)
+
+    dg_close(session_id)
+    close_dice_session(user_id)
+    print(f"[DICE_GAME] cashout user={user_id} level={level} win={win_amount}")
+    return jsonify({
+        'win_amount': win_amount,
+        'balance': balance,
+        'level': level,
+        'multiplier': multiplier,
+    })
+
+
 # ============== АВТОРИЗАЦИЯ ==============
+
 
 @app.route('/api/auth', methods=['POST'])
 def auth():
@@ -696,6 +942,18 @@ def get_config():
     return jsonify(config)
 
 
+@app.route('/dashboard')
+@app.route('/dashboard/')
+def dashboard_page():
+    """Страница дашборда (MVP)."""
+    dashboard_path = os.path.join(os.path.dirname(__file__), 'dashboard.html')
+    if not os.path.exists(dashboard_path):
+        return "Дашборд не найден", 404
+    return send_from_directory(
+        os.path.dirname(__file__), 'dashboard.html'
+    )
+
+
 @app.route('/api/journal/recent', methods=['GET'])
 @require_auth
 def journal_recent(user_id: int):
@@ -705,6 +963,141 @@ def journal_recent(user_id: int):
     # Фильтруем только записи текущего пользователя
     entries = [e for e in entries if e.get('user_id') == user_id]
     return jsonify({'entries': entries})
+
+
+# ============================================================
+# ОТКРЫТЫЕ ENPOINTS ДЛЯ ДАШБОРДА (без авторизации)
+# Агрегированная статистика по всем игрокам
+# ============================================================
+
+@app.route('/api/dashboard/live', methods=['GET'])
+def dashboard_live():
+    """Агрегированные данные без авторизации для дашборда."""
+    try:
+        from journal import get_recent as jr
+        limit = request.args.get('limit', 200, type=int)
+        entries = jr(limit)
+        return jsonify({'entries': entries})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/dashboard/summary', methods=['GET'])
+def dashboard_summary():
+    """Сводная статистика по всем игрокам без авторизации."""
+    try:
+        # Читаем журнал напрямую
+        journal_path = os.path.join(os.path.dirname(__file__), 'journal.jsonl')
+        if not os.path.exists(journal_path):
+            return jsonify({'error': 'Журнал не найден'}), 404
+        
+        limit = request.args.get('limit', 1000, type=int)
+        spins = request.args.get('spins', 5000, type=int)
+        
+        entries = []
+        with open(journal_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        for line in lines[-limit:]:
+            try:
+                e = json.loads(line)
+                if e.get('type') == 'regular':
+                    entries.append(e)
+            except:
+                continue
+        
+        if not entries:
+            return jsonify({'error': 'Нет данных'}), 404
+        
+        total_bet = sum(e['bet'] for e in entries)
+        total_win = sum(e['win'] for e in entries)
+        total_spins = len(entries)
+        wins_count = sum(1 for e in entries if e.get('win', 0) > 0)
+        scatter_triggers = sum(1 for e in entries if e.get('scatter'))
+        bonus_triggers = sum(1 for e in entries if e.get('bonus'))
+        
+        # Статистика по выигрышам
+        win_amounts = [e['win'] for e in entries if e.get('win', 0) > 0]
+        avg_win = round(sum(win_amounts) / len(win_amounts), 2) if win_amounts else 0
+        max_win = max(win_amounts) if win_amounts else 0
+        min_win = min(win_amounts) if win_amounts else 0
+        
+        # Серии проигрышей
+        max_loss_streak = 0
+        current_loss_streak = 0
+        max_win_streak = 0
+        current_win_streak = 0
+        for e in entries:
+            if e.get('win', 0) > 0:
+                current_loss_streak = 0
+                current_win_streak += 1
+                max_win_streak = max(max_win_streak, current_win_streak)
+            else:
+                current_win_streak = 0
+                current_loss_streak += 1
+                max_loss_streak = max(max_loss_streak, current_loss_streak)
+        
+        # Уникальные игроки
+        unique_players = set()
+        for e in entries:
+            unique_players.add(e.get('player_id'))
+        
+        # Банкротства: спины, где баланс упал до нуля или ниже
+        bankrupt_events = []
+        for i, e in enumerate(entries):
+            bal = e.get('balance', 0)
+            if bal <= 0:
+                bankrupt_events.append({
+                    'index': i,
+                    'ts': e.get('ts'),
+                    'player_id': e.get('player_id'),
+                    'balance': bal,
+                    'bet': e.get('bet'),
+                    'win': e.get('win')
+                })
+        
+        # Временной диапазон
+        timestamps = [e.get('ts') for e in entries if e.get('ts')]
+        first_ts = min(timestamps) if timestamps else None
+        last_ts = max(timestamps) if timestamps else None
+        
+        # RTP за скользящие окна последних N спинов
+        def rtp_for_window(n):
+            window = entries[-n:]
+            b = sum(e.get('bet', 0) for e in window)
+            w = sum(e.get('win', 0) for e in window)
+            return round(w / b * 100, 2) if b > 0 else None
+        
+        rtp_windows = {
+            '50': rtp_for_window(50),
+            '100': rtp_for_window(100),
+            '500': rtp_for_window(500),
+            '1000': rtp_for_window(1000),
+            'all': round(total_win / total_bet * 100, 2) if total_bet > 0 else None
+        }
+        
+        return jsonify({
+            'total_bet': total_bet,
+            'total_win': total_win,
+            'spins': total_spins,
+            'win_frequency': round(wins_count / total_spins * 100, 2) if total_spins > 0 else 0,
+            'rtp': round(total_win / total_bet * 100, 2) if total_bet > 0 else 0,
+            'rtp_windows': rtp_windows,
+            'scatter_triggers': scatter_triggers,
+            'bonus_triggers': bonus_triggers,
+            'avg_win': avg_win,
+            'max_win': max_win,
+            'min_win': min_win,
+            'max_loss_streak': max_loss_streak,
+            'max_win_streak': max_win_streak,
+            'unique_players': len(unique_players),
+            'first_ts': first_ts,
+            'last_ts': last_ts,
+            'avg_bet': round(total_bet / total_spins, 2) if total_spins > 0 else 0,
+            'bankruptcies': bankrupt_events,
+            'bankruptcy_count': len(bankrupt_events)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/journal/summary', methods=['GET'])

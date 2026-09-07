@@ -37,6 +37,20 @@ def init_db():
                 UNIQUE(platform, player_id)
             )
         ''')
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS dice_sessions (
+                user_id INTEGER PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                bet INTEGER NOT NULL,
+                level INTEGER NOT NULL DEFAULT 0,
+                paid_checkpoint INTEGER NOT NULL DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cols = [r[1] for r in db.execute('PRAGMA table_info(dice_sessions)').fetchall()]
+        if 'paid_checkpoint' not in cols:
+            db.execute('ALTER TABLE dice_sessions ADD COLUMN paid_checkpoint INTEGER NOT NULL DEFAULT 0')
         db.commit()
         print(f"[DB] База данных инициализирована: {DB_PATH} (persistent connection)")
 
@@ -214,3 +228,40 @@ def get_user_stats(user_id: int) -> Optional[Dict[str, Any]]:
         ''', (user_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+
+def save_dice_session(user_id: int, session_id: str, bet: int, level: int, active: bool = True, paid_checkpoint: int = 0):
+    with get_db() as db:
+        db.execute(
+            '''INSERT INTO dice_sessions (user_id, session_id, bet, level, paid_checkpoint, active, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(user_id) DO UPDATE SET
+                 session_id = excluded.session_id,
+                 bet = excluded.bet,
+                 level = excluded.level,
+                 paid_checkpoint = excluded.paid_checkpoint,
+                 active = excluded.active,
+                 updated_at = excluded.updated_at''',
+            (user_id, session_id, bet, level, int(paid_checkpoint or 0), 1 if active else 0, datetime.now())
+        )
+        db.commit()
+
+
+def get_dice_session(user_id: int) -> Optional[Dict[str, Any]]:
+    with get_db() as db:
+        cursor = db.execute(
+            'SELECT * FROM dice_sessions WHERE user_id = ? AND active = 1',
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def close_dice_session(user_id: int):
+    with get_db() as db:
+        db.execute(
+            'UPDATE dice_sessions SET active = 0, updated_at = ? WHERE user_id = ?',
+            (datetime.now(), user_id)
+        )
+        db.commit()
+

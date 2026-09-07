@@ -170,3 +170,28 @@ export const cashoutDice = async (bet: number, level: number): Promise<DiceCasho
     throw error;
   }
 };
+
+// ============== DICE GAME (лобби) ==============
+
+export const startDiceGame = async (bet: number) => {
+  const response = await api.post('/dice_game/start', { bet });
+  return response.data;
+};
+
+export const getDiceGameState = async () => {
+  const response = await api.get('/dice_game/state');
+  return response.data;
+};
+
+export const rollDiceGame = async (sessionId: string, forceFace?: DiceFace) => {
+  const response = await api.post('/dice_game/roll', {
+    session_id: sessionId,
+    force_face: forceFace,
+  });
+  return response.data;
+};
+
+export const cashoutDiceGame = async (sessionId: string) => {
+  const response = await api.post('/dice_game/cashout', { session_id: sessionId });
+  return response.data;
+};

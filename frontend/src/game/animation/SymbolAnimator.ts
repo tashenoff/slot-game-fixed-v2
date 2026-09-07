@@ -211,6 +211,7 @@ export class SymbolAnimator {
   reset(): void {
     // Убиваем все GSAP-анимации на scale (animateWinSymbol)
     this.originalScales.forEach((scale, sprite) => {
+      if (!sprite || sprite.destroyed) return;
       gsap.killTweensOf(sprite.scale);
       sprite.scale.set(scale);
     });

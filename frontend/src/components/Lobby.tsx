@@ -21,9 +21,10 @@ interface LobbyProps {
   player?: PlayerInfo;
   balance: number;
   onSelectTheme: (theme: SlotTheme) => void;
+  onSelectDiceGame?: () => void;
 }
 
-const Lobby: React.FC<LobbyProps> = ({ player, balance, onSelectTheme }) => {
+const Lobby: React.FC<LobbyProps> = ({ player, balance, onSelectTheme, onSelectDiceGame }) => {
   const [themes, setThemes] = useState<SlotTheme[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +92,17 @@ const Lobby: React.FC<LobbyProps> = ({ player, balance, onSelectTheme }) => {
       <main className="lobby-main">
         <h2 className="lobby-section-title">Выберите игру</h2>
         <div className="slots-grid">
+          <div className="slot-card" onClick={() => onSelectDiceGame?.()}>
+            <div className="slot-card-preview">
+              <div className="slot-card-image dice-lobby-preview">🎲</div>
+              <span className="slot-badge slot-badge-new">NEW</span>
+            </div>
+            <div className="slot-card-info">
+              <h3 className="slot-card-title">Лестница удачи</h3>
+              <p className="slot-card-description">Бросай кубик, поднимайся по ступеням, забирай выигрыш</p>
+            </div>
+            <button className="slot-card-play-btn">▶ ИГРАТЬ</button>
+          </div>
           {themes.map((theme) => (
             <div
               key={theme.id}

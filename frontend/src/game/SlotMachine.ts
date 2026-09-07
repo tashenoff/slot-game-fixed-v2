@@ -6,6 +6,7 @@ import { ReelManager } from './core/ReelManager';
 import { ReelAnimator } from './animation/ReelAnimator';
 import { DropReelAnimator } from './animation/DropReelAnimator';
 import { CascadeDropAnimator } from './animation/CascadeDropAnimator';
+import { PushDropAnimator } from './animation/PushDropAnimator';
 import { SymbolAnimator } from './animation/SymbolAnimator';
 import { WinDisplayManager, TorchFireEffect, RevolverSmokeEffect } from './effects';
 import { SlotTheme, isMobileDevice, isAppleMobileDevice } from '../config/themes';
@@ -249,6 +250,10 @@ export class SlotMachine {
         return new CascadeDropAnimator(this.config, this.reelManager, this.app.ticker, {
           dustEffect: !this.mobileConfig?.disableDust,
         });
+      case 'push':
+        return new PushDropAnimator(this.config, this.reelManager, this.app.ticker, {
+          dustEffect: !this.mobileConfig?.disableDust,
+        });
       case 'drop':
         // Для drop анимации включаем эффект пыли (отключаем на мобильных для производительности)
         return new DropReelAnimator(this.config, this.reelManager, this.app.ticker, {
@@ -291,9 +296,10 @@ export class SlotMachine {
       reelsContainer.zIndex = 0;
       reelsContainer.sortableChildren = true;
       
-      // Инициализируем эффект пыли для drop и cascade анимации
+      // Инициализируем эффект пыли для drop, cascade и push анимации
       if ((this.animationType === 'drop' && this.reelAnimator instanceof DropReelAnimator) ||
-          (this.animationType === 'cascade' && this.reelAnimator instanceof CascadeDropAnimator)) {
+          (this.animationType === 'cascade' && this.reelAnimator instanceof CascadeDropAnimator) ||
+          (this.animationType === 'push' && this.reelAnimator instanceof PushDropAnimator)) {
         const dustColors = [0xD4A574, 0xC4956A, 0xE8C99B, 0xDEB887, 0xC9B896, 0xBFAE8C];
         if (this.animationType === 'drop') {
           (this.reelAnimator as DropReelAnimator).initDustEffect(reelsContainer, {
@@ -304,6 +310,16 @@ export class SlotMachine {
             minSize: 0.5,
             maxSize: 1.8,
             baseAlpha: 0.55,
+          });
+        } else if (this.animationType === 'push') {
+          (this.reelAnimator as PushDropAnimator).initDustEffect(reelsContainer, {
+            colors: dustColors,
+            particleCount: 90,
+            spreadX: 50,
+            spreadY: 16,
+            minSize: 0.5,
+            maxSize: 1.6,
+            baseAlpha: 0.5,
           });
         } else {
           (this.reelAnimator as CascadeDropAnimator).initDustEffect(reelsContainer, {
@@ -412,17 +428,22 @@ export class SlotMachine {
     this.isSpinning = true;
     this.spinCallback = cb;
 
-    const matrix = this.currentResult?.matrix || this.reelManager.generateRandomMatrix();
-    
-    // Выбираем метод подготовки в зависимости от типа анимации
-    if (this.animationType === 'drop' || this.animationType === 'cascade') {
-      // Для drop/cascade анимации: передаём матрицу в аниматор, он сам обновит текстуры
-      this.reelAnimator.setPendingMatrix?.(matrix);
-    } else {
-      this.reelManager.initSpinState(matrix);
+    try {
+      const matrix = this.currentResult?.matrix || this.reelManager.generateRandomMatrix();
+
+      // Выбираем метод подготовки в зависимости от типа анимации
+      if (this.animationType === 'drop' || this.animationType === 'cascade' || this.animationType === 'push') {
+        // Для drop/cascade/push: передаём матрицу в аниматор, он сам обновит текстуры
+        this.reelAnimator.setPendingMatrix?.(matrix);
+      } else {
+        this.reelManager.initSpinState(matrix);
+      }
+
+      this.reelAnimator.start();
+    } catch (err) {
+      this.isSpinning = false;
+      throw err;
     }
-    
-    this.reelAnimator.start();
   }
 
   private onSpinComplete(): void {
@@ -434,8 +455,11 @@ export class SlotMachine {
   }
 
   clear(): void {
-    this.reelAnimator.stop();
+    // Сначала снимаем выигрыш (GSAP/слои ещё живы), потом останавливаем барабаны.
+    // Иначе stop() пересобирает символы, а hide() падает на уничтоженных слоях —
+    // следующий спин после выигрышной линии зависает.
     this.winDisplayManager.hide();
+    this.reelAnimator.stop();
   }
 
   destroy(): void {

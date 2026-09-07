@@ -598,6 +598,11 @@ export class ReelManager {
     }
   }
 
+  setSymbolByIndex(visualCol: number, visualRow: number, sprite: PIXI.Sprite): void {
+    if (!this.symbols[visualCol]) this.symbols[visualCol] = [];
+    this.symbols[visualCol][visualRow] = sprite;
+  }
+
   /**
    * Обновить текстуру конкретного символа по ЛОГИЧЕСКИМ координатам
    * В мобильном режиме транспонирует координаты

@@ -5,3 +5,5 @@ export type { DropReelAnimatorCallbacks } from './DropReelAnimator';
 export { SymbolAnimator } from './SymbolAnimator';
 export { CascadeDropAnimator } from './CascadeDropAnimator';
 export type { CascadeAnimatorCallbacks } from './CascadeDropAnimator';
+export { PushDropAnimator } from './PushDropAnimator';
+export type { PushDropAnimatorCallbacks } from './PushDropAnimator';

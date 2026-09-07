@@ -32,7 +32,7 @@ export interface SlotDimensions {
 }
 
 // Типы анимации барабанов
-export type ReelAnimationType = 'spin' | 'drop' | 'rise' | 'cascade';
+export type ReelAnimationType = 'spin' | 'drop' | 'rise' | 'cascade' | 'push';
 export type ReelAnimationDirection = 'top-to-bottom' | 'bottom-to-top';
 
 export interface AnimationConfig {

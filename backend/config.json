@@ -77,5 +77,25 @@
     [{"row": 0, "col": 0}, {"row": 1, "col": 1}, {"row": 0, "col": 2}, {"row": 1, "col": 3}, {"row": 0, "col": 4}],
     [{"row": 2, "col": 0}, {"row": 1, "col": 1}, {"row": 2, "col": 2}, {"row": 1, "col": 3}, {"row": 2, "col": 4}]
   ],
-  "rtp_target": 0.95
+  "rtp_target": 0.95,
+  "dice_game": {
+    "checkpoint_every": 5,
+    "step_payout_rate": 0.4,
+    "checkpoint_multipliers": {
+      "5": 4,
+      "10": 12,
+      "15": 28,
+      "20": 50,
+      "25": 80,
+      "30": 120
+    },
+    "tiers": [
+      { "from_level": 0, "faces": { "coin": 7, "diamond": 2, "fire": 1, "skull": 2 } },
+      { "from_level": 1, "faces": { "coin": 5, "diamond": 2, "fire": 2, "skull": 3 } },
+      { "from_level": 5, "faces": { "coin": 4, "diamond": 2, "fire": 1, "skull": 5 } },
+      { "from_level": 10, "faces": { "coin": 3, "diamond": 2, "fire": 1, "skull": 6 } },
+      { "from_level": 20, "faces": { "coin": 2, "diamond": 1, "fire": 1, "skull": 8 } },
+      { "from_level": 40, "faces": { "coin": 1, "diamond": 1, "fire": 1, "skull": 9 } }
+    ]
+  }
 }
