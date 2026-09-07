@@ -69,10 +69,7 @@ export class PushDropAnimator {
     if (anim.stopDelay) this.columnDelay = anim.stopDelay;
 
     if (anim.spinTime) {
-      const isMobile = !!this.config.dimensions.isMobileLayout;
-      this.extraRows = isMobile
-        ? Math.min(6, Math.max(3, Math.round(anim.spinTime / 120)))
-        : Math.max(3, Math.round(anim.spinTime / 80));
+      this.extraRows = Math.max(3, Math.round(anim.spinTime / 80));
     }
 
     if (anim.spinSpeed && anim.spinSpeed !== 45) {
@@ -105,7 +102,7 @@ export class PushDropAnimator {
     this.isRunning = true;
     this.startTime = performance.now();
     this.initColumnStates();
-    this.tickFn = () => this.tick();
+    this.tickFn = (delta: number) => this.tick(delta);
     this.ticker.add(this.tickFn);
   }
 
@@ -116,11 +113,15 @@ export class PushDropAnimator {
     this.stepHeight = cellHeight + rowGap;
     const gridHeight = visualRows * cellHeight + (visualRows - 1) * rowGap;
 
-    // 3 лишних ряда + сетка результата — не полноценное вращение
-    this.extraCount = this.extraRows + visualRows;
+    // На мобилке сетка выше (5 рядов) — без запаса ленты это просто смена двух матриц.
+    // Добавляем несколько полных «экранов» случайных символов, скорость не меняем.
+    const fillerRows = isMobileLayout
+      ? Math.max(this.extraRows, visualRows * 4)
+      : this.extraRows;
+    this.extraCount = fillerRows + visualRows;
     this.travelDistance = this.extraCount * this.stepHeight;
 
-    const heightScale = Math.max(1, gridHeight / 504);
+    const heightScale = isMobileLayout ? 1 : Math.max(1, gridHeight / 504);
     this.gravity = 1.8 * heightScale;
     this.maxVelocity = 45 * heightScale;
     this.initialVelocity = 8 * heightScale;
@@ -162,7 +163,7 @@ export class PushDropAnimator {
         }
       }
 
-      const speedFalloff = isMobileLayout ? (1 - vCol * 0.14) : 1;
+      const speedFalloff = 1;
       this.columnStates[vCol] = {
         col: vCol,
         offset: 0,
@@ -189,7 +190,7 @@ export class PushDropAnimator {
     return this.reelManager.getSymbolFactory().getRandomSymbolId();
   }
 
-  private tick(): void {
+  private tick(delta: number): void {
     const elapsed = performance.now() - this.startTime;
     const { rows, cols, isMobileLayout } = this.config.dimensions;
     const visualCols = isMobileLayout ? rows : cols;
@@ -199,13 +200,13 @@ export class PushDropAnimator {
       const state = this.columnStates[vCol];
       if (!state || state.phase === 'done') continue;
       allDone = false;
-      this.animateColumn(state, elapsed);
+      this.animateColumn(state, elapsed, delta);
     }
 
     if (allDone) this.finish();
   }
 
-  private animateColumn(state: ColumnPushState, elapsed: number): void {
+  private animateColumn(state: ColumnPushState, elapsed: number, delta: number): void {
     if (state.phase === 'waiting') {
       if (elapsed >= state.delay) {
         state.phase = 'falling';
@@ -215,8 +216,8 @@ export class PushDropAnimator {
     }
 
     if (state.phase === 'falling') {
-      state.velocity = Math.min(state.velocity + state.gravity, state.maxVelocity);
-      state.offset += state.velocity;
+      state.velocity = Math.min(state.velocity + state.gravity * delta, state.maxVelocity);
+      state.offset += state.velocity * delta;
       if (state.offset >= state.travelDistance) {
         state.offset = state.travelDistance;
         state.phase = 'bouncing';
