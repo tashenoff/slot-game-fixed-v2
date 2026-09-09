@@ -96,15 +96,15 @@ export class CascadeDropAnimator {
     const visualRows = isMobileLayout ? cols : rows;
     const stepHeight = cellHeight + rowGap;
     const gridHeight = visualRows * cellHeight + (visualRows - 1) * rowGap;
-    // Каскад изначально калибровался под ацтеков (~504px). На более высоких
-    // барабанах (мафия ~1034px) фиксированные 600px оставляли новые символы
-    // внутри поля — они «проявлялись» при падении.
     const heightScale = Math.max(1, gridHeight / 504);
     this.exitDistance = gridHeight + stepHeight;
     this.enterStartDistance = gridHeight + stepHeight;
-    this.gravity = 2.0 * heightScale * this.speedMultiplier;
-    this.maxVelocity = 50 * heightScale * this.speedMultiplier;
-    this.exitVelocity = 30 * heightScale * this.speedMultiplier;
+    // sqrt даёт ~1.6× на Aztec mobile — немного медленно.
+    // Степень 0.6 даёт ~1.74× — чуть быстрее, в самый раз.
+    const physicsScale = Math.pow(heightScale, 0.6);
+    this.gravity = 2.0 * physicsScale * this.speedMultiplier;
+    this.maxVelocity = 50 * physicsScale * this.speedMultiplier;
+    this.exitVelocity = 30 * physicsScale * this.speedMultiplier;
 
     // Включаем sortableChildren для всех рилов
     for (let vCol = 0; vCol < visualCols; vCol++) {
@@ -259,3 +259,4 @@ export class CascadeDropAnimator {
     this.dustEffect = null;
   }
 }
+

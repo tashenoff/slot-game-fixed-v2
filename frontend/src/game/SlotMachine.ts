@@ -229,7 +229,9 @@ export class SlotMachine {
     // Создаём аниматор в зависимости от типа анимации темы
     this.reelAnimator = this.createReelAnimator();
     
-    this.symbolAnimator = new SymbolAnimator(this.config, this.reelManager, this.reelManager.getSymbolFactory());
+    // Для ацтеков на мобилке используем тёмную накладку вместо прозрачности
+    const useDarkOverlay = this.theme.id === 'aztec' && isMobile;
+    this.symbolAnimator = new SymbolAnimator(this.config, this.reelManager, this.reelManager.getSymbolFactory(), useDarkOverlay);
     // Создаём менеджер отображения выигрышей с учётом мобильных оптимизаций
     // На iOS отключаем Shine-эффект (блик) — он тяжелее всего для GPU планшетов
     const iosDisableShine = isAppleMobileDevice();

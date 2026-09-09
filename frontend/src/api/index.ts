@@ -3,7 +3,7 @@ import { SpinResult, Stats, DiceFace, DiceRollResult, DiceCashoutResult } from '
 
 // URL API — задаётся через переменную окружения VITE_API_URL
 // См. .env и .env.production
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 console.log('[API] URL:', API_URL);
 

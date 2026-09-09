@@ -341,12 +341,11 @@ export class PushDropAnimator {
 
   private showMotionFade(): void {
     this.hideMotionFade();
-    if (!this.config.dimensions.isMobileLayout) return;
     const parent = this.reelsContainer || this.reelManager.getContainer();
     if (!parent) return;
-    const { rows, cols, cellWidth, cellHeight, reelGap, rowGap } = this.config.dimensions;
-    const visualCols = rows;
-    const visualRows = cols;
+    const { rows, cols, cellWidth, cellHeight, reelGap, rowGap, isMobileLayout } = this.config.dimensions;
+    const visualCols = isMobileLayout ? rows : cols;
+    const visualRows = isMobileLayout ? cols : rows;
     const width = visualCols * cellWidth + (visualCols - 1) * reelGap;
     const height = visualRows * cellHeight + (visualRows - 1) * rowGap;
     const sprite = new PIXI.Sprite(PushDropAnimator.getMotionFadeTexture());

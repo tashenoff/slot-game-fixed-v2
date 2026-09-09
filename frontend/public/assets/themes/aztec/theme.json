@@ -67,10 +67,9 @@
     "cascadeWinHighlight": true,
     "reelAnimation": {
       "type": "cascade",
-      "bounceHeight": 15,
-      "bounceTime": 130,
-      "staggerDelay": 150,
-      "speed": 2.5
+      "bounceHeight": 20,
+      "bounceTime": 160,
+      "staggerDelay": 80
     }
   }
 }
