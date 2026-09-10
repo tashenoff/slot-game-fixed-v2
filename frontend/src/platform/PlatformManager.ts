@@ -29,8 +29,9 @@ class PlatformManager {
       return param;
     }
 
-    // Определение Telegram — проверяем наличие Telegram WebApp SDK
-    if (window.Telegram?.WebApp) {
+    // Определение Telegram — реальный WebApp-контекст только если есть авторизованный юзер
+    // (SDK-скрипт создаёт пустой WebApp и вне Telegram, поэтому platform по наличию объекта не определяем)
+    if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
       return 'telegram';
     }
 
