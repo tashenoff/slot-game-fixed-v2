@@ -93,6 +93,8 @@ const Lobby: React.FC<LobbyProps> = ({ player, balance, onSelectTheme, onSelectD
       <main className="lobby-main">
         <h2 className="lobby-section-title">Выберите игру</h2>
         <div className="slots-grid">
+          {/* Лестница удачи отключена */}
+          {false && (
           <div className="slot-card" onClick={() => onSelectDiceGame?.()}>
             <div className="slot-card-preview">
               <div className="slot-card-image dice-lobby-preview">🎲</div>
@@ -104,6 +106,7 @@ const Lobby: React.FC<LobbyProps> = ({ player, balance, onSelectTheme, onSelectD
             </div>
             <button className="slot-card-play-btn">▶ ИГРАТЬ</button>
           </div>
+          )}
           {themes.map((theme) => (
             <div
               key={theme.id}
