@@ -25,10 +25,10 @@ export default defineConfig({
     assetsInlineLimit: 0, // Не инлайнить ассеты
     rollupOptions: {
       output: {
-        // Предсказуемые имена для кэширования
-        entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]'
+        // Хэшированные имена — чтобы WebView/браузер не держал старый бандл после деплоя
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]'
       }
     }
   }
