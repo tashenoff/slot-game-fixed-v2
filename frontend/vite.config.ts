@@ -11,9 +11,12 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://192.168.0.10:5000',
         changeOrigin: true,
-        secure: false
+        secure: false,
+        configure(proxy, options) {
+          options.target = process.env.API_PROXY_TARGET || 'http://192.168.0.10:5000'
+        }
       }
     }
   },

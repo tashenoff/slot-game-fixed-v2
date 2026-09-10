@@ -23,7 +23,14 @@ async function bootstrap() {
     console.log(`👤 Игрок: ${player.name} (${player.id})`);
     
     // 2. Авторизация на нашем сервере
-    const authResult = await API.auth(platform.platformName, player.id);
+    let authResult;
+    if (platform.platformName === 'telegram') {
+      // Для Telegram передаём initData для верификации
+      const initData = window.Telegram?.WebApp?.initData;
+      authResult = await API.auth(platform.platformName, player.id, initData);
+    } else {
+      authResult = await API.auth(platform.platformName, player.id);
+    }
     console.log(`✅ Авторизация успешна, баланс: ${authResult.user.balance}`);
     
     // 3. Рендерим React приложение с начальным балансом и данными игрока

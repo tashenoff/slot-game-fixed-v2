@@ -7,3 +7,4 @@ export type { IPlatformAdapter, IPlayerInfo, IEnvironment } from './IPlatformAda
 export { LocalAdapter } from './adapters/LocalAdapter';
 export { YandexAdapter } from './adapters/YandexAdapter';
 export { VKAdapter } from './adapters/VKAdapter';
+export { TelegramAdapter } from './adapters/TelegramAdapter';

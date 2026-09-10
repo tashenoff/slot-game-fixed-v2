@@ -2,8 +2,9 @@ import { IPlatformAdapter, IPlayerInfo } from './IPlatformAdapter';
 import { LocalAdapter } from './adapters/LocalAdapter';
 import { YandexAdapter } from './adapters/YandexAdapter';
 import { VKAdapter } from './adapters/VKAdapter';
+import { TelegramAdapter } from './adapters/TelegramAdapter';
 
-export type PlatformType = 'yandex' | 'vk' | 'crazygames' | 'local';
+export type PlatformType = 'yandex' | 'vk' | 'crazygames' | 'telegram' | 'local';
 
 export interface PlatformConfig {
   forcePlatform?: PlatformType;
@@ -24,8 +25,13 @@ class PlatformManager {
   detectPlatform(): PlatformType {
     const urlParams = new URLSearchParams(window.location.search);
     const param = urlParams.get('platform') as PlatformType | null;
-    if (param && ['yandex', 'vk', 'crazygames', 'local'].includes(param)) {
+    if (param && ['yandex', 'vk', 'crazygames', 'telegram', 'local'].includes(param)) {
       return param;
+    }
+
+    // Определение Telegram — проверяем наличие Telegram WebApp SDK
+    if (window.Telegram?.WebApp) {
+      return 'telegram';
     }
 
     const host = window.location.hostname;
@@ -40,6 +46,7 @@ class PlatformManager {
     switch (platform) {
       case 'yandex': return new YandexAdapter();
       case 'vk': return new VKAdapter();
+      case 'telegram': return new TelegramAdapter();
       default: return new LocalAdapter();
     }
   }

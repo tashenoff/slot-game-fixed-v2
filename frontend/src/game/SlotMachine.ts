@@ -229,8 +229,8 @@ export class SlotMachine {
     // Создаём аниматор в зависимости от типа анимации темы
     this.reelAnimator = this.createReelAnimator();
     
-    // Для ацтеков на мобилке используем тёмную накладку вместо прозрачности
-    const useDarkOverlay = this.theme.id === 'aztec' && isMobile;
+    // Тёмная накладка (tint) вместо прозрачности — ацтеки всегда, Египет на мобилке
+    const useDarkOverlay = this.theme.id === 'aztec' || (this.theme.id === 'egypt' && isMobile);
     this.symbolAnimator = new SymbolAnimator(this.config, this.reelManager, this.reelManager.getSymbolFactory(), useDarkOverlay);
     // Создаём менеджер отображения выигрышей с учётом мобильных оптимизаций
     // На iOS отключаем Shine-эффект (блик) — он тяжелее всего для GPU планшетов
@@ -238,7 +238,7 @@ export class SlotMachine {
     this.winDisplayManager = new WinDisplayManager(this.config, this.reelManager, this.symbolAnimator, {
       disableWinLines: this.mobileConfig?.disableWinLines,
       disableShine: this.mobileConfig?.disableShine || iosDisableShine,
-      cascadeWinHighlight: this.mobileConfig?.cascadeWinHighlight,
+      cascadeWinHighlight: this.mobileConfig?.cascadeWinHighlight || this.theme.id === 'aztec',
       themeId: this.theme.id,
     });
   }

@@ -26,3 +26,31 @@ AggregateError [ECONNREFUSED]:
 [2m21:30:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
 [2m21:35:10[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
 [2m21:38:20[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m21:42:14[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m21:44:32[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m21:45:51[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m21:46:03[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m21:46:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m21:46:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:01:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:01:47[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:36:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:40:31[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:49:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:49:32[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:49:48[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:49:48[22m [33m[1m[vite][22m[39m [33mwarning: [33mDuplicate member "getSymbolPixelSize" in class body[33m
+87 |     * Возвращает размер символа в пикселях
+88 |     */
+89 |    private getSymbolPixelSize(): number {
+   |            ^
+90 |      const { cellWidth, cellHeight, dimensions } = this.config;
+91 |      const maxSize = Math.min(cellWidth, cellHeight);
+[39m
+  Plugin: [35mvite:esbuild[39m
+  File: [36mE:/slot-game-fixed-v2/frontend/src/game/animation/SymbolAnimator.ts[39m
+[2m22:50:16[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:51:15[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:51:26[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:58:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m
+[2m22:58:42[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/SlotGame.tsx[22m

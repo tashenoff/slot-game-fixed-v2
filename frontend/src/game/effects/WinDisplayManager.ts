@@ -66,7 +66,7 @@ export class WinDisplayManager {
     });
 
     // Затемняем невыигрышные символы и добавляем рамки редкости
-    // Каскадный режим: подсветка символов поочередно
+    // Каскадный режим: сначала маска на всех, затем выигрышные вспыхивают по очереди
     if (this.options.cascadeWinHighlight) {
       this.playCascadeHighlight(allWinPositions);
     } else {

@@ -190,6 +190,7 @@ export class SymbolFactory {
     if (texture) {
       sprite.texture = texture;
       sprite.name = symbolId;
+      sprite.tint = 0xffffff; // Сбрасываем tint — он сохраняется при смене текстуры
       this.applySymbolSize(sprite);
       this.attachContentLayer(sprite, symbolId);
       this.attachAnimations(sprite, symbolId);

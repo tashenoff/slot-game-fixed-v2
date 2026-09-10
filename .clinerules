@@ -1,0 +1,19 @@
+# Project Rules for Cline (slot-game-fixed-v2)
+
+## Use the Graphify knowledge graph FIRST (MCP server "graphify-slot")
+
+A knowledge graph of this codebase has been built and is served via the **graphify-slot** MCP server.
+
+- When the user asks about structure, connections, dependencies, where something is used, what it affects, architecture, or codebase-wide questions — do NOT start by listing or reading project folders.
+- Use the graphify MCP tools first:
+  - `query_graph` — ask questions about the codebase structure and relations
+  - `get_node` — get details on a specific node (class, function, file, module)
+  - `get_neighbors` — see what a node is connected to
+  - `get_community` — see the cluster/community a node belongs to
+  - `god_nodes` — the most connected / architectural hub nodes
+  - `graph_stats` — statistics about the graph
+  - `shortest_path` — how two symbols/modules relate
+- Only fall back to reading actual files when the graph is insufficient, the node is missing, or exact code contents are needed.
+- If the graph gets stale after refactors, rebuild it with:
+  `E:\new-med-crm\venv\Scripts\graphify.exe update E:\slot-game-fixed-v2`
+- Never pretend you used the graph if the MCP call failed — say so and fall back to normal file inspection.

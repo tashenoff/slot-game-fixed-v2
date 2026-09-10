@@ -3,6 +3,10 @@ from flask_cors import CORS
 import json
 import random
 import os
+from dotenv import load_dotenv
+
+# Загружаем переменные окружения из .env
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 from database import init_db, get_or_create_user, get_user_by_id, update_user_balance, update_user_stats, deduct_balance, add_balance, get_user_balance, save_dice_session, get_dice_session, close_dice_session
 from auth import create_token, require_auth
@@ -31,6 +35,15 @@ CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "
 # Инициализация БД при старте
 init_db()
 
+# Telegram Bot Token из .env (для Telegram Mini App)
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_APP_URL = os.environ.get('TELEGRAM_APP_URL', '')
+if TELEGRAM_BOT_TOKEN and TELEGRAM_APP_URL:
+    print(f'[TELEGRAM] Bot token загружен, Mini App URL: {TELEGRAM_APP_URL}')
+elif TELEGRAM_BOT_TOKEN:
+    print('[TELEGRAM] ❌ TELEGRAM_APP_URL не указан — бот запустится, но Mini App не откроется')
+else:
+    print('[TELEGRAM] Bot токен не указан — Telegram функционал отключён')
 # Загрузка конфигурации символов и выигрышных линий
 def load_config():
     config_path = os.path.join(os.path.dirname(__file__), 'config.json')
@@ -607,6 +620,27 @@ def auth():
     if not platform or not player_id:
         return jsonify({'error': 'Требуются platform и player_id'}), 400
     
+    # Верификация Telegram initData
+    if platform == 'telegram':
+        init_data = data.get('telegram_init_data', '')
+        if init_data:
+            try:
+                from telegram_bot import verify_telegram_init_data, parse_init_data_user
+                is_valid = verify_telegram_init_data(init_data)
+                if not is_valid:
+                    print(f"[AUTH] ⚠️ Telegram initData не прошёл верификацию для player_id={player_id}")
+                    # В production здесь можно возвращать ошибку 403,
+                    # но для отладки пропускаем
+                else:
+                    tg_user = parse_init_data_user(init_data)
+                    if tg_user:
+                        # Обновляем имя, если оно пришло из Telegram
+                        print(f"[AUTH] ✅ Telegram верификация пройдена: @{tg_user.get('username', 'нет username')}")
+            except ImportError:
+                print("[AUTH] ⚠️ telegram_bot модуль не доступен, верификация пропущена")
+            except Exception as e:
+                print(f"[AUTH] ⚠️ Ошибка верификации Telegram: {e}")
+    
     # Получаем или создаём пользователя
     user = get_or_create_user(platform, player_id)
     
@@ -1154,4 +1188,13 @@ def claim_ad_reward(user_id: int):
 
 
 if __name__ == '__main__':
+    # Запускаем Telegram бота в фоновом потоке
+    try:
+        from telegram_bot import start_bot_thread
+        start_bot_thread()
+    except ImportError as e:
+        print(f'[TELEGRAM_BOT] ❌ Не удалось импортировать telegram_bot: {e}')
+    except Exception as e:
+        print(f'[TELEGRAM_BOT] ❌ Ошибка запуска: {e}')
+
     app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)

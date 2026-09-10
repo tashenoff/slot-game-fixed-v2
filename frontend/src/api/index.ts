@@ -38,12 +38,18 @@ export interface AuthResponse {
 /**
  * Авторизация на сервере по platform + player_id
  */
-export const auth = async (platform: string, playerId: string): Promise<AuthResponse> => {
+export const auth = async (platform: string, playerId: string, telegramInitData?: string): Promise<AuthResponse> => {
   try {
-    const response = await api.post('/auth', {
+    const body: Record<string, unknown> = {
       platform,
       player_id: playerId,
-    });
+    };
+    // Для Telegram передаём initData для верификации на сервере
+    if (telegramInitData) {
+      body.telegram_init_data = telegramInitData;
+    }
+
+    const response = await api.post('/auth', body);
     
     // Сохраняем токен
     authToken = response.data.token;

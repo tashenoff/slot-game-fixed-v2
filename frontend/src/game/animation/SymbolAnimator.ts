@@ -26,8 +26,8 @@ export class SymbolAnimator {
     animFrame: number;
   } | null = null;
   private useDarkOverlay: boolean;
-  /** Имя дочернего Graphics для тёмной накладки */
-  static readonly DIM_OVERLAY_NAME = '_dimOverlay';
+  /** Tint для затемнения невыигрышных символов (вместо прозрачности) */
+  static readonly DIM_TINT = 0x777777;
 
   constructor(config: SlotConfig, reelManager: ReelManager, symbolFactory: SymbolFactory, useDarkOverlay?: boolean) {
     this.config = config;
@@ -75,75 +75,25 @@ export class SymbolAnimator {
   }
 
   /**
-   * Возвращает размер символа в пикселях
-   */
-  private getSymbolPixelSize(): number {
-    const { cellWidth, cellHeight, dimensions } = this.config;
-    const maxSize = Math.min(cellWidth, cellHeight);
-    return maxSize * dimensions.symbolSizeRatio;
-  }
-
-  /**
-   * Создать тёмную полупрозрачную накладку поверх спрайта (альтернатива alpha)
-   */
-  private addDimOverlay(sprite: PIXI.Sprite): void {
-    if (sprite.getChildByName(SymbolAnimator.DIM_OVERLAY_NAME)) return;
-    const size = this.getSymbolPixelSize();
-    const overlay = new PIXI.Graphics();
-    overlay.name = SymbolAnimator.DIM_OVERLAY_NAME;
-    overlay.beginFill(0x000000, 0.55);
-    overlay.drawRoundedRect(-size / 2, -size / 2, size, size, 4);
-    overlay.endFill();
-    sprite.addChild(overlay);
-  }
-
-  /**
-   * Удалить тёмную накладку со спрайта
-   */
-  private removeDimOverlay(sprite: PIXI.Sprite): void {
-    const overlay = sprite.getChildByName(SymbolAnimator.DIM_OVERLAY_NAME);
-    if (overlay) {
-      sprite.removeChild(overlay);
-      overlay.destroy();
-    }
-  }
-
-  /**
-   * Удалить накладки со всех символов
-   */
-  private clearAllDimOverlays(): void {
-    const { cols, rows } = this.config.dimensions;
-    for (let col = 0; col < cols; col++) {
-      for (let row = 0; row < rows; row++) {
-        const sprite = this.reelManager.getSymbol(col, row);
-        if (sprite) this.removeDimOverlay(sprite);
-      }
-    }
-  }
-
-  /**
-   * Затемнить невыигрышные символы
+   * Затемнить невыигрышные символы через tint (темнеет сам спрайт, дети наследуют)
    * winPositions содержит логические координаты в формате "col_row"
    */
   dimNonWinSymbols(winPositions: Set<string>): void {
     const { cols, rows } = this.config.dimensions;
 
-    // Итерируем по ЛОГИЧЕСКИМ координатам (как на сервере)
     for (let col = 0; col < cols; col++) {
       for (let row = 0; row < rows; row++) {
-        // getSymbol автоматически транспонирует координаты в мобильном режиме
         const sprite = this.reelManager.getSymbol(col, row);
         if (!sprite) continue;
 
-        // Ключ в логических координатах
         const key = `${col}_${row}`;
         if (winPositions.has(key)) {
           sprite.alpha = 1.0;
-          this.removeDimOverlay(sprite);
+          sprite.tint = 0xffffff;
         } else {
+          sprite.alpha = 1.0;
           if (this.useDarkOverlay) {
-            sprite.alpha = 1.0;
-            this.addDimOverlay(sprite);
+            sprite.tint = SymbolAnimator.DIM_TINT;
           } else {
             sprite.alpha = this.config.visual.nonWinAlpha;
           }
@@ -155,27 +105,28 @@ export class SymbolAnimator {
 
   /**
    * Каскадная подсветка выигрышных символов
-   * Сначала все символы затемняются, затем выигрышные поочередно становятся яркими
-   * с задержкой между каждым
+   * Сначала ВСЕ символы затемняются, затем выигрышные плавно становятся яркими по очереди
    */
   cascadeHighlight(winPositions: Set<string>): void {
     const { cols, rows } = this.config.dimensions;
-    const cascadeDelay = 0.08; // секунды между подсветкой символов (80ms)
+    const cascadeDelay = 0.22;
+    const revealDuration = 0.38;
+    const startOffset = 0.12;
 
-    // Останавливаем предыдущий каскад, если был
     if (this.cascadeState) {
       this.cascadeState.queue.forEach(item => gsap.killTweensOf(item.sprite));
       this.cascadeState = null;
     }
 
-    // 1. Сначала затемняем ВСЕ символы (включая выигрышные)
     for (let col = 0; col < cols; col++) {
       for (let row = 0; row < rows; row++) {
         const sprite = this.reelManager.getSymbol(col, row);
         if (!sprite) continue;
+
+        gsap.killTweensOf(sprite);
+        sprite.alpha = 1.0;
         if (this.useDarkOverlay) {
-          sprite.alpha = 1.0;
-          this.addDimOverlay(sprite);
+          sprite.tint = SymbolAnimator.DIM_TINT;
         } else {
           sprite.alpha = this.config.visual.nonWinAlpha;
         }
@@ -183,7 +134,6 @@ export class SymbolAnimator {
       }
     }
 
-    // 2. Собираем очередь выигрышных символов (только уникальные)
     const queue: { col: number; row: number; sprite: PIXI.Sprite }[] = [];
     const usedKeys = new Set<string>();
     winPositions.forEach(key => {
@@ -194,35 +144,41 @@ export class SymbolAnimator {
       if (!sprite) return;
       queue.push({ col, row, sprite });
     });
+    queue.sort((a, b) => a.col - b.col || a.row - b.row);
 
     if (queue.length === 0) return;
 
-    // 3. GSAP Timeline: каскадная подсветка
-    const tl = gsap.timeline();
+    const dimChannel = (SymbolAnimator.DIM_TINT >> 16) & 0xff;
+    const tl = gsap.timeline({ delay: startOffset });
+
     queue.forEach((item, i) => {
-      if (this.useDarkOverlay) {
-        // Удаляем overlay — символ становится ярким
-        tl.call(() => {
-          this.removeDimOverlay(item.sprite);
-        }, [], i * cascadeDelay)
-        .call(() => {
-          this.dimmedSymbols.delete(item.sprite);
-          this.animateWinSymbol(item.col, item.row);
-        }, [], `-=${0.03}`);
-      } else {
-        tl.to(item.sprite, {
-          alpha: 1.0,
-          duration: 0.15,
-          ease: 'power2.out',
-        }, i * cascadeDelay)
-        .call(() => {
-          this.dimmedSymbols.delete(item.sprite);
-          this.animateWinSymbol(item.col, item.row);
-        }, [], `-=${0.05}`);
-      }
+      const at = i * cascadeDelay;
+      const colorProxy = { c: dimChannel };
+
+      tl.to(colorProxy, {
+        c: 255,
+        duration: revealDuration,
+        ease: 'power2.out',
+        onUpdate: () => {
+          const v = Math.round(colorProxy.c);
+          item.sprite.tint = (v << 16) | (v << 8) | v;
+        },
+      }, at);
+
+      tl.to(item.sprite, {
+        alpha: 1.0,
+        duration: revealDuration,
+        ease: 'power2.out',
+      }, at);
+
+      tl.call(() => {
+        item.sprite.tint = 0xffffff;
+        item.sprite.alpha = 1.0;
+        this.dimmedSymbols.delete(item.sprite);
+        this.animateWinSymbol(item.col, item.row);
+      }, [], at + revealDuration * 0.55);
     });
 
-    // Сохраняем для возможности отмены
     this.cascadeState = {
       startTime: performance.now(),
       delay: cascadeDelay * 1000,
@@ -235,12 +191,18 @@ export class SymbolAnimator {
    * Восстановить яркость всех символов
    */
   resetSymbolsAlpha(): void {
-    this.dimmedSymbols.forEach(sprite => {
-      if (!sprite.destroyed) {
-        sprite.alpha = 1.0;
-        this.removeDimOverlay(sprite);
+    // Сбрасываем tint и alpha у ВСЕХ символов, а не только у dimmedSymbols,
+    // потому что tint не сбрасывается при смене текстуры в PixiJS
+    const { cols, rows } = this.config.dimensions;
+    for (let col = 0; col < cols; col++) {
+      for (let row = 0; row < rows; row++) {
+        const sprite = this.reelManager.getSymbol(col, row);
+        if (sprite && !sprite.destroyed) {
+          sprite.alpha = 1.0;
+          sprite.tint = 0xffffff;
+        }
       }
-    });
+    }
     this.dimmedSymbols.clear();
   }
 
@@ -300,7 +262,6 @@ export class SymbolAnimator {
     }
 
     this.resetSymbolsAlpha();
-    this.clearAllDimOverlays();
     this.clearAllBorders();
     this.stopAllWinAnimations();
   }

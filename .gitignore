@@ -1,6 +1,11 @@
 node_modules/
+/graphify-out/
 
 # Database files
 *.db
 *.sqlite
 *.sqlite3
+
+# Environment files with secrets
+backend/.env
+frontend/.env

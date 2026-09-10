@@ -1,4 +1,6 @@
 flask==2.0.1
 flask-cors==3.0.10
 werkzeug==2.0.1
+python-dotenv==1.0.1
+pyTelegramBotAPI==4.22.0
 pytest==6.2.5
